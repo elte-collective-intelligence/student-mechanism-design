@@ -1,4 +1,6 @@
 #!/bin/bash
+# Navigate to the script's directory (optional)
+cd "$(dirname "$0")"
 
 EXPERIMENTS_DIR="./experiments"
 CONTAINER="scyard.sif"
@@ -15,6 +17,7 @@ for EXP_DIR in "$EXPERIMENTS_DIR"/*/; do
     mkdir -p "$LOG_DIR"
 
     apptainer run \
+        --bind ./:/app \
         --bind "$EXP_DIR:/app/experiment" \
         "$CONTAINER" \
         --config "/app/experiment/config.yml" \
