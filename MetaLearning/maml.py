@@ -3,7 +3,7 @@ import torch
 from torch import optim
 import torch.nn.functional as F
 import numpy as np
-from logging import Logger
+from logger import Logger
 
 from MetaLearning.base_meta import BaseMetaLearningSystem
 

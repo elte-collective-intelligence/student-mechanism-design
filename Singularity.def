@@ -1,0 +1,34 @@
+Bootstrap: docker
+From: continuumio/miniconda3
+
+%labels
+    Version v1.0
+
+%environment
+    # Activate the conda environment by default
+    export PATH="/opt/conda/envs/scyard/bin:$PATH"
+
+%post
+    apt-get update && apt-get install -y gcc && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+    # Install mamba
+    /opt/conda/bin/conda install mamba -n base -c conda-forge -y
+
+    # Update conda
+    /opt/conda/bin/mamba update -n base -c defaults conda -y
+
+    # Create the conda environment using mamba
+    /opt/conda/bin/mamba env create -f /app/environment.yml
+    
+    # Ensure the environment is activated by default
+    echo "source activate scyard" >> /root/.bashrc
+
+
+%files
+    # Copy your application files into /app inside the container
+    . /app
+
+%runscript
+    #!/bin/bash
+    # Activate the conda environment and run the main.py script
+    exec /opt/conda/bin/conda run --no-capture-output -n scyard python /app/main.py
