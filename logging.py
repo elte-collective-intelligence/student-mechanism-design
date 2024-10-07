@@ -1,5 +1,3 @@
-# logging_monitoring.py
-
 import logging
 from torch.utils.tensorboard import SummaryWriter
 import wandb
