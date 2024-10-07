@@ -5,10 +5,9 @@ from copy import copy
 import numpy as np
 from gymnasium.spaces import Discrete, MultiDiscrete
 
-from pettingzoo import ParallelEnv
+from Enviroment.base_env import BaseEnvironment
 
-
-class CustomEnvironment(ParallelEnv):
+class CustomEnvironment(BaseEnvironment):
     """The metadata holds environment constants.
 
     The "name" metadata allows the environment to be pretty printed.
