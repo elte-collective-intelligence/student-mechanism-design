@@ -1,5 +1,5 @@
 #!/bin/bash
-# Navigate to the script's directory (optional)
+
 cd "$(dirname "$0")"
 
 EXPERIMENTS_DIR="./experiments"
@@ -20,13 +20,16 @@ for EXP_DIR in "$EXPERIMENTS_DIR"/*/; do
         --bind ./:/app \
         --bind "$EXP_DIR:/app/experiment" \
         "$CONTAINER" \
+        python /app/main.py "$@" \
         --config "/app/experiment/config.yml" \
         --log_dir "/app/experiment/logs" \
         --save_path "/app/experiment/maml_policy.pth" \
+        --wandb_api_key "$WANDB_API_KEY" \
         --wandb_project "$WANDB_PROJECT" \
         --wandb_entity "$WANDB_ENTITY" \
         --wandb_run_name "$EXP_NAME" \
         --wandb_resume
+
 
     echo "Experiment $EXP_NAME completed."
     echo "Logs and model saved in $EXP_DIR"

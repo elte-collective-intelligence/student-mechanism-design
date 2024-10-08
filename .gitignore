@@ -1,3 +1,4 @@
 *.sif
 __pycache__/
 logs/
+.env

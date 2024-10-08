@@ -39,5 +39,16 @@ From: continuumio/miniconda3
 
 %runscript
     #!/bin/bash
-    # Activate the conda environment and run the main.py script with passed arguments
-    exec /opt/conda/bin/conda run --no-capture-output -n scyard python /app/main.py "$@"
+    # Exit immediately if a command exits with a non-zero status
+    set -e
+
+    # Initialize Conda (adjust the path if Conda is installed elsewhere)
+    source /opt/conda/etc/profile.d/conda.sh
+
+    # Activate the 'scyard' Conda environment
+    conda activate scyard
+
+    # Execute the passed command within the activated environment
+    exec "$@"
+
+

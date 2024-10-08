@@ -9,6 +9,7 @@ from logger import Logger
 def main(args):
     logger = Logger(
         log_dir=args.log_dir,
+        wandb_api_key=args.wandb_api_key,
         wandb_project=args.wandb_project,
         wandb_entity=args.wandb_entity,
         wandb_run_name=args.wandb_run_name,
@@ -48,6 +49,7 @@ if __name__ == "__main__":
     parser.add_argument('--save_path', type=str, default='maml_policy.pth', help='Path to save the trained model')
 
     parser.add_argument('--log_dir', type=str, default='logs', help='Directory where logs will be saved')
+    parser.add_argument('--wandb_api_key', type=str, help='Weights & Biases api key')
     parser.add_argument('--wandb_project', type=str, help='Weights & Biases project name')
     parser.add_argument('--wandb_entity', type=str, help='Weights & Biases entity (user or team)')
     parser.add_argument('--wandb_run_name', type=str, help='Custom name for the Weights & Biases run')
