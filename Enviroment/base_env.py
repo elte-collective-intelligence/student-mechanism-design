@@ -1,12 +1,4 @@
-# abstract_custom_environment.py
-
-import functools
-import random
-from copy import copy
 from abc import ABC, abstractmethod
-
-import numpy as np
-from gymnasium.spaces import Discrete, MultiDiscrete
 from pettingzoo import ParallelEnv
 
 class BaseEnvironment(ParallelEnv, ABC):

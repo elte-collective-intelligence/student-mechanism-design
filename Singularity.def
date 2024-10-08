@@ -1,0 +1,54 @@
+Bootstrap: docker
+From: continuumio/miniconda3
+
+%labels
+    Version v1.0
+
+%environment
+    # Activate the conda environment by default
+    export PATH="/opt/conda/envs/scyard/bin:$PATH"
+
+%post
+    # Update package lists
+    apt-get update
+
+    # Install GCC and other essential build tools
+    apt-get install -y build-essential gcc g++ make
+
+    # Install additional dependencies if required
+    apt-get install -y libffi-dev libssl-dev
+
+    # Clean up to reduce image size
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+    # Install Mamba for faster environment creation
+    /opt/conda/bin/conda install mamba -n base -c conda-forge -y
+
+    # Update conda using mamba
+    /opt/conda/bin/mamba update -n base -c defaults conda -y
+
+    # Create the conda environment using mamba
+    /opt/conda/bin/mamba env create -f /app/environment.yml
+
+    # Ensure the environment is activated by default
+    echo "source activate scyard" >> /root/.bashrc
+
+%files
+    # Copy your application files into /app inside the container
+    . /app
+
+%runscript
+    #!/bin/bash
+    # Exit immediately if a command exits with a non-zero status
+    set -e
+
+    # Initialize Conda (adjust the path if Conda is installed elsewhere)
+    source /opt/conda/etc/profile.d/conda.sh
+
+    # Activate the 'scyard' Conda environment
+    conda activate scyard
+
+    # Execute the passed command within the activated environment
+    exec "$@"
+
+

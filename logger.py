@@ -1,5 +1,3 @@
-# logging_monitoring.py
-
 import logging
 from torch.utils.tensorboard import SummaryWriter
 import wandb
@@ -11,6 +9,7 @@ class Logger:
     def __init__(
         self, 
         log_dir='logs', 
+        wandb_api_key=None,
         wandb_project=None, 
         wandb_entity=None, 
         wandb_config=None, 
@@ -59,8 +58,10 @@ class Logger:
                 "dir": log_dir,
                 "resume": "allow" if wandb_resume else False
             }
+            
             # Remove None values to avoid wandb warnings
             wandb_kwargs = {k: v for k, v in wandb_kwargs.items() if v is not None}
+            wandb.login(key=wandb_api_key)
             wandb.init(**wandb_kwargs)
             self.logger.info("Weights & Biases initialized.")
 
