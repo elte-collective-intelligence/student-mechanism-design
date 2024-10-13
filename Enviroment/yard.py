@@ -3,9 +3,12 @@ import random
 from copy import copy
 
 import numpy as np
-from gymnasium.spaces import Discrete, MultiDiscrete
+import matplotlib.pyplot as plt
+import networkx as nx
+from gymnasium.spaces import Discrete, MultiDiscrete, Graph
 
 from Enviroment.base_env import BaseEnvironment
+from Enviroment.graph_layout import ConnectedGraph
 
 class CustomEnvironment(BaseEnvironment):
     """The metadata holds environment constants.
@@ -14,33 +17,17 @@ class CustomEnvironment(BaseEnvironment):
     """
 
     metadata = {
-        "name": "custom_environment_v0",
+        "name": "scotland_yard_env",
     }
 
-    def __init__(self):
-        """The init method takes in environment arguments.
-
-        Should define the following attributes:
-        - escape x and y coordinates
-        - guard x and y coordinates
-        - prisoner x and y coordinates
-        - timestamp
-        - possible_agents
-
-        Note: as of v1.18.1, the action_spaces and observation_spaces attributes are deprecated.
-        Spaces should be defined in the action_space() and observation_space() methods.
-        If these methods are not overridden, spaces will be inferred from self.observation_spaces/action_spaces, raising a warning.
-
-        These attributes should not be changed after initialization.
+    def __init__(self, number_of_agents):
         """
-        self.escape_y = None
-        self.escape_x = None
-        self.guard_y = None
-        self.guard_x = None
-        self.prisoner_y = None
-        self.prisoner_x = None
-        self.timestep = None
-        self.possible_agents = ["prisoner", "guard"]
+        The init method takes in environment arguments.
+        """
+        self.number_of_agents = number_of_agents
+        self.observation_graph = ConnectedGraph(node_space=Discrete(0), edge_space=Discrete(4, start= 1))
+        self.reset()
+
 
     def reset(self, seed=None, options=None):
         """Reset set the environment to a starting point.
@@ -56,24 +43,18 @@ class CustomEnvironment(BaseEnvironment):
 
         And must set up the environment so that render(), step(), and observe() can be called without issues.
         """
-        self.agents = copy(self.possible_agents)
-        self.timestep = 0
+        self.board = self.observation_graph.sample(num_nodes=20,num_edges=30)
 
-        self.prisoner_x = 0
-        self.prisoner_y = 0
-
-        self.guard_x = 6
-        self.guard_y = 6
-
-        self.escape_x = random.randint(2, 5)
-        self.escape_y = random.randint(2, 5)
+        self.agents = ["MrX"] + [f"Police{n}" for n in range(self.number_of_agents-1)]
+        agent_starting_postions = list(np.random.choice(self.board.nodes.shape[0], size=self.number_of_agents, replace=False, seed=seed))
+        
+        self.MrX_pos = [agent_starting_postions[0]]
+        self.police_positions = agent_starting_postions[1:]
 
         observations = {
-            a: (
-                self.prisoner_x + 7 * self.prisoner_y,
-                self.guard_x + 7 * self.guard_y,
-                self.escape_x + 7 * self.escape_y,
-            )
+            a : {"MrX_pos": agent_starting_postions[0],
+                 "Polices_pos" : agent_starting_postions[1:],
+                 "Currency": 1000000000000 if a == "MrX" else 20}
             for a in self.agents
         }
 
@@ -97,52 +78,41 @@ class CustomEnvironment(BaseEnvironment):
         And any internal state used by observe() or render()
         """
         # Execute actions
-        prisoner_action = actions["prisoner"]
-        guard_action = actions["guard"]
-
-        if prisoner_action == 0 and self.prisoner_x > 0:
-            self.prisoner_x -= 1
-        elif prisoner_action == 1 and self.prisoner_x < 6:
-            self.prisoner_x += 1
-        elif prisoner_action == 2 and self.prisoner_y > 0:
-            self.prisoner_y -= 1
-        elif prisoner_action == 3 and self.prisoner_y < 6:
-            self.prisoner_y += 1
-
-        if guard_action == 0 and self.guard_x > 0:
-            self.guard_x -= 1
-        elif guard_action == 1 and self.guard_x < 6:
-            self.guard_x += 1
-        elif guard_action == 2 and self.guard_y > 0:
-            self.guard_y -= 1
-        elif guard_action == 3 and self.guard_y < 6:
-            self.guard_y += 1
+        mrX = actions["MrX"]
+        mrx_pos = (self.MrX_pos + self.police_positions)[self.agents.index("MrX")]
+        pos_to_go = np.concatenate([self.board.edge_links[self.board.edge_links[:,0] == mrx_pos][:,1],
+                                        self.board.edge_links[self.board.edge_links[:,1] == mrx_pos][:,0]])[mrX]
+        if pos_to_go not in self.police_positions:
+            self.MrX_pos = [pos_to_go]
+        
+        for police in actions.keys():
+            if police != "MrX":
+                police_action = actions[police]
+                police_pos = (self.MrX_pos + self.police_positions)[self.agents.index(police)]
+                pos_to_go = np.concatenate([self.board.edge_links[self.board.edge_links[:,0] == police_pos][:,1],
+                                                self.board.edge_links[self.board.edge_links[:,1] == police_pos][:,0]])[police_action]
+                if pos_to_go not in self.police_positions:
+                    self.police_positions[self.agents.index(police)] = pos_to_go
 
         # Check termination conditions
         terminations = {a: False for a in self.agents}
         rewards = {a: 0 for a in self.agents}
-        if self.prisoner_x == self.guard_x and self.prisoner_y == self.guard_y:
-            rewards = {"prisoner": -1, "guard": 1}
-            terminations = {a: True for a in self.agents}
-
-        elif self.prisoner_x == self.escape_x and self.prisoner_y == self.escape_y:
-            rewards = {"prisoner": 1, "guard": -1}
+        if self.MrX_pos in self.police_positions:
+            rewards = { a : (-1 if a == "MrX" else 1) for a in self.agents}
             terminations = {a: True for a in self.agents}
 
         # Check truncation conditions (overwrites termination conditions)
         truncations = {a: False for a in self.agents}
         if self.timestep > 100:
-            rewards = {"prisoner": 0, "guard": 0}
-            truncations = {"prisoner": True, "guard": True}
+            rewards = { a : (1 if a == "MrX" else 0) for a in self.agents}
+            truncations = {a: True for a in self.agents}
         self.timestep += 1
 
         # Get observations
         observations = {
-            a: (
-                self.prisoner_x + 7 * self.prisoner_y,
-                self.guard_x + 7 * self.guard_y,
-                self.escape_x + 7 * self.escape_y,
-            )
+            a : {"MrX_pos": self.MrX_pos[0],
+                 "Polices_pos" : self.police_positions[1:],
+                 "Currency": 1000000000000 if a == "MrX" else 20}
             for a in self.agents
         }
 
@@ -156,11 +126,16 @@ class CustomEnvironment(BaseEnvironment):
 
     def render(self):
         """Renders the environment."""
-        grid = np.full((7, 7), " ")
-        grid[self.prisoner_y, self.prisoner_x] = "P"
-        grid[self.guard_y, self.guard_x] = "G"
-        grid[self.escape_y, self.escape_x] = "E"
-        print(f"{grid} \n")
+        G = nx.DiGraph()
+        # Add edges and their attributes from the GraphInstance
+        for edge,edge_w in zip(self.board.edge_links, self.board.edges):
+            G.add_edge(edge[0], edge[1], weight=edge_w)
+            G.add_edge(edge[1], edge[0], weight=edge_w)
+        pos = nx.shell_layout(G)
+        nx.draw(G, pos, with_labels=True, node_color='green')
+        edge_labels = nx.get_edge_attributes(G, 'weight')
+        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
+        plt.show()
 
     # Observation space should be defined here.
     # lru_cache allows observation and action spaces to be memoized, reducing clock cycles required to get each agent's space.
@@ -168,10 +143,13 @@ class CustomEnvironment(BaseEnvironment):
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent):
         # gymnasium spaces are defined and documented here: https://gymnasium.farama.org/api/spaces/
-        return MultiDiscrete([7 * 7] * 3)
+        return self.board
 
     # Action space should be defined here.
     # If your spaces change over time, remove this line (disable caching).
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent):
-        return Discrete(4)
+        agent_pos = (self.MrX_pos + self.police_positions)[self.agents.index(agent)]
+        posible_nodes = np.concatenate([self.board.edge_links[self.board.edge_links[:,0] == agent_pos][:,1],
+                                        self.board.edge_links[self.board.edge_links[:,1] == agent_pos][:,0]])
+        return Discrete(posible_nodes.shape[0])
