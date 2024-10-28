@@ -18,12 +18,11 @@ for EXP_DIR in "$EXPERIMENTS_DIR"/*/; do
 
     apptainer run \
         --bind ./:/app \
-        --bind "$EXP_DIR:/app/experiment" \
+        --bind "$EXP_DIR:/app/experiments" \
         "$CONTAINER" \
         python /app/main.py "$@" \
-        --config "/app/experiment/config.yml" \
-        --log_dir "/app/experiment/logs" \
-        --save_path "/app/experiment/maml_policy.pth" \
+        --config "/app/experiments/config.yml" \
+        --log_dir "/app/experiments/logs" \
         --wandb_api_key "$WANDB_API_KEY" \
         --wandb_project "$WANDB_PROJECT" \
         --wandb_entity "$WANDB_ENTITY" \
