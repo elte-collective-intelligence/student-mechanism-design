@@ -20,12 +20,13 @@ class CustomEnvironment(BaseEnvironment):
         "name": "scotland_yard_env",
     }
 
-    def __init__(self, number_of_agents):
+    def __init__(self, number_of_agents, agent_money, difficulty):
         """
         The init method takes in environment arguments.
         """
+        self.difficulty = difficulty
         self.number_of_agents = number_of_agents
-        self.observation_graph = ConnectedGraph(node_space=Discrete(0), edge_space=Discrete(4, start= 1))
+        self.observation_graph = ConnectedGraph(node_space=Discrete(1), edge_space=Discrete(4, start= 1))
         self.reset()
 
 
@@ -45,12 +46,12 @@ class CustomEnvironment(BaseEnvironment):
         """
         self.board = self.observation_graph.sample(num_nodes=20,num_edges=30)
 
-        self.agents = ["MrX"] + [f"Police{n}" for n in range(self.number_of_agents-1)]
-        agent_starting_postions = list(np.random.choice(self.board.nodes.shape[0], size=self.number_of_agents, replace=False, seed=seed))
+        self.agents = ["MrX"] + [f"Police{n}" for n in range(self.number_of_agents)]
+        agent_starting_postions = list(np.random.choice(self.board.nodes.shape[0], size=self.number_of_agents+1, replace=False))
         
         self.MrX_pos = [agent_starting_postions[0]]
         self.police_positions = agent_starting_postions[1:]
-
+        self.timestep = 0
         observations = {
             a : {"MrX_pos": agent_starting_postions[0],
                  "Polices_pos" : agent_starting_postions[1:],
@@ -60,7 +61,7 @@ class CustomEnvironment(BaseEnvironment):
 
         # Get dummy infos. Necessary for proper parallel_to_aec conversion
         infos = {a: {} for a in self.agents}
-
+        
         return observations, infos
 
     def step(self, actions):
@@ -80,8 +81,12 @@ class CustomEnvironment(BaseEnvironment):
         # Execute actions
         mrX = actions["MrX"]
         mrx_pos = (self.MrX_pos + self.police_positions)[self.agents.index("MrX")]
-        pos_to_go = np.concatenate([self.board.edge_links[self.board.edge_links[:,0] == mrx_pos][:,1],
-                                        self.board.edge_links[self.board.edge_links[:,1] == mrx_pos][:,0]])[mrX]
+        possible_positions = np.concatenate([self.board.edge_links[self.board.edge_links[:,0] == mrx_pos][:,1],
+                                             self.board.edge_links[self.board.edge_links[:,1] == mrx_pos][:,0]])
+        if mrX < len(possible_positions):
+            pos_to_go = possible_positions[mrX]
+        else:
+            pos_to_go = mrx_pos  # Stay in the same position if the action is out of bounds
         if pos_to_go not in self.police_positions:
             self.MrX_pos = [pos_to_go]
         
@@ -89,22 +94,27 @@ class CustomEnvironment(BaseEnvironment):
             if police != "MrX":
                 police_action = actions[police]
                 police_pos = (self.MrX_pos + self.police_positions)[self.agents.index(police)]
-                pos_to_go = np.concatenate([self.board.edge_links[self.board.edge_links[:,0] == police_pos][:,1],
-                                                self.board.edge_links[self.board.edge_links[:,1] == police_pos][:,0]])[police_action]
+                possible_positions = np.concatenate([self.board.edge_links[self.board.edge_links[:,0] == police_pos][:,1],
+                                                     self.board.edge_links[self.board.edge_links[:,1] == police_pos][:,0]])
+                if police_action < len(possible_positions):
+                    pos_to_go = possible_positions[police_action]
+                else:
+                    pos_to_go = police_pos  # Stay in the same position if the action is out of bounds
+
                 if pos_to_go not in self.police_positions:
-                    self.police_positions[self.agents.index(police)] = pos_to_go
+                    self.police_positions[self.agents.index(police) - 1] = pos_to_go
 
         # Check termination conditions
         terminations = {a: False for a in self.agents}
         rewards = {a: 0 for a in self.agents}
         if self.MrX_pos in self.police_positions:
-            rewards = { a : (-1 if a == "MrX" else 1) for a in self.agents}
+            rewards = { a :  self.difficulty * (-1 if a == "MrX" else 1) for a in self.agents}
             terminations = {a: True for a in self.agents}
 
         # Check truncation conditions (overwrites termination conditions)
         truncations = {a: False for a in self.agents}
         if self.timestep > 100:
-            rewards = { a : (1 if a == "MrX" else 0) for a in self.agents}
+            rewards = { a : self.difficulty * (1 if a == "MrX" else 0) for a in self.agents}
             truncations = {a: True for a in self.agents}
         self.timestep += 1
 
