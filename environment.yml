@@ -26,3 +26,4 @@ dependencies:
       - wandb==0.18.3
       - matplotlib
       - networkx
+      - torch-geometric
