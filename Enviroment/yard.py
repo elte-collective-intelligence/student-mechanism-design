@@ -9,22 +9,24 @@ from Enviroment.graph_layout import ConnectedGraph
 class CustomEnvironment(BaseEnvironment):
     metadata = {"name": "scotland_yard_env"}
 
-    def __init__(self, number_of_agents, agent_money, difficulty, logger):
+    def __init__(self, number_of_agents, agent_money, reward_weights, logger, epoch):
         """
         Initialize the environment with given parameters.
         """
-        self.difficulty = difficulty  # Difficulty parameter (0 to 1)
+        self.reward_weights = reward_weights  # weight of each reward component
         self.number_of_agents = number_of_agents  # Number of police agents
         self.observation_graph = ConnectedGraph(node_space=Discrete(1), edge_space=Discrete(4, start=1))
         self.logger = logger
-        self.logger.log(f"Initializing CustomEnvironment with number_of_agents={number_of_agents}, agent_money={agent_money}, difficulty={difficulty}", level="debug")
+        self.logger.log(f"Initializing CustomEnvironment with number_of_agents={number_of_agents}, agent_money={agent_money}, reward_weights={reward_weights}", level="debug")
         self.agent_money = agent_money
         self.reset()
+        self.epoch = epoch
 
         hyperparams = {
             "number_of_agents": self.number_of_agents,
             "agent_money": self.agent_money,
         }
+        
         self.logger.log_hyperparameters(hyperparams)
         self.logger.log("Environment initialized with hyperparameters: " + str(hyperparams))
 
@@ -164,11 +166,11 @@ class CustomEnvironment(BaseEnvironment):
 
         if self.MrX_pos[0] in self.police_positions:
             self.logger.log("MrX has been caught by the police., ",level="debug")
-            rewards = {a: self.difficulty * (-1 if a == "MrX" else 1) for a in self.agents}
+            rewards = {a: (-1 if a == "MrX" else 1) for a in self.agents}
             terminations = {a: True for a in self.agents}
         elif self.timestep > 100:
             self.logger.log("Maximum timestep exceeded. Truncating episode., ",level="debug")
-            rewards = {a: self.difficulty * (1 if a == "MrX" else 0) for a in self.agents}
+            rewards = {a: (1 if a == "MrX" else 0) for a in self.agents}
             truncations = {a: True for a in self.agents}
         else:
             rewards = self.calculate_rewards()
@@ -191,11 +193,12 @@ class CustomEnvironment(BaseEnvironment):
         closest_distance = min(police_distances)
         avg_distance = np.mean(police_distances)
         self.logger.log(f"MrX closest distance: {closest_distance}, average distance: {avg_distance}, ", level="debug")
-
+        position_penalty = len(self._get_possible_moves(mrX_pos))
         mrX_reward = (
-            self.difficulty * (-1 / (closest_distance + 1))  # Distance penalty
-            + self.difficulty * (-1 / (avg_distance + 1))  # Average distance penalty
-            + (1 - self.difficulty) * (0.1 * self.timestep)  # Time reward
+            self.reward_weights["Mrx_closest"] * (-1 / (closest_distance + 1))  # Distance penalty
+            + self.reward_weights["Mrx_average"] * (-1 / (avg_distance + 1))  # Average distance penalty
+            + self.reward_weights["Mrx_position"] * (position_penalty)  # Position reward
+            + (1 - self.reward_weights["Mrx_time"]) * (0.1 * self.timestep)  # Time reward
         )
         rewards["MrX"] = mrX_reward
         self.logger.log(f"MrX reward: {mrX_reward}, ", level="debug")
@@ -205,10 +208,10 @@ class CustomEnvironment(BaseEnvironment):
         avg_distance_penalty_mrX = -1 / (avg_distance + 1)
         time_reward_mrX = 0.1 * self.timestep
 
-        self.logger.log_scalar('MrX_distance_penalty', distance_penalty_mrX, self.timestep)
-        self.logger.log_scalar('MrX_avg_distance_penalty', avg_distance_penalty_mrX, self.timestep)
-        self.logger.log_scalar('MrX_time_reward', time_reward_mrX, self.timestep)
-        self.logger.log_scalar('MrX_total_reward', mrX_reward, self.timestep)
+        self.logger.log_scalar(f'MrX_distance_penalty{self.epoch}', distance_penalty_mrX, self.timestep)
+        self.logger.log_scalar(f'MrX_avg_distance_penalty{self.epoch}', avg_distance_penalty_mrX, self.timestep)
+        self.logger.log_scalar(f'MrX_time_reward{self.epoch}', time_reward_mrX, self.timestep)
+        self.logger.log_scalar(f'MrX_total_reward{self.epoch}', mrX_reward, self.timestep)
 
         # Compute rewards for police
         for i, police in enumerate(self.agents[1:]):  # Skip MrX
@@ -223,10 +226,10 @@ class CustomEnvironment(BaseEnvironment):
             self.logger.log(f"{police} distance to MrX: {distance_to_mrX}, group penalty: {group_penalty}, position penalty: {position_penalty}, ", level="debug")
 
             police_reward = (
-                self.difficulty * (np.exp(-distance_to_mrX))  # Distance reward
-                - self.difficulty * (group_penalty)  # Grouping penalty
-                + self.difficulty * (position_penalty)  # Position reward
-                - (1 - self.difficulty) * (0.05 * self.timestep)  # Time penalty
+                self.reward_weights["Police_distance"] * (np.exp(-distance_to_mrX))  # Distance reward
+                + self.reward_weights["Police_group"] * (group_penalty)  # Grouping penalty
+                + self.reward_weights["Police_position"] * (position_penalty)  # Position reward
+                + (1 - self.reward_weights["Police_time"]) * (0.05 * self.timestep)  # Time penalty
             )
             rewards[police] = police_reward
             self.logger.log(f"{police} reward: {police_reward}, ", level="debug")
@@ -237,11 +240,11 @@ class CustomEnvironment(BaseEnvironment):
             position_reward_police = position_penalty
             time_penalty_police = 0.05 * self.timestep
 
-            self.logger.log_scalar(f'{police}_distance_reward', distance_reward_police, self.timestep)
-            self.logger.log_scalar(f'{police}_grouping_penalty', grouping_penalty_police, self.timestep)
-            self.logger.log_scalar(f'{police}_position_reward', position_reward_police, self.timestep)
-            self.logger.log_scalar(f'{police}_time_penalty', time_penalty_police, self.timestep)
-            self.logger.log_scalar(f'{police}_total_reward', police_reward, self.timestep)
+            self.logger.log_scalar(f'{police}_distance_reward{self.epoch}', distance_reward_police, self.timestep)
+            self.logger.log_scalar(f'{police}_grouping_penalty{self.epoch}', grouping_penalty_police, self.timestep)
+            self.logger.log_scalar(f'{police}_position_reward{self.epoch}', position_reward_police, self.timestep)
+            self.logger.log_scalar(f'{police}_time_penalty{self.epoch}', time_penalty_police, self.timestep)
+            self.logger.log_scalar(f'{police}_total_reward{self.epoch}', police_reward, self.timestep)
 
         self.logger.log(f"All rewards calculated: {rewards}, ", level="debug")
         return rewards
@@ -301,6 +304,13 @@ class CustomEnvironment(BaseEnvironment):
         )
         self.logger.log(f"Possible moves from position {pos}: {possible_moves}, ",level="debug")
         return possible_moves
+    
+    @functools.lru_cache(maxsize=None)
+    def action_space(self, agent):
+        agent_pos = (self.MrX_pos + self.police_positions)[self.agents.index(agent)]
+        posible_nodes = np.concatenate([self.board.edge_links[self.board.edge_links[:,0] == agent_pos][:,1],
+                                        self.board.edge_links[self.board.edge_links[:,1] == agent_pos][:,0]])
+        return Discrete(posible_nodes.shape[0])
 
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent):
@@ -320,25 +330,15 @@ class CustomEnvironment(BaseEnvironment):
         self.logger.log(f"Observation space for agent {agent}: {space}, ",level="debug")
         return space
 
-    @functools.lru_cache(maxsize=None)
-    def action_space(self, agent):
-        """
-        Define the action space for agents as node indices.
-        """
-        self.logger.log(f"Defining action space for agent {agent}., ",level="debug")
-        space = Discrete(self.board.nodes.shape[0])
-        self.logger.log(f"Action space for agent {agent}: {space}, ",level="debug")
-        return space
-
-    def render(self, mode="human"):
-        """
-        Render the current state of the environment.
-        Args:
-            mode (str): The mode of rendering. Defaults to "human".
-        """
-        self.logger.log("Rendering environment state.")
-        print("Timestep:", self.timestep)
-        print("MrX Position:", self.MrX_pos[0])
-        print("Police Positions:", self.police_positions)
-        print("Graph Edges:", self.board.edge_links)
-        self.logger.log(f"Rendered state at timestep {self.timestep}.")
+    def render(self):
+        """Renders the environment."""
+        G = nx.DiGraph()
+        # Add edges and their attributes from the GraphInstance
+        for edge,edge_w in zip(self.board.edge_links, self.board.edges):
+            G.add_edge(edge[0], edge[1], weight=edge_w)
+            G.add_edge(edge[1], edge[0], weight=edge_w)
+        pos = nx.shell_layout(G)
+        nx.draw(G, pos, with_labels=True, node_color='green')
+        edge_labels = nx.get_edge_attributes(G, 'weight')
+        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
+        plt.show()

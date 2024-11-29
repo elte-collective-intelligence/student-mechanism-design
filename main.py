@@ -12,9 +12,9 @@ from torch_geometric.data import Data
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 print(f"Using device: {device}")  # You may consider logging this instead
 
-class DifficultyNet(nn.Module):
-    def __init__(self, input_size=2, hidden_size=32, output_size=1):
-        super(DifficultyNet, self).__init__()
+class RewardWeightNet(nn.Module):
+    def __init__(self, input_size=2, hidden_size=32, output_size=8):
+        super(RewardWeightNet, self).__init__()
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(hidden_size, output_size)
@@ -38,10 +38,10 @@ def train(args):
     logger.log("Logger initialized.", level="debug")
 
     # Initialize DifficultyNet and move it to the GPU
-    difficulty_net = DifficultyNet().to(device)
+    reward_weight_net = RewardWeightNet().to(device)
     logger.log("DifficultyNet initialized and moved to device.")
 
-    optimizer_difficulty = optim.Adam(difficulty_net.parameters(), lr=0.001)
+    optimizer_difficulty = optim.Adam(reward_weight_net.parameters(), lr=0.001)
     logger.log("Optimizer for DifficultyNet initialized.",level="debug")
 
     criterion = nn.MSELoss()
@@ -56,17 +56,30 @@ def train(args):
 
         # Predict the difficulty from the number of agents and money
         inputs = torch.FloatTensor([[num_agents, agent_money]]).to(device)  # Move inputs to GPU
-        predicted_difficulty = difficulty_net(inputs)
-        logger.log(f"Epoch {epoch + 1}: Predicted difficulty: {predicted_difficulty.item()}")
+        predicted_weight = reward_weight_net(inputs)
+        print(predicted_weight)
+        reward_weights = {
+            "Police_distance" : predicted_weight[0,0],
+            "Police_group": predicted_weight[0,1],
+            "Police_position": predicted_weight[0,2],
+            "Police_time": predicted_weight[0,3],
+            "Mrx_closest": predicted_weight[0,4],
+            "Mrx_average": predicted_weight[0,5],
+            "Mrx_position": predicted_weight[0,6],
+            "Mrx_time": predicted_weight[0,7]
+        }
+
+        logger.log(f"Epoch {epoch + 1}: Predicted weights: {reward_weights}")
 
         # Create environment with predicted difficulty
         env = CustomEnvironment(
             number_of_agents=num_agents + 1,
             agent_money=agent_money,
-            difficulty=predicted_difficulty.item(),
-            logger=logger
+            reward_weights=reward_weights,
+            logger=logger,
+            epoch=epoch
         )
-        logger.log(f"Environment created with difficulty {predicted_difficulty.item()}.",level="debug")
+        logger.log(f"Environment created with weights {reward_weights}.",level="debug")
 
         # Determine node feature size from the environment
         node_feature_size = env.number_of_agents + 1  # Assuming node features exist
@@ -156,10 +169,10 @@ def train(args):
 
         # Train the DifficultyNet based on the difference between predicted and target difficulty
         target_tensor = torch.FloatTensor([target_difficulty]).to(device)  # Move target to GPU
-        loss = criterion(predicted_difficulty, target_tensor)
+        loss = criterion(predicted_weight, target_tensor)
         logger.log(
             f"Epoch {epoch + 1}: Loss: {loss.item()}, Win Ratio: {win_ratio}, "
-            f"Predicted Difficulty: {predicted_difficulty.item()}, Target Difficulty: {target_difficulty}"
+            f"Predicted Difficulty: {predicted_weight.item()}, Target Difficulty: {target_difficulty}"
         )
         optimizer_difficulty.zero_grad()
         loss.backward()

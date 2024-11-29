@@ -97,6 +97,17 @@ class Logger:
         if wandb.run:
             wandb.log({tag: value}, step=step)
 
+    def log_weights(self, weights, step):
+        """
+        Log model weights to TensorBoard.
+
+        Args:
+            weights (dict): Dictionary of model weights.
+            step (int): Step number.
+        """
+        for name, param in weights.items():
+            self.log_scalar(name, param, step)
+
     def log_metrics(self, metrics, step=None):
         """
         Log multiple metrics to TensorBoard and Weights & Biases.
