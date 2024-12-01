@@ -42,6 +42,8 @@ class CustomEnvironment(BaseEnvironment):
         agent_starting_positions = list(
             np.random.choice(self.board.nodes.shape[0], size=self.number_of_agents + 1, replace=False)
         )
+        self.agents_money = [10000000000] + [self.agent_money for _ in range(self.number_of_agents)]
+
         self.logger.log(f"Agent starting positions: {agent_starting_positions}", level="debug")
 
         self.MrX_pos = [agent_starting_positions[0]]
@@ -65,7 +67,7 @@ class CustomEnvironment(BaseEnvironment):
         self.logger.log(f"MrX current position: {mrx_pos}, action taken: {mrX_action}", level="debug")
 
         # Process MrX's action
-        possible_positions = self._get_possible_moves(mrx_pos)
+        possible_positions, _ = self._get_possible_moves(mrx_pos,0)
         self.logger.log(f"MrX possible moves from position {mrx_pos}: {possible_positions}", level="debug")
         if mrX_action < len(possible_positions):
             pos_to_go = possible_positions[mrX_action]
@@ -86,13 +88,14 @@ class CustomEnvironment(BaseEnvironment):
                 police_index = self.agents.index(police) - 1
                 police_pos = self.police_positions[police_index]
                 self.logger.log(f"{police} current position: {police_pos}, action taken: {actions[police]}", level="debug")
-                possible_positions = self._get_possible_moves(police_pos)
+                possible_positions, positions_costs = self._get_possible_moves(police_pos, police_index)
                 self.logger.log(f"{police} possible moves from position {police_pos}: {possible_positions}", level="debug")
 
                 police_action = actions[police]
                 if police_action < len(possible_positions):
                     pos_to_go = possible_positions[police_action]
                     self.logger.log(f"{police} moves to position {pos_to_go}", level="debug")
+
                 else:
                     pos_to_go = police_pos  # Stay in the same position if the action is out of bounds
                     self.logger.log(f"{police} action out of bounds. Staying at position {pos_to_go}, ",level="debug")
@@ -100,6 +103,8 @@ class CustomEnvironment(BaseEnvironment):
                 if pos_to_go not in self.police_positions:
                     self.police_positions[police_index] = pos_to_go
                     self.logger.log(f"{police} position updated to {self.police_positions[police_index]}, ",level="debug")
+                    self.agents_money[police_index] -= positions_costs[pos_to_go]
+
                 else:
                     self.logger.log(f"{police} move blocked by another police at position {pos_to_go}, ",level="debug")
 
@@ -148,7 +153,7 @@ class CustomEnvironment(BaseEnvironment):
                 "edge_features": edge_features,
                 "MrX_pos": self.MrX_pos[0],
                 "Polices_pos" : self.police_positions[1:],
-                "Currency": 1000000000000 if agent == "MrX" else 20
+                "Currency": self.agents_money[1:]
             }
             for agent in self.agents
         }
@@ -193,7 +198,7 @@ class CustomEnvironment(BaseEnvironment):
         closest_distance = min(police_distances)
         avg_distance = np.mean(police_distances)
         self.logger.log(f"MrX closest distance: {closest_distance}, average distance: {avg_distance}, ", level="debug")
-        position_penalty = len(self._get_possible_moves(mrX_pos))
+        position_penalty = len(self._get_possible_moves(mrX_pos,0)[0])
         mrX_reward = (
             self.reward_weights["Mrx_closest"] * (-1 / (closest_distance + 1))  # Distance penalty
             + self.reward_weights["Mrx_average"] * (-1 / (avg_distance + 1))  # Average distance penalty
@@ -222,7 +227,7 @@ class CustomEnvironment(BaseEnvironment):
                 for j, other_police_pos in enumerate(self.police_positions)
                 if i != j
             )
-            position_penalty = len(self._get_possible_moves(police_pos))
+            position_penalty = len(self._get_possible_moves(police_pos,i)[0])
             self.logger.log(f"{police} distance to MrX: {distance_to_mrX}, group penalty: {group_penalty}, position penalty: {position_penalty}, ", level="debug")
 
             police_reward = (
@@ -292,24 +297,39 @@ class CustomEnvironment(BaseEnvironment):
         self.logger.log("Adjacency matrix generated., ",level="debug")
         return adjacency_matrix
 
-    def _get_possible_moves(self, pos):
+    def _get_possible_moves(self, pos, agent_idx):
         """
         Get possible moves from a node position.
         """
+        mask1 = self.board.edge_links[:, 1] == pos
+        mask1[np.where(self.board.edges > self.agents_money[agent_idx])] = False
+
+        mask2 = self.board.edge_links[:, 0] == pos
+        mask2[np.where(self.board.edges > self.agents_money[agent_idx])] = False
         possible_moves = np.concatenate(
             [
-                self.board.edge_links[self.board.edge_links[:, 0] == pos][:, 1],
-                self.board.edge_links[self.board.edge_links[:, 1] == pos][:, 0],
+                self.board.edge_links[mask1][:, 1],
+                self.board.edge_links[mask2][:, 0],
             ]
         )
+        
         self.logger.log(f"Possible moves from position {pos}: {possible_moves}, ",level="debug")
-        return possible_moves
+        return possible_moves, np.concatenate([self.board.edges[mask1], self.board.edges[mask2]]) 
     
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent):
         agent_pos = (self.MrX_pos + self.police_positions)[self.agents.index(agent)]
-        posible_nodes = np.concatenate([self.board.edge_links[self.board.edge_links[:,0] == agent_pos][:,1],
-                                        self.board.edge_links[self.board.edge_links[:,1] == agent_pos][:,0]])
+        mask1 = self.board.edge_links[:, 1] == agent_pos
+        mask1[np.where(self.board.edges > self.agents_money[self.agents.index(agent)])] = False
+
+        mask2 = self.board.edge_links[:, 0] == agent_pos
+        mask2[np.where(self.board.edges > self.agents_money[self.agents.index(agent)])] = False
+        posible_nodes = np.concatenate(
+            [
+                self.board.edge_links[mask1][:, 1],
+                self.board.edge_links[mask2][:, 0],
+            ]
+        )
         return Discrete(posible_nodes.shape[0])
 
     @functools.lru_cache(maxsize=None)
@@ -341,4 +361,5 @@ class CustomEnvironment(BaseEnvironment):
         nx.draw(G, pos, with_labels=True, node_color='green')
         edge_labels = nx.get_edge_attributes(G, 'weight')
         nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
-        plt.show()
+        #plt.show()
+        plt.savefig(f"img{self.timestep}.png")
