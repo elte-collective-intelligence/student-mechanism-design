@@ -28,7 +28,7 @@ class Logger:
             wandb_resume (bool, optional): Whether to resume the wandb run if it exists.
         """
         self.logger = logging.getLogger('TrainingLogger')
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(logging.DEBUG)
 
         os.makedirs(log_dir, exist_ok=True)
 
@@ -41,7 +41,7 @@ class Logger:
 
         # File handler
         fh = logging.FileHandler(os.path.join(log_dir, 'training.log'))
-        fh.setLevel(logging.INFO)
+        fh.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
         self.logger.addHandler(fh)
 
@@ -75,6 +75,8 @@ class Logger:
         """
         if level == 'info':
             self.logger.info(message)
+        elif level == "debug":
+            self.logger.debug(message)
         elif level == 'warning':
             self.logger.warning(message)
         elif level == 'error':
@@ -94,6 +96,17 @@ class Logger:
         self.writer.add_scalar(tag, value, step)
         if wandb.run:
             wandb.log({tag: value}, step=step)
+
+    def log_weights(self, weights, step):
+        """
+        Log model weights to TensorBoard.
+
+        Args:
+            weights (dict): Dictionary of model weights.
+            step (int): Step number.
+        """
+        for name, param in weights.items():
+            self.log_scalar(name, param, step)
 
     def log_metrics(self, metrics, step=None):
         """

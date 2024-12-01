@@ -19,9 +19,5 @@ class BaseEnvironment(ParallelEnv, ABC):
         pass
 
     @abstractmethod
-    def observation_space(self, agent):
-        pass
-
-    @abstractmethod
     def action_space(self, agent):
         pass

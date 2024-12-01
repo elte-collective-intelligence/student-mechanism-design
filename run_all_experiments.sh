@@ -17,6 +17,7 @@ for EXP_DIR in "$EXPERIMENTS_DIR"/*/; do
     mkdir -p "$LOG_DIR"
 
     apptainer run \
+        --nv \
         --bind ./:/app \
         --bind "$EXP_DIR:/app/experiments" \
         "$CONTAINER" \
