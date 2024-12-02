@@ -46,13 +46,13 @@ def train(args):
     criterion = nn.MSELoss()
     logger.log("Loss function (MSELoss) initialized.",level="debug")
 
-    logger.log(f"Starting training with {args.num_agents} agents and {args.agent_money} money per agent.",level="debug")
+    logger.log(f"Starting training with {args.num_police_agents} agents and {args.agent_money} money per agent.",level="debug")
 
     for epoch in range(args.epochs):
         logger.log_scalar('epoch_step', epoch)
 
         logger.log(f"Starting epoch {epoch + 1}/{args.epochs}.",level="info")
-        num_agents = args.num_police_agents
+        num_agents = args.num_police_agents - 1
         agent_money = args.agent_money
 
         # Predict the difficulty from the number of agents and money
@@ -314,7 +314,6 @@ if __name__ == "__main__":
 
     # Default values for all parameters
     default_values = {
-        'num_agents': 2,
         'agent_money': 10.0,
         'state_size': 1,
         'action_size': 5,
