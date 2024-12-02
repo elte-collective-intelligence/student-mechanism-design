@@ -21,19 +21,20 @@ class CustomEnvironment(BaseEnvironment):
         self.agent_money = agent_money
         self.reset()
         self.epoch = epoch
-
+        self.episode = 0
         hyperparams = {
-            "number_of_agents": self.number_of_agents,
+            "number_of_agents": self.number_of_agents-1,
             "agent_money": self.agent_money,
         }
         
         self.logger.log_hyperparameters(hyperparams)
         self.logger.log("Environment initialized with hyperparameters: " + str(hyperparams))
 
-    def reset(self, seed=None, options=None):
+    def reset(self, episode=0, seed=None, options=None):
         """
         Reset the environment to its initial state.
         """
+        self.episode = episode
         self.logger.log("Resetting the environment.", level="debug")
         self.board = self.observation_graph.sample(num_nodes=20, num_edges=30)
         self.logger.log(f"Generated board with {self.board.nodes.shape[0]} nodes and {self.board.edge_links.shape[0]} edges.", level="debug")
@@ -213,10 +214,12 @@ class CustomEnvironment(BaseEnvironment):
         avg_distance_penalty_mrX = -1 / (avg_distance + 1)
         time_reward_mrX = 0.1 * self.timestep
 
-        self.logger.log_scalar(f'MrX_distance_penalty{self.epoch}', distance_penalty_mrX, self.timestep)
-        self.logger.log_scalar(f'MrX_avg_distance_penalty{self.epoch}', avg_distance_penalty_mrX, self.timestep)
-        self.logger.log_scalar(f'MrX_time_reward{self.epoch}', time_reward_mrX, self.timestep)
-        self.logger.log_scalar(f'MrX_total_reward{self.epoch}', mrX_reward, self.timestep)
+        self.logger.log_scalar("episode_step", self.timestep)
+
+        self.logger.log_scalar(f'episode/epoch_{self.epoch}/MrX_distance_penalty', distance_penalty_mrX)
+        self.logger.log_scalar(f'episode/epoch_{self.epoch}/MrX_avg_distance_penalty', avg_distance_penalty_mrX)
+        self.logger.log_scalar(f'episode/epoch_{self.epoch}/MrX_time_reward', time_reward_mrX)
+        self.logger.log_scalar(f'episode/epoch_{self.epoch}/MrX_total_reward', mrX_reward)
 
         # Compute rewards for police
         for i, police in enumerate(self.agents[1:]):  # Skip MrX
@@ -245,11 +248,11 @@ class CustomEnvironment(BaseEnvironment):
             position_reward_police = position_penalty
             time_penalty_police = 0.05 * self.timestep
 
-            self.logger.log_scalar(f'{police}_distance_reward{self.epoch}', distance_reward_police, self.timestep)
-            self.logger.log_scalar(f'{police}_grouping_penalty{self.epoch}', grouping_penalty_police, self.timestep)
-            self.logger.log_scalar(f'{police}_position_reward{self.epoch}', position_reward_police, self.timestep)
-            self.logger.log_scalar(f'{police}_time_penalty{self.epoch}', time_penalty_police, self.timestep)
-            self.logger.log_scalar(f'{police}_total_reward{self.epoch}', police_reward, self.timestep)
+            self.logger.log_scalar(f'episode/epoch_{self.epoch}/{police}_distance_reward', distance_reward_police)
+            self.logger.log_scalar(f'episode/epoch_{self.epoch}/{police}_grouping_penalty', grouping_penalty_police)
+            self.logger.log_scalar(f'episode/epoch_{self.epoch}/{police}_position_reward', position_reward_police)
+            self.logger.log_scalar(f'episode/epoch_{self.epoch}/{police}_time_penalty', time_penalty_police)
+            self.logger.log_scalar(f'episode/epoch_{self.epoch}/{police}_total_reward', police_reward)
 
         self.logger.log(f"All rewards calculated: {rewards}, ", level="debug")
         return rewards

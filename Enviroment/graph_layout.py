@@ -34,6 +34,8 @@ class ConnectedGraph(Graph):
         if np.all(visited):
             return True, None
         else:
-            return False, [np.random.choice(np.where(visited == True)[0]), np.random.choice(np.where(visited == False)[0])]
+            # return False, [np.random.choice(np.where(visited == True)[0]), np.random.choice(np.where(visited == False)[0])]
 
 
+
+            return False, [np.argmax(visited), np.argmin(visited)]

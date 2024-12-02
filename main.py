@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 from logger import Logger  # Your custom Logger class
-from RLAgent.dqn_agent import DQNAgent
 from RLAgent.gnn_agent import GNNAgent
 from Enviroment.yard import CustomEnvironment
 from torch_geometric.data import Data
@@ -50,14 +49,16 @@ def train(args):
     logger.log(f"Starting training with {args.num_agents} agents and {args.agent_money} money per agent.",level="debug")
 
     for epoch in range(args.epochs):
+        logger.log_scalar('epoch_step', epoch)
+
         logger.log(f"Starting epoch {epoch + 1}/{args.epochs}.",level="info")
-        num_agents = args.num_agents
+        num_agents = args.num_police_agents
         agent_money = args.agent_money
 
         # Predict the difficulty from the number of agents and money
         inputs = torch.FloatTensor([[num_agents, agent_money]]).to(device)  # Move inputs to GPU
         predicted_weight = reward_weight_net(inputs)
-        print(predicted_weight)
+        # print(predicted_weight)
         reward_weights = {
             "Police_distance" : predicted_weight[0,0],
             "Police_group": predicted_weight[0,1],
@@ -70,7 +71,7 @@ def train(args):
         }
 
         logger.log(f"Epoch {epoch + 1}: Predicted weights: {reward_weights}")
-
+        logger.log_weights(reward_weights)
         # Create environment with predicted difficulty
         env = CustomEnvironment(
             number_of_agents=num_agents + 1,
@@ -95,7 +96,7 @@ def train(args):
         # Train the MrX and Police agents in the environment
         for episode in range(args.num_episodes):
             logger.log(f"Epoch {epoch + 1}, Episode {episode + 1} started.",level="info")
-            state, _ = env.reset()
+            state, _ = env.reset(episode=episode)
             done = False
             total_reward = 0
 
@@ -157,10 +158,14 @@ def train(args):
                 logger.log(f"Total reward updated to: {total_reward}",level="debug")
 
             logger.log(f"Epoch {epoch + 1}, Episode {episode + 1}, Total Reward: {total_reward}",level="debug")
-            logger.log_scalar('total_reward', total_reward, epoch * args.num_episodes + episode)
+            # logger.log_scalar(f'Episode_total_reward{epoch}', total_reward, episode)
 
         # Evaluate performance and calculate the target difficulty
         logger.log(f"Evaluating agent balance after epoch {epoch + 1}.",level="debug")
+        logger.log_model(mrX_agent, 'MrX')
+        logger.log_model(police_agent, 'Police')
+        logger.log_model(reward_weight_net, 'RewardWeightNet')
+
         win_ratio = evaluate_agent_balance(mrX_agent, police_agent, env, args.num_eval_episodes, device)
         logger.log(f"Epoch {epoch + 1}: Win Ratio: {win_ratio}",level="info")
 
@@ -172,15 +177,15 @@ def train(args):
         loss = criterion(predicted_weight, target_tensor)
         logger.log(
             f"Epoch {epoch + 1}: Loss: {loss.item()}, Win Ratio: {win_ratio}, "
-            f"Predicted Difficulty: {predicted_weight.item()}, Target Difficulty: {target_difficulty}"
+            f"Predicted Difficulty: {predicted_weight}, Target Difficulty: {target_difficulty}"
         )
         optimizer_difficulty.zero_grad()
         loss.backward()
         optimizer_difficulty.step()
         logger.log(f"Epoch {epoch + 1}: Optimizer step completed.",level="debug")
 
-        logger.log_scalar('loss', loss.item(), epoch)
-        logger.log_scalar('win_ratio', win_ratio, epoch)
+        logger.log_scalar('epoch/loss', loss.item())
+        logger.log_scalar('epoch/win_ratio', win_ratio)
 
     logger.log("Training completed.")
     logger.close()
@@ -236,7 +241,7 @@ def evaluate_agent_balance(mrX_agent, police_agent, env, num_eval_episodes, devi
 
     for episode in range(num_eval_episodes):
         logger.log(f"Evaluation Episode {episode + 1} started.")
-        state, _ = env.reset()
+        state, _ = env.reset(episode=episode)
         done = False
         while not done:
 
@@ -282,23 +287,63 @@ def compute_target_difficulty(win_ratio, target_balance=0.5):
 
 if __name__ == "__main__":
     import argparse
+    import yaml
+
     parser = argparse.ArgumentParser(description="Train MrX and Police agents with dynamic difficulty prediction.")
     parser.add_argument('--config', type=str, help='Path to the YAML configuration file.')
 
-    parser.add_argument('--num_agents', type=int, default=2, help='Initial number of agents in the environment')
-    parser.add_argument('--agent_money', type=float, default=10.0, help='Initial money for each agent')
-    parser.add_argument('--state_size', type=int, default=1, help='State size for the agent')
-    parser.add_argument('--action_size', type=int, default=5, help='Action size for the agent')
-    parser.add_argument('--num_episodes', type=int, default=100, help='Number of episodes per epoch')
-    parser.add_argument('--num_eval_episodes', type=int, default=20, help='Number of evaluation episodes')
-    parser.add_argument('--epochs', type=int, default=10, help='Number of training epochs')
-    parser.add_argument('--num_police_agents', type=int, default=3, help='Number of police agents')
-    parser.add_argument('--log_dir', type=str, default='logs', help='Directory where logs will be saved')
-    parser.add_argument('--wandb_api_key', type=str, help='Weights & Biases API key')
-    parser.add_argument('--wandb_project', type=str, help='Weights & Biases project name')
-    parser.add_argument('--wandb_entity', type=str, help='Weights & Biases entity (user or team)')
-    parser.add_argument('--wandb_run_name', type=str, help='Custom name for the Weights & Biases run')
+    # Add all the other arguments with default=argparse.SUPPRESS
+    parser.add_argument('--num_agents', type=int, default=argparse.SUPPRESS, help='Initial number of agents in the environment')
+    parser.add_argument('--agent_money', type=float, default=argparse.SUPPRESS, help='Initial money for each agent')
+    parser.add_argument('--state_size', type=int, default=argparse.SUPPRESS, help='State size for the agent')
+    parser.add_argument('--action_size', type=int, default=argparse.SUPPRESS, help='Action size for the agent')
+    parser.add_argument('--num_episodes', type=int, default=argparse.SUPPRESS, help='Number of episodes per epoch')
+    parser.add_argument('--num_eval_episodes', type=int, default=argparse.SUPPRESS, help='Number of evaluation episodes')
+    parser.add_argument('--epochs', type=int, default=argparse.SUPPRESS, help='Number of training epochs')
+    parser.add_argument('--num_police_agents', type=int, default=argparse.SUPPRESS, help='Number of police agents')
+    parser.add_argument('--log_dir', type=str, default=argparse.SUPPRESS, help='Directory where logs will be saved')
+    parser.add_argument('--wandb_api_key', type=str, default=argparse.SUPPRESS, help='Weights & Biases API key')
+    parser.add_argument('--wandb_project', type=str, default=argparse.SUPPRESS, help='Weights & Biases project name')
+    parser.add_argument('--wandb_entity', type=str, default=argparse.SUPPRESS, help='Weights & Biases entity (user or team)')
+    parser.add_argument('--wandb_run_name', type=str, default=argparse.SUPPRESS, help='Custom name for the Weights & Biases run')
     parser.add_argument('--wandb_resume', action='store_true', help='Resume Weights & Biases run if it exists')
 
+    # Parse command-line arguments
     args = parser.parse_args()
+    args_dict = vars(args)
+
+    # Default values for all parameters
+    default_values = {
+        'num_agents': 2,
+        'agent_money': 10.0,
+        'state_size': 1,
+        'action_size': 5,
+        'num_episodes': 1,
+        'num_eval_episodes': 10,
+        'epochs': 10,
+        'num_police_agents': 3,
+        'log_dir': 'logs',
+        'wandb_api_key': None,
+        'wandb_project': None,
+        'wandb_entity': None,
+        'wandb_run_name': None,
+        'wandb_resume': False,
+    }
+
+    # If a config file is provided, load its parameters
+    if args.config:
+        with open(args.config, 'r') as f:
+            config_args = yaml.safe_load(f)
+        # Remove 'config' key if present to prevent overwriting
+        config_args.pop('config', None)
+    else:
+        config_args = {}
+
+    # Combine default values, config file, and command-line arguments
+    # Priority: command-line args > config file > default values
+    combined_args = {**default_values, **config_args, **args_dict}
+
+    # Convert combined_args to Namespace
+    args = argparse.Namespace(**combined_args)
+
     train(args)

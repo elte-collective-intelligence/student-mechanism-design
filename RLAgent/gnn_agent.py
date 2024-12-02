@@ -165,6 +165,11 @@ class GNNAgent:
         self.model.load_state_dict(torch.load(filepath, map_location=self.device))
         self.model.to(self.device)  # Ensure the model is on the correct device
 
+    def state_dict(self):
+        """
+        Returns the model parameters.
+        """
+        return self.model.state_dict()
 class GNNModel(nn.Module):
     def __init__(self, node_feature_size):
         super(GNNModel, self).__init__()
