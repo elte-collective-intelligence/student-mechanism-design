@@ -117,6 +117,11 @@ class Logger:
         for name, param in weights.items():
             self.log_scalar("reward_weight/"+name, param, step)
 
+    def log_plt(self, plt, step=None):
+
+        if wandb.run:
+            wandb.log({"chart": wandb.Image(plt)})
+
     def log_metrics(self, metrics, step=None):
         """
         Log multiple metrics to TensorBoard and Weights & Biases.

@@ -1,41 +1,73 @@
+import random
 from gymnasium.spaces import Graph, Box, Discrete
 import numpy as np
+import networkx as nx
 
 class ConnectedGraph(Graph):
+    def sample(self, mask=None, num_nodes=10, num_edges=None, max_edges_per_node=4):
+        # Remove all initial edges
+        graph_json = {"nodes": list(range(num_nodes)), "edge_links": [], "edges": []}
+        graph = self.from_jsonable([graph_json])[0]
 
-    def sample(self, mask = None, num_nodes = 10, num_edges = None):
-        graph = super().sample( mask, num_nodes, num_edges )
-        is_conncected, correction = self._is_connected(graph)
-        while not is_conncected:
-            graph_json = self.to_jsonable([graph])[0]
-            graph_json["edge_links"].append(correction)
-            graph_json["edges"].append(np.random.randint(1, 4))
-            graph = self.from_jsonable([graph_json])[0]
-            is_conncected, correction = self._is_connected(graph)
-        return graph
+        # Create a connected tree using Kruskal's or Prim's algorithm
+        edges = self._create_tree(num_nodes)
+        graph_json["edge_links"] = edges
+        graph_json["edges"] = [np.random.randint(1, 4) for _ in edges]
 
-    def _is_connected(self, graph):
-        if not graph or graph.edge_links is None:
-            return False
+        # Add additional edges randomly
+        if num_edges is None:
+            num_edges = num_nodes - 1  # Minimal case for a connected graph
 
-        visited = np.array([False] * graph.nodes.shape[0])
-        queue = [0]  # Start BFS from node 0
-        visited[0] = True
+        extra_edges = num_edges - len(edges)
+        if extra_edges > 0:
+            possible_edges = [
+                (i, j)
+                for i in range(num_nodes)
+                for j in range(i + 1, num_nodes)
+                if (i, j) not in edges and (j, i) not in edges
+            ]
+            random.shuffle(possible_edges)
 
-        while queue:
-            node = queue.pop(0)
-            neighbors = graph.edge_links[graph.edge_links[:,0] == node][:,1]
-            visited[neighbors] = True
-            queue.extend(list(neighbors[~visited[neighbors]]))
-            neighbors = graph.edge_links[graph.edge_links[:,1] == node][:,0]
-            visited[neighbors] = True
-            queue.extend(list(neighbors[~visited[neighbors]]))
+            for edge in possible_edges:
+                if extra_edges <= 0:
+                    break
 
-        if np.all(visited):
-            return True, None
-        else:
-            # return False, [np.random.choice(np.where(visited == True)[0]), np.random.choice(np.where(visited == False)[0])]
+                # Check the max_edges_per_node constraint
+                if (
+                    sum([1 for e in graph_json["edge_links"] if edge[0] in e]) < max_edges_per_node
+                    and sum([1 for e in graph_json["edge_links"] if edge[1] in e]) < max_edges_per_node
+                ):
+                    graph_json["edge_links"].append(edge)
+                    graph_json["edges"].append(np.random.randint(1, 4))
+                    extra_edges -= 1
 
+        return self.from_jsonable([graph_json])[0]
 
+    def _create_tree(self, num_nodes):
+        """
+        Creates a connected tree using a randomized Prim's algorithm.
+        """
+        edges = []
+        visited = set()
+        unvisited = set(range(num_nodes))
 
-            return False, [np.argmax(visited), np.argmin(visited)]
+        # Start from a random node
+        current_node = random.choice(list(unvisited))
+        visited.add(current_node)
+        unvisited.remove(current_node)
+
+        while unvisited:
+            # Find all potential edges from visited to unvisited nodes
+            possible_edges = [
+                (node, neighbor)
+                for node in visited
+                for neighbor in unvisited
+            ]
+            # Randomly select an edge
+            edge = random.choice(possible_edges)
+            edges.append(edge)
+            # Mark the neighbor as visited
+            visited.add(edge[1])
+            unvisited.remove(edge[1])
+
+        return edges

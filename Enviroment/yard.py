@@ -1,4 +1,6 @@
+from collections import deque
 import functools
+import heapq
 import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -19,6 +21,13 @@ class CustomEnvironment(BaseEnvironment):
         self.logger = logger
         self.logger.log(f"Initializing CustomEnvironment with number_of_agents={number_of_agents}, agent_money={agent_money}, reward_weights={reward_weights}", level="debug")
         self.agent_money = agent_money
+        self.fig = None
+        self.ax = None
+        self.pos = None
+        self.node_colors = None
+        self.node_collection = None
+        self.edge_collection = None
+        self.label_collection = None  # To store node labels
         self.reset()
         self.epoch = epoch
         self.episode = 0
@@ -30,13 +39,16 @@ class CustomEnvironment(BaseEnvironment):
         self.logger.log_hyperparameters(hyperparams)
         self.logger.log("Environment initialized with hyperparameters: " + str(hyperparams))
 
+        # Initialize rendering attributes
+        
+
     def reset(self, episode=0, seed=None, options=None):
         """
         Reset the environment to its initial state.
         """
         self.episode = episode
         self.logger.log("Resetting the environment.", level="debug")
-        self.board = self.observation_graph.sample(num_nodes=20, num_edges=30)
+        self.board = self.observation_graph.sample(num_nodes=30, num_edges=70)
         self.logger.log(f"Generated board with {self.board.nodes.shape[0]} nodes and {self.board.edge_links.shape[0]} edges.", level="debug")
 
         self.agents = ["MrX"] + [f"Police{n}" for n in range(self.number_of_agents)]
@@ -56,6 +68,9 @@ class CustomEnvironment(BaseEnvironment):
         observations = self._get_graph_observations()
         infos = {a: {} for a in self.agents}  # Dummy infos
         self.logger.log("Environment reset complete.", level="debug")
+
+        self.initialize_render()
+
         return observations, infos
 
     def step(self, actions):
@@ -65,24 +80,28 @@ class CustomEnvironment(BaseEnvironment):
         self.logger.log(f"Step {self.timestep}: Received actions: {actions}", level="debug")
         mrX_action = actions["MrX"]
         mrx_pos = self.MrX_pos[0]
+        print("---------------")
+        print(actions)
+        print(self.MrX_pos)
+        print(self.police_positions)
         self.logger.log(f"MrX current position: {mrx_pos}, action taken: {mrX_action}", level="debug")
+        if mrX_action is not None:
+            # Process MrX's action
+            possible_positions, _ = self._get_possible_moves(mrx_pos,0)
+            self.logger.log(f"MrX possible moves from position {mrx_pos}: {possible_positions}", level="debug")
+            if mrX_action in possible_positions:
+                pos_to_go = mrX_action
+                self.logger.log(f"MrX moves to position {pos_to_go}", level="debug")
+            else:
+                pos_to_go = mrx_pos  # Stay in the same position if the action is out of bounds
+                self.logger.log(f"MrX action out of bounds. Staying at position {pos_to_go}", level="debug")
 
-        # Process MrX's action
-        possible_positions, _ = self._get_possible_moves(mrx_pos,0)
-        self.logger.log(f"MrX possible moves from position {mrx_pos}: {possible_positions}", level="debug")
-        if mrX_action < len(possible_positions):
-            pos_to_go = possible_positions[mrX_action]
-            self.logger.log(f"MrX moves to position {pos_to_go}", level="debug")
-        else:
-            pos_to_go = mrx_pos  # Stay in the same position if the action is out of bounds
-            self.logger.log(f"MrX action out of bounds. Staying at position {pos_to_go}", level="debug")
-
-        if pos_to_go not in self.police_positions:
-            self.MrX_pos = [pos_to_go]
-            self.logger.log(f"MrX position updated to {self.MrX_pos[0]}", level="debug")
-        else:
-            self.logger.log(f"MrX move blocked by police at position {pos_to_go}", level="debug")
-
+            if pos_to_go not in self.police_positions:
+                self.MrX_pos = [pos_to_go]
+                self.logger.log(f"MrX position updated to {self.MrX_pos[0]}", level="debug")
+            else:
+                self.logger.log(f"MrX move blocked by police at position {pos_to_go}", level="debug")
+        # print(self.MrX_pos)
         # Process police actions
         for police in actions.keys():
             if police != "MrX":
@@ -91,26 +110,37 @@ class CustomEnvironment(BaseEnvironment):
                 self.logger.log(f"{police} current position: {police_pos}, action taken: {actions[police]}", level="debug")
                 possible_positions, positions_costs = self._get_possible_moves(police_pos, police_index)
                 self.logger.log(f"{police} possible moves from position {police_pos}: {possible_positions}", level="debug")
-
+                # print(possible_positions)
                 police_action = actions[police]
-                if police_action < len(possible_positions):
-                    pos_to_go = possible_positions[police_action]
+                if police_action is None:
+                    continue
+
+                if police_action in possible_positions:
+                    pos_to_go = police_action
                     self.logger.log(f"{police} moves to position {pos_to_go}", level="debug")
 
                 else:
                     pos_to_go = police_pos  # Stay in the same position if the action is out of bounds
                     self.logger.log(f"{police} action out of bounds. Staying at position {pos_to_go}, ",level="debug")
 
-                if pos_to_go not in self.police_positions:
+                if pos_to_go not in self.police_positions and pos_to_go != police_pos:
                     self.police_positions[police_index] = pos_to_go
                     self.logger.log(f"{police} position updated to {self.police_positions[police_index]}, ",level="debug")
-                    self.agents_money[police_index] -= positions_costs[pos_to_go]
-
+                    # print("--------------------")
+                    # print(pos_to_go)
+                    # print(positions_costs)
+                    # print(possible_positions)
+                    # print(np.where(possible_positions == pos_to_go))
+                    # print(positions_costs[np.where(possible_positions == pos_to_go)])
+                    # print(min(positions_costs[np.where(possible_positions == pos_to_go)]))
+                    # print(self.agents_money)
+                    self.agents_money[police_index] -= min(positions_costs[np.where(possible_positions == pos_to_go)])
                 else:
                     self.logger.log(f"{police} move blocked by another police at position {pos_to_go}, ",level="debug")
-
+        print(self.MrX_pos)
+        print(self.police_positions)
         # Compute rewards and check termination/truncation
-        rewards, terminations, truncations = self._calculate_rewards_terminations()
+        rewards, terminations, truncations, winner = self._calculate_rewards_terminations()
         self.logger.log(f"Rewards: {rewards}, ",level="debug")
         self.logger.log(f"Terminations: {terminations}, ",level="debug")
         self.logger.log(f"Truncations: {truncations}, ",level="debug")
@@ -125,7 +155,8 @@ class CustomEnvironment(BaseEnvironment):
             self.agents = []
 
         self.logger.log(f"Step {self.timestep} completed., ",level="debug")
-        return observations, rewards, terminations, truncations, infos
+        self.render()
+        return observations, rewards, terminations, truncations, winner, infos, 
 
     def _get_graph_observations(self):
         """
@@ -169,21 +200,23 @@ class CustomEnvironment(BaseEnvironment):
         terminations = {a: False for a in self.agents}
         truncations = {a: False for a in self.agents}
         rewards = {a: 0 for a in self.agents}
-
+        winner = None
         if self.MrX_pos[0] in self.police_positions:
             self.logger.log("MrX has been caught by the police., ",level="debug")
             rewards = {a: (-1 if a == "MrX" else 1) for a in self.agents}
             terminations = {a: True for a in self.agents}
+            winner = "Police"
         elif self.timestep > 100:
             self.logger.log("Maximum timestep exceeded. Truncating episode., ",level="debug")
             rewards = {a: (1 if a == "MrX" else 0) for a in self.agents}
             truncations = {a: True for a in self.agents}
+            winner = "MrX"
         else:
             rewards = self.calculate_rewards()
 
         self.timestep += 1
         self.logger.log(f"Updated timestep to {self.timestep}, ",level="debug")
-        return rewards, terminations, truncations
+        return rewards, terminations, truncations, winner
     def calculate_rewards(self):
         """
         Compute rewards for all agents based on the specified components.
@@ -258,35 +291,107 @@ class CustomEnvironment(BaseEnvironment):
         return rewards
 
 
-    def get_distance(self, node1, node2):
+    def get_distance(self, node1: int, node2: int) -> float:
         """
-        Compute the shortest path distance between two nodes using BFS.
-        """
-        self.logger.log(f"Calculating distance between node {node1} and node {node2}., ",level="debug")
-        if node1 == node2:
-            self.logger.log("Both nodes are the same. Distance is 0., ",level="debug")
-            return 0
-        queue = [(node1, 0)]  # (current node, distance)
-        visited = set()
-        visited.add(node1)
+        Compute the shortest path distance between two nodes using Dijkstra's algorithm,
+        considering the weights of the edges.
 
-        while queue:
-            current, dist = queue.pop(0)
-            neighbors = np.concatenate([
-                self.board.edge_links[self.board.edge_links[:, 0] == current][:, 1],
-                self.board.edge_links[self.board.edge_links[:, 1] == current][:, 0]
-            ])
-            self.logger.log(f"Visiting node {current}, distance {dist}. Neighbors: {neighbors}, ",level="debug")
-            for neighbor in neighbors:
-                if neighbor == node2:
-                    self.logger.log(f"Found node {node2} from node {current}. Distance: {dist + 1}, ",level="debug")
-                    return dist + 1
-                if neighbor not in visited:
-                    visited.add(neighbor)
-                    queue.append((neighbor, dist + 1))
-                    self.logger.log(f"Added node {neighbor} to queue with distance {dist + 1}., ",level="debug")
-        self.logger.log(f"No path found between node {node1} and node {node2}. Returning infinity., ",level="debug")
-        return float('inf')  # Return infinity if no path exists
+        Args:
+            node1 (int): The starting node.
+            node2 (int): The target node.
+
+        Returns:
+            float: The shortest distance (sum of edge weights) between node1 and node2
+                if a path exists. Returns float('inf') if no path exists.
+        """
+        self.logger.log(f"Calculating weighted distance between node {node1} and node {node2}.", level="debug")
+
+        if node1 == node2:
+            self.logger.log("Both nodes are the same. Distance is 0.", level="debug")
+            return 0.0
+
+        # Initialize the priority queue with (cumulative_distance, node)
+        priority_queue = [(0.0, node1)]
+        # Dictionary to keep track of the minimum distance to each node
+        distances = {node1: 0.0}
+        # Set to keep track of visited nodes
+        visited = set()
+
+        while priority_queue:
+            current_distance, current_node = heapq.heappop(priority_queue)
+            self.logger.log(
+                f"Popped node {current_node} with current distance {current_distance} from the priority queue.",
+                level="debug"
+            )
+
+            if current_node in visited:
+                self.logger.log(
+                    f"Node {current_node} has already been visited. Skipping.",
+                    level="debug"
+                )
+                continue
+
+            # Mark the current node as visited
+            visited.add(current_node)
+            self.logger.log(f"Visiting node {current_node}.", level="debug")
+
+            # If we've reached the target node, return the distance
+            if current_node == node2:
+                self.logger.log(
+                    f"Reached target node {node2}. Total distance: {current_distance}.",
+                    level="debug"
+                )
+                return current_distance
+
+            # Find all neighbors of the current node
+            # Assuming edge_links[:, 0] is the source and edge_links[:, 1] is the destination
+            mask_from = self.board.edge_links[:, 0] == current_node
+            mask_to = self.board.edge_links[:, 1] == current_node
+
+            # Extract neighbors and their corresponding edge weights
+            neighbors_from = self.board.edge_links[mask_from][:, 1]
+            weights_from = self.board.edges[mask_from]
+            neighbors_to = self.board.edge_links[mask_to][:, 0]
+            weights_to = self.board.edges[mask_to]
+
+            # Combine neighbors and weights
+            neighbors = np.concatenate((neighbors_from, neighbors_to))
+            weights = np.concatenate((weights_from, weights_to))
+
+            self.logger.log(
+                f"Neighbors of node {current_node}: {neighbors} with weights {weights}.",
+                level="debug"
+            )
+
+            # Iterate through neighbors and update distances
+            for neighbor, weight in zip(neighbors, weights):
+                if neighbor in visited:
+                    self.logger.log(
+                        f"Neighbor node {neighbor} has already been visited. Skipping.",
+                        level="debug"
+                    )
+                    continue
+
+                new_distance = current_distance + weight
+                self.logger.log(
+                    f"Evaluating neighbor {neighbor}: current distance {current_distance} + weight {weight} = {new_distance}.",
+                    level="debug"
+                )
+
+                # If this path to neighbor is shorter, update the distance and add to the queue
+                if neighbor not in distances or new_distance < distances[neighbor]:
+                    distances[neighbor] = new_distance
+                    heapq.heappush(priority_queue, (new_distance, neighbor))
+                    self.logger.log(
+                        f"Updating distance for node {neighbor} to {new_distance} and adding to priority queue.",
+                        level="debug"
+                    )
+
+        self.logger.log(
+            f"No path found between node {node1} and node {node2}. Returning infinity.",
+            level="debug"
+        )
+        return float('inf')  # Return infinity if no path exists within budget
 
     def _get_adjacency_matrix(self):
         """
@@ -300,40 +405,116 @@ class CustomEnvironment(BaseEnvironment):
         self.logger.log("Adjacency matrix generated., ",level="debug")
         return adjacency_matrix
 
+    # def _get_possible_moves(self, pos, agent_idx):
+    #     """
+    #     Get possible moves from a node position.
+    #     """
+    #     mask1 = self.board.edge_links[:, 0] == pos
+    #     mask1[np.where(self.board.edges > self.agents_money[agent_idx])] = False
+
+    #     mask2 = self.board.edge_links[:, 1] == pos
+    #     mask2[np.where(self.board.edges > self.agents_money[agent_idx])] = False
+    #     possible_moves = np.concatenate(
+    #         [
+    #             self.board.edge_links[mask1][:, 1],
+    #             self.board.edge_links[mask2][:, 0],
+    #         ]
+    #     )
+        
+    #     self.logger.log(f"Possible moves from position {pos}: {possible_moves}, ",level="debug")
+    #     return possible_moves, np.concatenate([self.board.edges[mask1], self.board.edges[mask2]]) 
+
     def _get_possible_moves(self, pos, agent_idx):
         """
         Get possible moves from a node position.
+        Returns unique neighboring nodes that the agent can afford to move to,
+        along with the corresponding edge weights (minimum weight if multiple edges exist).
+        
+        Args:
+            pos (int): Current position of the agent.
+            agent_idx (int): Index of the agent in the agents list.
+            
+        Returns:
+            tuple:
+                - np.ndarray: Array of unique neighboring node indices that the agent can move to.
+                - np.ndarray: Array of corresponding edge weights.
         """
-        mask1 = self.board.edge_links[:, 1] == pos
-        mask1[np.where(self.board.edges > self.agents_money[agent_idx])] = False
-
-        mask2 = self.board.edge_links[:, 0] == pos
-        mask2[np.where(self.board.edges > self.agents_money[agent_idx])] = False
-        possible_moves = np.concatenate(
-            [
-                self.board.edge_links[mask1][:, 1],
-                self.board.edge_links[mask2][:, 0],
-            ]
+        # Retrieve the agent's available money
+        agent_money = self.agents_money[agent_idx]
+        
+        # Find all edges where the current position is the source
+        mask_source = self.board.edge_links[:, 0] == pos
+        print("mask_source",mask_source)
+        # Find all edges where the current position is the target
+        mask_target = self.board.edge_links[:, 1] == pos
+        print("mask_target",mask_target)
+        # Filter edges based on the agent's available money
+        affordable_edges_source = mask_source & (self.board.edges <= agent_money)
+        affordable_edges_target = mask_target & (self.board.edges <= agent_money)
+        print("affordable_edges_source",affordable_edges_source)
+        print("affordable_edges_target",affordable_edges_target)
+        # Extract neighboring nodes and corresponding edge weights from affordable edges
+        neighbors_from = self.board.edge_links[affordable_edges_source][:, 1]
+        weights_from = self.board.edges[affordable_edges_source]
+        print("neighbors_from",neighbors_from)
+        print("weights_from",weights_from)
+        neighbors_to = self.board.edge_links[affordable_edges_target][:, 0]
+        weights_to = self.board.edges[affordable_edges_target]
+        print("neighbors_to",neighbors_to)
+        print("weights_to",weights_to)
+        # Combine neighbors and weights
+        combined_neighbors = np.concatenate([neighbors_from, neighbors_to])
+        combined_weights = np.concatenate([weights_from, weights_to])
+        print("combined_neighbors",combined_neighbors)
+        print("combined_weights",combined_weights)
+        # Create a structured array to facilitate finding the minimum weight for each neighbor
+        dtype = [('node', combined_neighbors.dtype), ('weight', combined_weights.dtype)]
+        structured_array = np.array(list(zip(combined_neighbors, combined_weights)), dtype=dtype)
+        
+        # Sort by node and then by weight to bring the minimum weight first for each node
+        sorted_array = np.sort(structured_array, order=['node', 'weight'])
+        
+        # Use np.unique to find unique nodes, keeping the first occurrence (minimum weight)
+        unique_nodes, indices = np.unique(sorted_array['node'], return_index=True)
+        unique_weights = sorted_array['weight'][indices]
+        
+        self.logger.log(
+            f"Agent {self.agents[agent_idx]} at position {pos} can move to: {unique_nodes} with weights {unique_weights}", 
+            level="info"
         )
         
-        self.logger.log(f"Possible moves from position {pos}: {possible_moves}, ",level="debug")
-        return possible_moves, np.concatenate([self.board.edges[mask1], self.board.edges[mask2]]) 
+        return unique_nodes, unique_weights
+
+    
+    def get_possible_moves(self, agent_idx):
+        if agent_idx == 0:
+            pos = self.MrX_pos[0]
+        else:
+            pos = self.police_positions[agent_idx - 1]
+        moves, _ =  self._get_possible_moves(pos, agent_idx)
+        return moves
     
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent):
-        agent_pos = (self.MrX_pos + self.police_positions)[self.agents.index(agent)]
-        mask1 = self.board.edge_links[:, 1] == agent_pos
-        mask1[np.where(self.board.edges > self.agents_money[self.agents.index(agent)])] = False
-
-        mask2 = self.board.edge_links[:, 0] == agent_pos
-        mask2[np.where(self.board.edges > self.agents_money[self.agents.index(agent)])] = False
-        posible_nodes = np.concatenate(
-            [
-                self.board.edge_links[mask1][:, 1],
-                self.board.edge_links[mask2][:, 0],
-            ]
-        )
-        return Discrete(posible_nodes.shape[0])
+        """
+        Define the action space for a given agent based on the number of neighboring nodes
+        that the agent can afford to move to.
+        
+        Args:
+            agent (str): Name of the agent.
+            
+        Returns:
+            gymnasium.spaces.Discrete: The action space representing the number of possible moves.
+        """
+        agent_idx = self.agents.index(agent)
+        possible_moves = self.get_possible_moves(agent_idx)
+        num_actions = len(possible_moves)
+        
+        # If there are no possible moves, define a single action (e.g., stay in place)
+        if num_actions == 0:
+            return Discrete(1)
+        else:
+            return Discrete(num_actions)
 
     @functools.lru_cache(maxsize=None)
     def observation_space(self, agent):
@@ -352,17 +533,94 @@ class CustomEnvironment(BaseEnvironment):
         }
         self.logger.log(f"Observation space for agent {agent}: {space}, ",level="debug")
         return space
+    
+    def initialize_render(self):
+        """
+        Initialize the matplotlib plot for rendering the graph.
+        """
+        if self.fig is not None and self.ax is not None:
+            # Already initialized
+            return
+
+        self.logger.log("Initializing render plot.", level="debug")
+
+        # Create a NetworkX graph
+        graph = self.board
+        G = nx.Graph()
+        num_nodes = graph.nodes.shape[0]
+        G.add_nodes_from(range(num_nodes))
+        edges = [tuple(edge) for edge in graph.edge_links]
+        print(len(edges))
+        G.add_edges_from(edges)
+        # Add edge weights if available
+        if hasattr(graph, 'edges') and graph.edges is not None:
+            for idx, edge in enumerate(graph.edge_links):
+                G.edges[tuple(edge)]['weight'] = graph.edges[idx]
+
+        # Choose a layout
+        self.pos = nx.kamada_kawai_layout(G)  # For reproducibility
+
+        # Initialize matplotlib figure and axis
+        plt.ion()  # Turn on interactive mode
+        self.fig, self.ax = plt.subplots(figsize=(10, 8))
+        self.ax.set_title(f"Connected Graph Visualization at Timestep {self.timestep}", fontsize=16)
+
+        # Draw nodes
+        self.node_colors = ['lightblue'] * G.number_of_nodes()  # Default color
+        # Highlight MrX and police positions
+        self.update_node_colors()
+
+        self.node_collection = nx.draw_networkx_nodes(G, self.pos, ax=self.ax, node_size=700, node_color=self.node_colors, edgecolors='black')
+
+        # Draw edges
+        self.edge_collection = nx.draw_networkx_edges(G, self.pos, ax=self.ax, width=2, edge_color='gray')
+
+        self.label_collection = nx.draw_networkx_labels(G, self.pos, ax=self.ax, font_size=10, font_family="sans-serif")
+
+        # Add legend
+        import matplotlib.patches as mpatches
+        red_patch = mpatches.Patch(color='red', label='MrX')
+        blue_patch = mpatches.Patch(color='blue', label='Police')
+        self.ax.legend(handles=[red_patch, blue_patch], loc='upper right')
+
+        self.ax.axis('off')  # Hide the axes
+
+        # Display the plot
+        plt.show()
+        self.logger.log("Render plot initialized.", level="debug")
+
+    def update_node_colors(self):
+        """
+        Update the colors of the nodes based on the positions of MrX and police agents.
+        """
+        # Reset all colors to default
+        self.node_colors = ['lightblue'] * self.board.nodes.shape[0]
+
+        # Color MrX's position red
+        self.node_colors[self.MrX_pos[0]] = 'red'
+
+        # Color police positions blue
+        for pos in self.police_positions:
+            self.node_colors[pos] = 'blue'
 
     def render(self):
         """Renders the environment."""
-        G = nx.DiGraph()
-        # Add edges and their attributes from the GraphInstance
-        for edge,edge_w in zip(self.board.edge_links, self.board.edges):
-            G.add_edge(edge[0], edge[1], weight=edge_w)
-            G.add_edge(edge[1], edge[0], weight=edge_w)
-        pos = nx.shell_layout(G)
-        nx.draw(G, pos, with_labels=True, node_color='green')
-        edge_labels = nx.get_edge_attributes(G, 'weight')
-        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels)
-        #plt.show()
-        plt.savefig(f"img{self.timestep}.png")
+        if self.fig is None or self.ax is None:
+            # If render has not been initialized, initialize it
+            self.initialize_render()
+            return
+
+        # Update node colors based on current positions
+        self.update_node_colors()
+
+        # Update the node colors in the plot
+        self.node_collection.set_color(self.node_colors)
+
+        # Update the title
+        self.ax.set_title(f"Connected Graph Visualization at Timestep {self.timestep}", fontsize=16)
+
+        # Redraw the plot
+        self.fig.canvas.draw()
+        self.fig.canvas.flush_events()
+
+        self.logger.log_plt(plt)

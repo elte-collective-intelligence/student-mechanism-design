@@ -110,21 +110,31 @@ def train(args):
                 logger.log(f"Created graph data for MrX and Police agents.",level="debug")
 
                 # MrX selects an action
-                mrX_action = mrX_agent.select_action(mrX_graph, torch.ones(mrX_action_size, device=device))
+                # mrX_action = mrX_agent.select_action(mrX_graph, torch.ones(mrX_action_size, device=device))
+
+                mrX_action_size = env.action_space('MrX').n
+                mrX_possible_moves = env.get_possible_moves(0)
+                action_mask = torch.zeros(mrX_graph.num_nodes, dtype=torch.int32, device=device)
+                action_mask[ mrX_possible_moves] = 1
+                mrX_action = mrX_agent.select_action(mrX_graph,action_mask)
                 logger.log(f"MrX selected action: {mrX_action}",level="debug")
 
                 # Police agents select actions
                 agent_actions = {'MrX': mrX_action}
                 for i in range(args.num_police_agents):
+                    police_action_size = env.action_space(f'Police{i}').n
+                    police_possible_moves = env.get_possible_moves(i+1)
+                    action_mask = torch.zeros(police_graphs[i].num_nodes, dtype=torch.int32, device=device)
+                    action_mask[ police_possible_moves] = 1
                     police_action = police_agent.select_action(
                         police_graphs[i],
-                        torch.ones(police_action_size, device=device)
+                        action_mask
                     )
                     agent_actions[f'Police{i}'] = police_action
                     logger.log(f"Police{i} selected action: {police_action}",level="debug")
 
                 # Execute actions for MrX and Police
-                next_state, rewards, terminations, truncation, _ = env.step(agent_actions)
+                next_state, rewards, terminations, truncation, _, _ = env.step(agent_actions)
                 logger.log(f"Executed actions. Rewards: {rewards}, Terminations: {terminations}, Truncations: {truncation}",level="debug")
 
                 done = terminations.get('Police0', False) or all(truncation.values())
@@ -166,7 +176,70 @@ def train(args):
         logger.log_model(police_agent, 'Police')
         logger.log_model(reward_weight_net, 'RewardWeightNet')
 
-        win_ratio = evaluate_agent_balance(mrX_agent, police_agent, env, args.num_eval_episodes, device)
+        wins = 0
+
+        for episode in range(args.num_eval_episodes):
+            logger.log(f"Epoch {epoch + 1}, Evaluation Episode {episode + 1} started.",level="info")
+            state, _ = env.reset(episode=episode)
+            done = False
+            total_reward = 0
+
+            while not done:
+                # Create graph data for GNN and move to GPU
+                mrX_graph = create_graph_data(state, 'MrX', env).to(device)
+                police_graphs = [
+                    create_graph_data(state, f'Police{i}', env).to(device)
+                    for i in range(args.num_police_agents)
+                ]
+                logger.log(f"Created graph data for MrX and Police agents.",level="debug")
+
+                # MrX selects an action
+                # mrX_action = mrX_agent.select_action(mrX_graph, torch.ones(mrX_action_size, device=device))
+
+                mrX_action_size = env.action_space('MrX').n
+                mrX_possible_moves = env.get_possible_moves(0)
+                action_mask = torch.zeros(mrX_graph.num_nodes, dtype=torch.int32, device=device)
+                action_mask[ mrX_possible_moves] = 1
+                mrX_action = mrX_agent.select_action(mrX_graph,action_mask)
+                logger.log(f"MrX selected action: {mrX_action}",level="debug")
+
+                # Police agents select actions
+                agent_actions = {'MrX': mrX_action}
+                for i in range(args.num_police_agents):
+                    police_action_size = env.action_space(f'Police{i}').n
+                    police_possible_moves = env.get_possible_moves(i+1)
+                    action_mask = torch.zeros(police_graphs[i].num_nodes, dtype=torch.int32, device=device)
+                    action_mask[ police_possible_moves] = 1
+                    police_action = police_agent.select_action(
+                        police_graphs[i],
+                        action_mask
+                    )
+                    agent_actions[f'Police{i}'] = police_action
+                    logger.log(f"Police{i} selected action: {police_action}",level="debug")
+
+                # Execute actions for MrX and Police
+                next_state, rewards, terminations, truncation, winner, _ = env.step(agent_actions)
+                logger.log(f"Executed actions. Rewards: {rewards}, Terminations: {terminations}, Truncations: {truncation}",level="debug")
+
+                done = terminations.get('Police0', False) or all(truncation.values())
+                logger.log(f"Episode done: {done}",level="debug")
+
+                total_reward += rewards.get('MrX', 0.0)
+                state = next_state
+                logger.log(f"Total reward updated to: {total_reward}",level="debug")
+                if done:
+                    if winner == 'MrX':
+                        wins += 1
+                        logger.log(f"MrX won the evaluation episode.",level="info")
+                    else:
+                        logger.log(f"MrX lost the evaluation episode.",level="info")
+
+        win_ratio = wins / args.num_eval_episodes
+        logger.log(f"Evaluation completed. Win Ratio: {win_ratio}")
+
+        logger.log(f"Epoch {epoch + 1}, Episode {episode + 1}, Total Reward: {total_reward}",level="debug")
+
+        # win_ratio = evaluate_agent_balance(mrX_agent, police_agent, env, args.num_eval_episodes, device)
         logger.log(f"Epoch {epoch + 1}: Win Ratio: {win_ratio}",level="info")
 
         target_difficulty = compute_target_difficulty(win_ratio)
@@ -236,45 +309,59 @@ def evaluate_agent_balance(mrX_agent, police_agent, env, num_eval_episodes, devi
     logger = env.logger  # Access the logger from the environment
     logger.log(f"Starting evaluation of agent balance over {num_eval_episodes} episodes.")
     wins = 0
-    mrX_action_size = env.action_space('MrX').n
-    police_action_size = env.action_space('Police0').n 
+    num_police_agents = env.number_of_agents - 1  # Derive the number of police agents from env
 
     for episode in range(num_eval_episodes):
         logger.log(f"Evaluation Episode {episode + 1} started.")
         state, _ = env.reset(episode=episode)
         done = False
         while not done:
-
+            # Create graph data for GNN and move to GPU
             mrX_graph = create_graph_data(state, 'MrX', env).to(device)
             police_graphs = [
                 create_graph_data(state, f'Police{i}', env).to(device)
-                for i in range(args.num_police_agents)
+                for i in range(num_police_agents)
             ]
+            logger.log(f"Created graph data for MrX and Police agents.", level="debug")
 
-            mrX_action = mrX_agent.select_action(mrX_graph, torch.ones(mrX_action_size, device=device))
+            # MrX selects an action
+            mrX_possible_moves = env.get_possible_moves(0)
+            action_mask = torch.zeros(mrX_graph.num_nodes, dtype=torch.int32, device=device)
+            action_mask[ mrX_possible_moves] = 1
+            mrX_action = mrX_agent.select_action(mrX_graph,action_mask)
             logger.log(f"MrX selected action: {mrX_action}",level="debug")
 
             # Police agents select actions
             agent_actions = {'MrX': mrX_action}
             for i in range(args.num_police_agents):
+                police_possible_moves = env.get_possible_moves(i+1)
+                print(police_graphs)
+                print(i)
+                print(args.num_police_agents)
+                action_mask = torch.zeros(police_graphs[i].num_nodes, dtype=torch.int32, device=device)
+                action_mask[ police_possible_moves] = 1
                 police_action = police_agent.select_action(
                     police_graphs[i],
-                    torch.ones(police_action_size, device=device)
+                    action_mask
                 )
                 agent_actions[f'Police{i}'] = police_action
                 logger.log(f"Police{i} selected action: {police_action}",level="debug")
- 
+
+            # Execute actions for MrX and Police
             next_state, rewards, terminations, truncation, _ = env.step(agent_actions)
-            logger.log(f"Evaluation Episode {episode + 1}: Executed actions. Rewards: {rewards}, Terminations: {terminations}, Truncations: {truncation}",level="debug")
+            logger.log(f"Evaluation Episode {episode + 1}: Executed actions. Rewards: {rewards}, Terminations: {terminations}, Truncations: {truncation}", level="debug")
 
-            done = terminations.get(f'Police0', False) or all(truncation.values()) 
-            if rewards.get('MrX', 0.0) > 0 or all(truncation.values()):
-                wins += 1
-                logger.log(f"Evaluation Episode {episode + 1}: MrX won.")
-            else:
-                logger.log(f"Evaluation Episode {episode + 1}: MrX lost.")
-
+            done = terminations.get('Police0', False) or all(truncation.values()) 
+            
             state = next_state
+
+            if done:
+                # Define win condition: MrX wins if not terminated by Police and truncation conditions met
+                if not terminations.get('Police0', False) and all(truncation.values()):
+                    wins += 1
+                    logger.log(f"Evaluation Episode {episode + 1}: MrX won.")
+                else:
+                    logger.log(f"Evaluation Episode {episode + 1}: MrX lost.")
 
     win_ratio = wins / num_eval_episodes
     logger.log(f"Evaluation completed. Win Ratio: {win_ratio}")
@@ -317,8 +404,8 @@ if __name__ == "__main__":
         'agent_money': 10.0,
         'state_size': 1,
         'action_size': 5,
-        'num_episodes': 1,
-        'num_eval_episodes': 10,
+        'num_episodes': 5,
+        'num_eval_episodes': 20,
         'epochs': 10,
         'num_police_agents': 3,
         'log_dir': 'logs',
