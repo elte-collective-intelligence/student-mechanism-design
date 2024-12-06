@@ -83,6 +83,8 @@ class GNNAgent:
         Stores individual experiences in replay memory and updates the GNN model.
         Ensures that all tensors are on the correct device.
         """
+        if actions is None:
+            return
         # Ensure all inputs are lists
         if not isinstance(graphs, (list, tuple)):
             graphs = [graphs]

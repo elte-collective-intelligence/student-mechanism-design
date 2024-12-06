@@ -404,7 +404,7 @@ if __name__ == "__main__":
         'agent_money': 10.0,
         'state_size': 1,
         'action_size': 5,
-        'num_episodes': 5,
+        'num_episodes': 100,
         'num_eval_episodes': 20,
         'epochs': 10,
         'num_police_agents': 3,
