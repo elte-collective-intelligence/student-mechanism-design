@@ -6,7 +6,7 @@ from logger import Logger  # Your custom Logger class
 from RLAgent.gnn_agent import GNNAgent
 from Enviroment.yard import CustomEnvironment
 from torch_geometric.data import Data
-
+import random
 # Define the device at the beginning
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 print(f"Using device: {device}")  # You may consider logging this instead
@@ -41,20 +41,30 @@ def train(args):
     logger.log("DifficultyNet initialized and moved to device.")
 
     optimizer_difficulty = optim.Adam(reward_weight_net.parameters(), lr=0.001)
-    logger.log("Optimizer for DifficultyNet initialized.",level="debug")
+    logger.log("Optimizer for DifficultyNet initialized.", level="debug")
 
     criterion = nn.MSELoss()
-    logger.log("Loss function (MSELoss) initialized.",level="debug")
+    logger.log("Loss function (MSELoss) initialized.", level="debug")
 
-    logger.log(f"Starting training with {args.num_police_agents} agents and {args.agent_money} money per agent.",level="debug")
+    logger.log(f"Starting training with variable agents and money settings.", level="debug")
+
+    # Validate that the agent configurations list is provided and not empty
+    if not hasattr(args, 'agent_configurations') or not args.agent_configurations:
+        raise ValueError("args.agent_configurations must be a non-empty list of (num_agents, agent_money) tuples.")
 
     for epoch in range(args.epochs):
         logger.log_scalar('epoch_step', epoch)
 
-        logger.log(f"Starting epoch {epoch + 1}/{args.epochs}.",level="info")
-        num_agents = args.num_police_agents - 1
-        agent_money = args.agent_money
-
+        logger.log(f"Starting epoch {epoch + 1}/{args.epochs}.", level="info")
+        
+        # Randomly select a (num_agents, agent_money) tuple from the predefined list
+        # print(args.agent_configurations)
+        selected_config = random.choice(args.agent_configurations)  # Ensure args.agent_configurations is defined
+        num_agents, agent_money = selected_config["num_police_agents"], selected_config["agent_money"]  # Unpack the tuple
+        logger.log(f"Choosen configuration: {num_agents} agents, {agent_money} money.", level="info")
+        # print(selected_config)
+        logger.log_scalar('epoch/num_agents', num_agents)
+        logger.log_scalar('epoch/agent_money', agent_money)
         # Predict the difficulty from the number of agents and money
         inputs = torch.FloatTensor([[num_agents, agent_money]]).to(device)  # Move inputs to GPU
         predicted_weight = reward_weight_net(inputs)
@@ -70,11 +80,11 @@ def train(args):
             "Mrx_time": predicted_weight[0,7]
         }
 
-        logger.log(f"Epoch {epoch + 1}: Predicted weights: {reward_weights}")
+        logger.log(f"Epoch {epoch + 1}: Predicted weights: {reward_weights}", level="debug")
         logger.log_weights(reward_weights)
         # Create environment with predicted difficulty
         env = CustomEnvironment(
-            number_of_agents=num_agents + 1,
+            number_of_agents=num_agents,
             agent_money=agent_money,
             reward_weights=reward_weights,
             logger=logger,
@@ -105,7 +115,7 @@ def train(args):
                 mrX_graph = create_graph_data(state, 'MrX', env).to(device)
                 police_graphs = [
                     create_graph_data(state, f'Police{i}', env).to(device)
-                    for i in range(args.num_police_agents)
+                    for i in range(num_agents)
                 ]
                 logger.log(f"Created graph data for MrX and Police agents.",level="debug")
 
@@ -121,7 +131,7 @@ def train(args):
 
                 # Police agents select actions
                 agent_actions = {'MrX': mrX_action}
-                for i in range(args.num_police_agents):
+                for i in range(num_agents):
                     police_action_size = env.action_space(f'Police{i}').n
                     police_possible_moves = env.get_possible_moves(i+1)
                     action_mask = torch.zeros(police_graphs[i].num_nodes, dtype=torch.int32, device=device)
@@ -152,7 +162,7 @@ def train(args):
                 logger.log(f"MrX agent updated with reward: {rewards.get('MrX', 0.0)}",level="debug")
 
                 # Update shared police agent
-                for i in range(args.num_police_agents):
+                for i in range(num_agents):
                     police_next_graph = create_graph_data(next_state, f'Police{i}', env).to(device)
                     police_agent.update(
                         police_graphs[i],
@@ -189,7 +199,7 @@ def train(args):
                 mrX_graph = create_graph_data(state, 'MrX', env).to(device)
                 police_graphs = [
                     create_graph_data(state, f'Police{i}', env).to(device)
-                    for i in range(args.num_police_agents)
+                    for i in range(num_agents)
                 ]
                 logger.log(f"Created graph data for MrX and Police agents.",level="debug")
 
@@ -205,7 +215,7 @@ def train(args):
 
                 # Police agents select actions
                 agent_actions = {'MrX': mrX_action}
-                for i in range(args.num_police_agents):
+                for i in range(num_agents):
                     police_action_size = env.action_space(f'Police{i}').n
                     police_possible_moves = env.get_possible_moves(i+1)
                     action_mask = torch.zeros(police_graphs[i].num_nodes, dtype=torch.int32, device=device)
@@ -375,25 +385,28 @@ def compute_target_difficulty(win_ratio, target_balance=0.5):
 if __name__ == "__main__":
     import argparse
     import yaml
+    import sys
 
     parser = argparse.ArgumentParser(description="Train MrX and Police agents with dynamic difficulty prediction.")
     parser.add_argument('--config', type=str, help='Path to the YAML configuration file.')
 
     # Add all the other arguments with default=argparse.SUPPRESS
-    parser.add_argument('--num_agents', type=int, default=argparse.SUPPRESS, help='Initial number of agents in the environment')
-    parser.add_argument('--agent_money', type=float, default=argparse.SUPPRESS, help='Initial money for each agent')
     parser.add_argument('--state_size', type=int, default=argparse.SUPPRESS, help='State size for the agent')
     parser.add_argument('--action_size', type=int, default=argparse.SUPPRESS, help='Action size for the agent')
     parser.add_argument('--num_episodes', type=int, default=argparse.SUPPRESS, help='Number of episodes per epoch')
     parser.add_argument('--num_eval_episodes', type=int, default=argparse.SUPPRESS, help='Number of evaluation episodes')
     parser.add_argument('--epochs', type=int, default=argparse.SUPPRESS, help='Number of training epochs')
-    parser.add_argument('--num_police_agents', type=int, default=argparse.SUPPRESS, help='Number of police agents')
     parser.add_argument('--log_dir', type=str, default=argparse.SUPPRESS, help='Directory where logs will be saved')
     parser.add_argument('--wandb_api_key', type=str, default=argparse.SUPPRESS, help='Weights & Biases API key')
     parser.add_argument('--wandb_project', type=str, default=argparse.SUPPRESS, help='Weights & Biases project name')
     parser.add_argument('--wandb_entity', type=str, default=argparse.SUPPRESS, help='Weights & Biases entity (user or team)')
     parser.add_argument('--wandb_run_name', type=str, default=argparse.SUPPRESS, help='Custom name for the Weights & Biases run')
     parser.add_argument('--wandb_resume', action='store_true', help='Resume Weights & Biases run if it exists')
+    parser.add_argument('--random_seed', type=int, default=argparse.SUPPRESS, help='Random seed for reproducibility')
+
+    # Add agent_configurations argument
+    parser.add_argument('--agent_configurations', type=str, default=argparse.SUPPRESS,
+                        help='List of (num_police_agents, agent_money) tuples separated by semicolons. E.g., "2,30;3,40;4,50"')
 
     # Parse command-line arguments
     args = parser.parse_args()
@@ -401,29 +414,63 @@ if __name__ == "__main__":
 
     # Default values for all parameters
     default_values = {
-        'agent_money': 10.0,
         'state_size': 1,
         'action_size': 5,
         'num_episodes': 100,
         'num_eval_episodes': 20,
-        'epochs': 10,
-        'num_police_agents': 3,
+        'epochs': 50,
         'log_dir': 'logs',
         'wandb_api_key': None,
         'wandb_project': None,
         'wandb_entity': None,
         'wandb_run_name': None,
         'wandb_resume': False,
+        'agent_configurations': [(2, 30), (3, 40), (4, 50)],  # Default configurations
+        'random_seed': 42
     }
 
     # If a config file is provided, load its parameters
     if args.config:
-        with open(args.config, 'r') as f:
-            config_args = yaml.safe_load(f)
+        try:
+            with open(args.config, 'r') as f:
+                config_args = yaml.safe_load(f)
+            if config_args is None:
+                config_args = {}
+        except FileNotFoundError:
+            print(f"Configuration file {args.config} not found.", file=sys.stderr)
+            sys.exit(1)
+        except yaml.YAMLError as exc:
+            print(f"Error parsing YAML file: {exc}", file=sys.stderr)
+            sys.exit(1)
         # Remove 'config' key if present to prevent overwriting
         config_args.pop('config', None)
     else:
         config_args = {}
+
+    # Handle agent_configurations from command-line if provided
+    if 'agent_configurations' in args_dict:
+        # Parse the string into a list of tuples or dictionaries
+        # Depending on your config file format, you might need to adjust this
+        try:
+            config_str = args_dict['agent_configurations']
+            agent_configurations = []
+            for item in config_str.split(';'):
+                if ',' in item:
+                    num_police_agents, agent_money = item.split(',')
+                    agent_configurations.append((int(num_police_agents.strip()), float(agent_money.strip())))
+                elif ':' in item:
+                    # Handle dictionary-like input e.g., "num_police_agents:2,agent_money:30"
+                    parts = item.split(',')
+                    config = {}
+                    for part in parts:
+                        key, value = part.split(':')
+                        config[key.strip()] = float(value.strip()) if 'money' in key else int(value.strip())
+                    agent_configurations.append((config['num_police_agents'], config['agent_money']))
+                else:
+                    raise ValueError(f"Invalid format for agent_configurations item: '{item}'")
+            config_args['agent_configurations'] = agent_configurations
+        except Exception as e:
+            raise ValueError(f"Error parsing agent_configurations: {e}")
 
     # Combine default values, config file, and command-line arguments
     # Priority: command-line args > config file > default values

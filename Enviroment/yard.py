@@ -31,13 +31,13 @@ class CustomEnvironment(BaseEnvironment):
         self.reset()
         self.epoch = epoch
         self.episode = 0
-        hyperparams = {
-            "number_of_agents": self.number_of_agents-1,
-            "agent_money": self.agent_money,
-        }
+        # hyperparams = {
+        #     "number_of_agents": self.number_of_agents-1,
+        #     "agent_money": self.agent_money,
+        # }
         
-        self.logger.log_hyperparameters(hyperparams)
-        self.logger.log("Environment initialized with hyperparameters: " + str(hyperparams))
+        # self.logger.log_hyperparameters(hyperparams)
+        # self.logger.log("Environment initialized with hyperparameters: " + str(hyperparams))
 
         # Initialize rendering attributes
         
@@ -47,7 +47,7 @@ class CustomEnvironment(BaseEnvironment):
         Reset the environment to its initial state.
         """
         self.episode = episode
-        self.board = self.observation_graph.sample(num_nodes=30, num_edges=70)
+        self.board = self.observation_graph.sample(num_nodes=50, num_edges=110)
         self.logger.log("Resetting the environment.", level="debug")
         self.logger.log(f"Generated board with {self.board.nodes.shape[0]} nodes and {self.board.edge_links.shape[0]} edges.", level="debug")
 
@@ -67,7 +67,7 @@ class CustomEnvironment(BaseEnvironment):
 
         infos = {a: {} for a in self.agents}  # Dummy infos
         self.logger.log("Environment reset complete.", level="debug")
-
+        # self.close_render()
         # self.initialize_render()
 
         observations = self._get_graph_observations()
@@ -100,18 +100,20 @@ class CustomEnvironment(BaseEnvironment):
                 self.logger.log(f"MrX move blocked by police at position {pos_to_go}", level="debug")
         # print(self.MrX_pos)
         # Process police actions
+        is_no_money = True
         for police in actions.keys():
             if police != "MrX":
                 police_index = self.agents.index(police) - 1
+                # print(police_index)
                 police_pos = self.police_positions[police_index]
                 self.logger.log(f"{police} current position: {police_pos}, action taken: {actions[police]}", level="debug")
-                possible_positions, positions_costs = self._get_possible_moves(police_pos, police_index)
+                possible_positions, positions_costs = self._get_possible_moves(police_pos, police_index+1)
                 self.logger.log(f"{police} possible moves from position {police_pos}: {possible_positions}", level="debug")
                 # print(possible_positions)
                 police_action = actions[police]
                 if police_action is None:
                     continue
-
+                is_no_money = False
                 if police_action in possible_positions:
                     pos_to_go = police_action
                     self.logger.log(f"{police} moves to position {pos_to_go}", level="debug")
@@ -131,11 +133,12 @@ class CustomEnvironment(BaseEnvironment):
                     # print(positions_costs[np.where(possible_positions == pos_to_go)])
                     # print(min(positions_costs[np.where(possible_positions == pos_to_go)]))
                     # print(self.agents_money)
-                    self.agents_money[police_index] -= min(positions_costs[np.where(possible_positions == pos_to_go)])
+                    self.agents_money[police_index+1] -= min(positions_costs[np.where(possible_positions == pos_to_go)])
                 else:
                     self.logger.log(f"{police} move blocked by another police at position {pos_to_go}, ",level="debug")
+        # print(self.agents_money)                    
         # Compute rewards and check termination/truncation
-        rewards, terminations, truncations, winner = self._calculate_rewards_terminations()
+        rewards, terminations, truncations, winner = self._calculate_rewards_terminations(is_no_money)
         self.logger.log(f"Rewards: {rewards}, ",level="debug")
         self.logger.log(f"Terminations: {terminations}, ",level="debug")
         self.logger.log(f"Truncations: {truncations}, ",level="debug")
@@ -187,7 +190,7 @@ class CustomEnvironment(BaseEnvironment):
         self.logger.log("Graph observations generated., ",level="debug")
         return observations
 
-    def _calculate_rewards_terminations(self):
+    def _calculate_rewards_terminations(self, is_no_money):
         """
         Compute rewards and check termination/truncation conditions.
         """
@@ -197,14 +200,19 @@ class CustomEnvironment(BaseEnvironment):
         rewards = {a: 0 for a in self.agents}
         winner = None
         if self.MrX_pos[0] in self.police_positions:
-            self.logger.log("MrX has been caught by the police., ",level="debug")
+            self.logger.log("MrX has been caught by the police., ",level="info")
             rewards = {a: (-1 if a == "MrX" else 1) for a in self.agents}
             terminations = {a: True for a in self.agents}
             winner = "Police"
         elif self.timestep > 250:
-            self.logger.log("Maximum timestep exceeded. Truncating episode., ",level="debug")
+            self.logger.log("Maximum timestep exceeded. Truncating episode., ",level="info")
             rewards = {a: (1 if a == "MrX" else 0) for a in self.agents}
             truncations = {a: True for a in self.agents}
+            winner = "MrX"
+        elif is_no_money:
+            self.logger.log("Police out of money. Truncating episode., ",level="info")
+            rewards = {a: (1 if a == "MrX" else 0) for a in self.agents}
+            terminations = {a: True for a in self.agents}
             winner = "MrX"
         else:
             rewards = self.calculate_rewards()
@@ -564,6 +572,17 @@ class CustomEnvironment(BaseEnvironment):
         # Color police positions blue
         for pos in self.police_positions:
             self.node_colors[pos] = 'blue'
+
+    def close_render(self):
+        """Closes the matplotlib plot."""
+        if self.fig is not None:
+            plt.ioff()  # Turn off interactive mode
+            plt.close(self.fig)
+            self.fig = None
+            self.ax = None
+            self.node_collection = None
+            self.edge_collection = None
+            self.logger.log("Render plot closed.", level="debug")
 
     def render(self):
         """Renders the environment."""
