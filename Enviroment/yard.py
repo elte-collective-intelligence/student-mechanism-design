@@ -11,7 +11,7 @@ from Enviroment.graph_layout import ConnectedGraph
 class CustomEnvironment(BaseEnvironment):
     metadata = {"name": "scotland_yard_env"}
 
-    def __init__(self, number_of_agents, agent_money, reward_weights, logger, epoch):
+    def __init__(self, number_of_agents, agent_money, reward_weights, logger, epoch, graph_nodes, graph_edges, visualize=False):
         """
         Initialize the environment with given parameters.
         """
@@ -28,6 +28,9 @@ class CustomEnvironment(BaseEnvironment):
         self.node_collection = None
         self.edge_collection = None
         self.label_collection = None  # To store node labels
+        self.visualize = visualize
+        self.graph_nodes = graph_nodes
+        self.graph_edges = graph_edges
         self.reset()
         self.epoch = epoch
         self.episode = 0
@@ -47,7 +50,7 @@ class CustomEnvironment(BaseEnvironment):
         Reset the environment to its initial state.
         """
         self.episode = episode
-        self.board = self.observation_graph.sample(num_nodes=50, num_edges=110)
+        self.board = self.observation_graph.sample(num_nodes=self.graph_nodes, num_edges=self.graph_edges)
         self.logger.log("Resetting the environment.", level="debug")
         self.logger.log(f"Generated board with {self.board.nodes.shape[0]} nodes and {self.board.edge_links.shape[0]} edges.", level="debug")
 
@@ -67,8 +70,9 @@ class CustomEnvironment(BaseEnvironment):
 
         infos = {a: {} for a in self.agents}  # Dummy infos
         self.logger.log("Environment reset complete.", level="debug")
-        # self.close_render()
-        # self.initialize_render()
+        if self.visualize:
+            self.close_render()
+            self.initialize_render()
 
         observations = self._get_graph_observations()
         return observations, infos
@@ -77,7 +81,8 @@ class CustomEnvironment(BaseEnvironment):
         """
         Execute actions for all agents and update the environment.
         """
-        # self.render()
+        if self.visualize:
+            self.render()
         self.logger.log(f"Step {self.timestep}: Received actions: {actions}", level="debug")
         mrX_action = actions["MrX"]
         mrx_pos = self.MrX_pos[0]
@@ -151,7 +156,8 @@ class CustomEnvironment(BaseEnvironment):
         if any(terminations.values()) or all(truncations.values()):
             self.logger.log("Termination or truncation condition met. Ending episode., ",level="debug")
             self.agents = []
-            # self.render()
+            if self.visualize:
+                self.render()
 
         self.logger.log(f"Step {self.timestep} completed., ",level="debug")
         return observations, rewards, terminations, truncations, winner, infos, 

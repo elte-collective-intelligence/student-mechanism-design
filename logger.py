@@ -162,7 +162,25 @@ class Logger:
         artifact.add_file(path)
         wandb.log_artifact(artifact)
 
+    def load_model(self, model_name, model_num=None ):
+        """
+        Load model from Weights & Biases.
 
+        Args:
+            model_name (str): The name of the model.
+        """
+        if wandb.run:
+            if(model_num):
+                model_name_with_num = model_name + ":" + str(model_num)
+            else:
+                model_name_with_num = model_name + ":latest"
+            artifact = wandb.use_artifact(model_name_with_num, type='model')
+            model_dir = artifact.download()
+        else:
+            model_dir = self.log_dir + "/" + model_name + ".pt"
+        
+        model = torch.load(model_dir + "/" + model_name + ".pt")
+        return model
     def close(self):
         """
         Close the TensorBoard writer and Weights & Biases run.

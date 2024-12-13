@@ -194,6 +194,13 @@ class GNNAgent:
         Returns the model parameters.
         """
         return self.model.state_dict()
+
+    def load_state_dict(self, state_dict, strict=True):
+        """
+        Loads the model parameters.
+        """
+        self.model.load_state_dict(state_dict, strict=strict)
+        
 class GNNModel(nn.Module):
     def __init__(self, node_feature_size):
         super(GNNModel, self).__init__()

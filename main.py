@@ -12,7 +12,7 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 print(f"Using device: {device}")  # You may consider logging this instead
 
 class RewardWeightNet(nn.Module):
-    def __init__(self, input_size=2, hidden_size=32, output_size=8):
+    def __init__(self, input_size=4, hidden_size=32, output_size=8):
         super(RewardWeightNet, self).__init__()
         self.fc1 = nn.Linear(input_size, hidden_size)
         self.relu = nn.ReLU()
@@ -40,8 +40,7 @@ def train(args):
     reward_weight_net = RewardWeightNet().to(device)
     logger.log("DifficultyNet initialized and moved to device.")
 
-    optimizer_difficulty = optim.Adam(reward_weight_net.parameters(), lr=0.001)
-    logger.log("Optimizer for DifficultyNet initialized.", level="debug")
+    optimizer = optim.Adam(reward_weight_net.parameters(), lr=0.001)
 
     criterion = nn.MSELoss()
     logger.log("Loss function (MSELoss) initialized.", level="debug")
@@ -66,9 +65,8 @@ def train(args):
         logger.log_scalar('epoch/num_agents', num_agents)
         logger.log_scalar('epoch/agent_money', agent_money)
         # Predict the difficulty from the number of agents and money
-        inputs = torch.FloatTensor([[num_agents, agent_money]]).to(device)  # Move inputs to GPU
+        inputs = torch.FloatTensor([[num_agents, agent_money, args.graph_nodes, args.graph_edges]]).to(device)  # Move inputs to GPU
         predicted_weight = reward_weight_net(inputs)
-        # print(predicted_weight)
         reward_weights = {
             "Police_distance" : predicted_weight[0,0],
             "Police_group": predicted_weight[0,1],
@@ -88,7 +86,9 @@ def train(args):
             agent_money=agent_money,
             reward_weights=reward_weights,
             logger=logger,
-            epoch=epoch
+            epoch=epoch,
+            graph_nodes=args.graph_nodes,
+            graph_edges=args.graph_edges
         )
         logger.log(f"Environment created with weights {reward_weights}.",level="debug")
 
@@ -262,9 +262,9 @@ def train(args):
             f"Epoch {epoch + 1}: Loss: {loss.item()}, Win Ratio: {win_ratio}, "
             f"Predicted Difficulty: {predicted_weight}, Target Difficulty: {target_difficulty}"
         )
-        optimizer_difficulty.zero_grad()
+        optimizer.zero_grad()
         loss.backward()
-        optimizer_difficulty.step()
+        optimizer.step()
         logger.log(f"Epoch {epoch + 1}: Optimizer step completed.",level="debug")
 
         logger.log_scalar('epoch/loss', loss.item())
@@ -314,69 +314,123 @@ def create_graph_data(state, agent_id, env):
     logger.log(f"Graph data for agent {agent_id} created.",level="debug")
     return data
 
-def evaluate_agent_balance(mrX_agent, police_agent, env, num_eval_episodes, device):
+def evaluate(args):
     """Evaluate the agents' win ratio."""
-    logger = env.logger  # Access the logger from the environment
-    logger.log(f"Starting evaluation of agent balance over {num_eval_episodes} episodes.")
-    wins = 0
-    num_police_agents = env.number_of_agents - 1  # Derive the number of police agents from env
+    logger = Logger(
+        log_dir=args.log_dir,
+        wandb_api_key=args.wandb_api_key,
+        wandb_project=args.wandb_project,
+        wandb_entity=args.wandb_entity,
+        wandb_run_name=args.wandb_run_name,
+        wandb_resume=args.wandb_resume
+    )
 
-    for episode in range(num_eval_episodes):
-        logger.log(f"Evaluation Episode {episode + 1} started.")
-        state, _ = env.reset(episode=episode)
-        done = False
-        while not done:
-            # Create graph data for GNN and move to GPU
-            mrX_graph = create_graph_data(state, 'MrX', env).to(device)
-            police_graphs = [
-                create_graph_data(state, f'Police{i}', env).to(device)
-                for i in range(num_police_agents)
-            ]
-            logger.log(f"Created graph data for MrX and Police agents.", level="debug")
+    reward_weight_net = RewardWeightNet().to(device)
+    reward_weight_net.load_state_dict(logger.load_model('RewardWeightNet', 'v533'), strict=False)
+    reward_weight_net.eval()
 
-            # MrX selects an action
-            mrX_possible_moves = env.get_possible_moves(0)
-            action_mask = torch.zeros(mrX_graph.num_nodes, dtype=torch.int32, device=device)
-            action_mask[ mrX_possible_moves] = 1
-            mrX_action = mrX_agent.select_action(mrX_graph,action_mask)
-            logger.log(f"MrX selected action: {mrX_action}",level="debug")
+    police_agent = GNNAgent(node_feature_size=3, device=device)
+    for config in args.agent_configurations:
+        num_agents, agent_money = config["num_police_agents"], config["agent_money"]  # Unpack the tuple
+        agent_money = 20
+        logger.log(f"Choosen configuration: {num_agents} agents, {agent_money} money.", level="info")
+        # print(selected_config)
+        logger.log_scalar('epoch/num_agents', num_agents)
+        logger.log_scalar('epoch/agent_money', agent_money)
+        # Predict the difficulty from the number of agents and money
+        inputs = torch.FloatTensor([[num_agents, agent_money]]).to(device)  # Move inputs to GPU
+        predicted_weight = reward_weight_net(inputs)
+        # print(predicted_weight)
+        reward_weights = {
+            "Police_distance" : predicted_weight[0,0],
+            "Police_group": predicted_weight[0,1],
+            "Police_position": predicted_weight[0,2],
+            "Police_time": predicted_weight[0,3],
+            "Mrx_closest": predicted_weight[0,4],
+            "Mrx_average": predicted_weight[0,5],
+            "Mrx_position": predicted_weight[0,6],
+            "Mrx_time": predicted_weight[0,7]
+        }
+        logger.log(f"Predicted weights: {reward_weights}", level="debug")
+        logger.log_weights(reward_weights)
+        # Create environment with predicted difficulty
+        env = CustomEnvironment(
+            number_of_agents=num_agents,
+            agent_money=agent_money,
+            reward_weights=reward_weights,
+            logger=logger,
+            epoch=1,
+            visualize=True
+        )
+        node_feature_size = env.number_of_agents + 1  # Assuming node features exist
+        mrX_action_size = env.action_space('MrX').n
+        police_action_size = env.action_space('Police0').n  # Assuming all police have the same action space
+        logger.log(f"Node feature size: {node_feature_size}, MrX action size: {mrX_action_size}, Police action size: {police_action_size}",level="debug")
 
-            # Police agents select actions
-            agent_actions = {'MrX': mrX_action}
-            for i in range(args.num_police_agents):
-                police_possible_moves = env.get_possible_moves(i+1)
-                print(police_graphs)
-                print(i)
-                print(args.num_police_agents)
-                action_mask = torch.zeros(police_graphs[i].num_nodes, dtype=torch.int32, device=device)
-                action_mask[ police_possible_moves] = 1
-                police_action = police_agent.select_action(
-                    police_graphs[i],
-                    action_mask
-                )
-                agent_actions[f'Police{i}'] = police_action
-                logger.log(f"Police{i} selected action: {police_action}",level="debug")
+        # Initialize GNN agents with graph-specific parameters and move them to GPU
+        mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
+        mrX_agent.load_state_dict(logger.load_model('MrX', 'v533'), strict=False)
+        police_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
+        police_agent.load_state_dict(logger.load_model('Police', 'v533'), strict=False)
 
-            # Execute actions for MrX and Police
-            next_state, rewards, terminations, truncation, _ = env.step(agent_actions)
-            logger.log(f"Evaluation Episode {episode + 1}: Executed actions. Rewards: {rewards}, Terminations: {terminations}, Truncations: {truncation}", level="debug")
+        wins = 0
+        for episode in range(args.num_eval_episodes):
+            logger.log(f"Evaluation Episode {episode + 1} started.",level="info")
+            state, _ = env.reset(episode=episode)
+            done = False
+            total_reward = 0
+            while not done:
+                # Create graph data for GNN and move to GPU
+                mrX_graph = create_graph_data(state, 'MrX', env).to(device)
+                police_graphs = [
+                    create_graph_data(state, f'Police{i}', env).to(device)
+                    for i in range(num_agents)
+                ]
+                logger.log(f"Created graph data for MrX and Police agents.",level="debug")
 
-            done = terminations.get('Police0', False) or all(truncation.values()) 
-            
-            state = next_state
+                # MrX selects an action
+                # mrX_action = mrX_agent.select_action(mrX_graph, torch.ones(mrX_action_size, device=device))
 
-            if done:
-                # Define win condition: MrX wins if not terminated by Police and truncation conditions met
-                if not terminations.get('Police0', False) and all(truncation.values()):
-                    wins += 1
-                    logger.log(f"Evaluation Episode {episode + 1}: MrX won.")
-                else:
-                    logger.log(f"Evaluation Episode {episode + 1}: MrX lost.")
+                mrX_action_size = env.action_space('MrX').n
+                mrX_possible_moves = env.get_possible_moves(0)
+                action_mask = torch.zeros(mrX_graph.num_nodes, dtype=torch.int32, device=device)
+                action_mask[ mrX_possible_moves] = 1
+                mrX_action = mrX_agent.select_action(mrX_graph,action_mask)
+                logger.log(f"MrX selected action: {mrX_action}",level="debug")
 
-    win_ratio = wins / num_eval_episodes
-    logger.log(f"Evaluation completed. Win Ratio: {win_ratio}")
-    return win_ratio
+                # Police agents select actions
+                agent_actions = {'MrX': mrX_action}
+                for i in range(num_agents):
+                    police_action_size = env.action_space(f'Police{i}').n
+                    police_possible_moves = env.get_possible_moves(i+1)
+                    action_mask = torch.zeros(police_graphs[i].num_nodes, dtype=torch.int32, device=device)
+                    action_mask[ police_possible_moves] = 1
+                    police_action = police_agent.select_action(
+                        police_graphs[i],
+                        action_mask
+                    )
+                    agent_actions[f'Police{i}'] = police_action
+                    logger.log(f"Police{i} selected action: {police_action}",level="debug")
 
+                # Execute actions for MrX and Police
+                next_state, rewards, terminations, truncation, winner, _ = env.step(agent_actions)
+                logger.log(f"Executed actions. Rewards: {rewards}, Terminations: {terminations}, Truncations: {truncation}",level="debug")
+
+                done = terminations.get('Police0', False) or all(truncation.values())
+                logger.log(f"Episode done: {done}",level="debug")
+
+                total_reward += rewards.get('MrX', 0.0)
+                state = next_state
+                logger.log(f"Total reward updated to: {total_reward}",level="debug")
+                if done:
+                    if winner == 'MrX':
+                        wins += 1
+                        logger.log(f"MrX won the evaluation episode.",level="info")
+                    else:
+                        logger.log(f"MrX lost the evaluation episode.",level="info")
+        win_ratio = wins / args.num_eval_episodes
+        logger.log(f"Evaluation completed. Win Ratio: {win_ratio}")     
+        return
 def compute_target_difficulty(win_ratio, target_balance=0.5):
     """Adjust the target difficulty based on the win/loss ratio."""
     # You can add logging here if needed
@@ -391,6 +445,8 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str, help='Path to the YAML configuration file.')
 
     # Add all the other arguments with default=argparse.SUPPRESS
+    parser.add_argument('--graph_nodes', type=int, default=argparse.SUPPRESS, help='Number of nodes in the graph')
+    parser.add_argument('--graph_edges', type=int, default=argparse.SUPPRESS, help='Number of edges in the graph')
     parser.add_argument('--state_size', type=int, default=argparse.SUPPRESS, help='State size for the agent')
     parser.add_argument('--action_size', type=int, default=argparse.SUPPRESS, help='Action size for the agent')
     parser.add_argument('--num_episodes', type=int, default=argparse.SUPPRESS, help='Number of episodes per epoch')
@@ -403,7 +459,7 @@ if __name__ == "__main__":
     parser.add_argument('--wandb_run_name', type=str, default=argparse.SUPPRESS, help='Custom name for the Weights & Biases run')
     parser.add_argument('--wandb_resume', action='store_true', help='Resume Weights & Biases run if it exists')
     parser.add_argument('--random_seed', type=int, default=argparse.SUPPRESS, help='Random seed for reproducibility')
-
+    parser.add_argument('--evaluate', type=bool, default=argparse.SUPPRESS, help='Set to True to evaluate the agents')
     # Add agent_configurations argument
     parser.add_argument('--agent_configurations', type=str, default=argparse.SUPPRESS,
                         help='List of (num_police_agents, agent_money) tuples separated by semicolons. E.g., "2,30;3,40;4,50"')
@@ -414,10 +470,12 @@ if __name__ == "__main__":
 
     # Default values for all parameters
     default_values = {
+        'graph_nodes': 50,
+        'graph_edges': 110,
         'state_size': 1,
         'action_size': 5,
         'num_episodes': 100,
-        'num_eval_episodes': 20,
+        'num_eval_episodes': 10,
         'epochs': 50,
         'log_dir': 'logs',
         'wandb_api_key': None,
@@ -426,7 +484,8 @@ if __name__ == "__main__":
         'wandb_run_name': None,
         'wandb_resume': False,
         'agent_configurations': [(2, 30), (3, 40), (4, 50)],  # Default configurations
-        'random_seed': 42
+        'random_seed': 42,
+        'evaluate': False
     }
 
     # If a config file is provided, load its parameters
@@ -479,4 +538,7 @@ if __name__ == "__main__":
     # Convert combined_args to Namespace
     args = argparse.Namespace(**combined_args)
 
-    train(args)
+    if args.evaluate:
+        evaluate(args)
+    else:
+        train(args)
