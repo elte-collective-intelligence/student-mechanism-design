@@ -1,4 +1,0 @@
-num_agents: 3
-agent_money: 15.0
-num_meta_train_tasks: 20
-num_meta_test_tasks: 10

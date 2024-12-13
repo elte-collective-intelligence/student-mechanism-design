@@ -1,22 +1,108 @@
-# Overview
+# RL Meta-Learning with GNN
 
-Welcome to the Scotland Yard Multi-Agent Reinforcement Learning with Meta-Learning project! Inspired by the classic board game Scotland Yard, this project aims to develop a sophisticated multi-agent system where multiple guards collaboratively pursue a fleeing prisoner (Mr. X) within a dynamically weighted environment. Leveraging advanced reinforcement learning (RL) algorithms and meta-learning techniques, our agents are designed to adapt swiftly to varying tasks and strategies, enhancing their pursuit efficiency and adaptability.
+## Introduction
 
-# Features
+This repository presents a meta-learning approach for reinforcement learning (RL) environments, leveraging Graph Neural Networks (GNNs) to enable dynamic adaptability. The project emphasizes multi-agent setups where agents collaboratively learn optimal policies, focusing on flexibility, shared information, and environment-aware strategies.
 
-1. Multi-Agent Environment: Simulates a Scotland Yard-inspired grid with multiple guard agents and a single prisoner.
-2. Weighted Graph: Incorporates a weighted graph structure to influence agent movements and strategies.
-3. Advanced RL Agents: Implements RL algorithms like Deep Q-Networks (DQN) and Proximal Policy Optimization (PPO).
-4. Meta-Learning Integration: Utilizes  Meta-Learning to enable rapid adaptation to new tasks.
-5. Logging & Monitoring: Comprehensive logging of training progress and performance metrics using TensorBoard.
-6. Parallelization: Supports parallel execution of multiple environment instances for efficient training
+## Overview
 
-# Architecture
-TBA
+The project aims to equip RL agents with the ability to adapt to varying task difficulties and dynamic interactions using meta-learning techniques and GNNs. Agents interact in a simulated city-like grid, taking on distinct objectives and utilizing shared information for optimized decision-making.
 
-# Installation
-TBA
+### Key Features
 
-# Usage
-TBA
+- **Meta-Learning**: Dynamically balances success and failure rates to achieve a 50/50 outcome.
+- **Graph Neural Networks**: Models agent relationships, enabling enhanced real-time adaptability.
+- **Multi-Agent Policies**: Develops specialized strategies for distinct roles.
+- **Dynamic Environment**: Adjusts parameters like agent count and resources to ensure evolving difficulty.
+- **Shared Policemen Policy**: Unifies strategies across agents for improved coordination.
+
+## Architecture
+
+### Environment
+
+The simulation involves a grid-based city environment where:
+
+- **MrX**: Operates as the target agent, focusing on evasion.
+- **Policemen**: Cooperatively work to track and capture MrX.
+- **Difficulty Parameter**: Modifies agent capabilities and resources to fine-tune task complexity.
+
+### Meta-Learning Framework
+
+The outer loop adjusts task difficulty through:
+
+1. Collecting and analyzing performance data from multiple episodes.
+2. Balancing success and failure rates to maintain a stable learning environment.
+3. Embedding difficulty adjustments as a learnable parameter directly into the environment.
+
+### GNN Integration
+
+GNNs enhance the system by:
+
+- **Spatial and Temporal Encoding**: Capturing dynamic relationships among agents.
+- **State Sharing**: Facilitating coordinated strategies across multiple agents.
+- **Policy Adaptability**: Supporting flexible decision-making through graph-based message passing.
+
+### Policies
+
+1. **MrX Policy**: Optimized to maximize evasion success.
+2. **Policemen Policy**: Shared across agents to promote efficient collaboration and coordination.
+
+## Installation
+
+Clone the repository and install the required dependencies using [apptainer](https://apptainer.org/):
+
+```bash
+git clone https://github.com/elte-collective-intelligence/Mechanism-Design.git
+cd Mechanism-Design
+./build.sh
+```
+This should build the apptainer image. 
+
+## Usage
+
+### Wandb config
+
+If you want to use wandb to log your experiments, dont forget to set the enviromental variables:
+1. WANDB_PROJECT
+2. WANDB_ENTITY
+3. WANDB_API_KEY
+
+### Experiment config
+
+1. In the experiment folder, create a folder with the name of you experiment.
+2. Add a config.yml file to it, with the required configurations (there are examples)
+
+### Run one experiment
+Start the training with one experiment:
+
+```bash
+./run.sh name-of-experiment
+```
+
+### Run all experiment
+Start the training with every experiments defined in the experiment folder:
+
+```bash
+./run_all_experiments.sh
+```
+
+### Visualization
+If you want to evaluate the policies, with visualized graphs add the 
+
+```yml
+evaluate=True
+```
+
+## Contributing
+
+We welcome contributions! To contribute:
+
+1. Fork the repository.
+2. Create a feature branch.
+3. Submit a pull request with detailed descriptions of changes.
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
+
 

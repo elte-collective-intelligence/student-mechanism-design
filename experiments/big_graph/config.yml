@@ -1,0 +1,56 @@
+# config.yaml
+
+agent_configurations:
+  - num_police_agents: 2
+    agent_money: 16
+  - num_police_agents: 2
+    agent_money: 18
+  - num_police_agents: 2
+    agent_money: 20
+  - num_police_agents: 2
+    agent_money: 22
+  - num_police_agents: 2
+    agent_money: 24
+  - num_police_agents: 2
+    agent_money: 20
+  - num_police_agents: 3
+    agent_money: 10
+  - num_police_agents: 3
+    agent_money: 12
+  - num_police_agents: 3
+    agent_money: 14
+  - num_police_agents: 3
+    agent_money: 16
+  - num_police_agents: 3
+    agent_money: 18
+  - num_police_agents: 4
+    agent_money: 10
+  - num_police_agents: 4
+    agent_money: 12
+  - num_police_agents: 4
+    agent_money: 14
+  - num_police_agents: 4
+    agent_money: 16
+  - num_police_agents: 5
+    agent_money: 8
+  - num_police_agents: 5
+    agent_money: 10
+  - num_police_agents: 5
+    agent_money: 12
+  - num_police_agents: 6
+    agent_money: 10
+  - num_police_agents: 6
+    agent_money: 6
+  - num_police_agents: 6
+    agent_money: 8
+
+graph_edges: 190
+graph_nodes: 100
+num_episodes: 70
+num_eval_episodes: 30
+epochs: 100
+log_dir: 'logs'
+wandb_run_name: 'big_graph'
+wandb_resume: false
+random_seed: 42
+evaluate: False
