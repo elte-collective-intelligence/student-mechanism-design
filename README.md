@@ -47,6 +47,49 @@ GNNs enhance the system by:
 1. **MrX Policy**: Optimized to maximize evasion success.
 2. **Policemen Policy**: Shared across agents to promote efficient collaboration and coordination.
 
+## Code Structure Overview
+
+- **main.py**  
+  - Contains the main entry point (train and evaluate functions) and the central training loop.  
+  - Sets up the command-line arguments, loads configurations, initializes the logger, environment, and agents.  
+  - Implements the logic for either training or evaluating the RL agents based on arguments.  
+
+- **logger.py**  
+  - Defines the Logger class for handling logging to console, file, TensorBoard, and Weights & Biases.  
+  - Manages logging metrics, weights, and model artifacts.  
+
+- **Enviroment/base_env.py**  
+  - Declares an abstract base class (BaseEnvironment) for custom environments using PettingZoo’s ParallelEnv.  
+
+- **Enviroment/graph_layout.py**  
+  - Contains a custom ConnectedGraph class for creating random connected graphs with optional extra edges and weights.  
+  - Provides graph sampling logic (e.g., Prim’s algorithm to ensure connectivity).  
+
+- **Enviroment/yard.py**  
+  - Implements CustomEnvironment, which inherits from BaseEnvironment.  
+  - Manages environment reset, step logic, agent positions, reward calculations, rendering, and graph observations.  
+
+- **RLAgent/base_agent.py**  
+  - Declares an abstract BaseAgent class defining the interface (select_action, update, etc.) for all RL agents.  
+
+- **RLAgent/gnn_agent.py**  
+  - Defines GNNAgent, a DQN-like agent using a GNN (GNNModel) to compute Q-values for graph nodes.  
+  - Handles experience replay, epsilon-greedy action selection, and network updates.  
+
+### Main Training Loop (in main.py, train function)
+
+1. **Initialize** logger, network(s), optimizers, and hyperparameters.  
+2. **For each epoch**:  
+   - Randomly choose environment config (number of agents, money, etc.).  
+   - Forward pass through the RewardWeightNet to compute reward weights for the environment.  
+   - **Inside loop**: for each episode:
+     - Reset environment, get initial state.  
+     - While not done:  
+       - Build GNN input (create_graph_data), pick actions (MrX and Police) using the GNN agents.  
+       - env.step(actions), compute rewards/terminations, update agents.  
+   - Evaluate performance (num_eval_episodes), compute target difficulty, backpropagate loss in RewardWeightNet.  
+   - Log metrics and proceed to the next epoch.  
+
 ## Installation
 
 Clone the repository and install the required dependencies using [apptainer](https://apptainer.org/):
@@ -56,6 +99,7 @@ git clone https://github.com/elte-collective-intelligence/Mechanism-Design.git
 cd Mechanism-Design
 ./build.sh
 ```
+
 This should build the apptainer image. 
 
 ## Usage
