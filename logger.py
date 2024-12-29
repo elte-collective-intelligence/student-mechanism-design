@@ -44,7 +44,7 @@ class Logger:
         fh = logging.FileHandler(os.path.join(log_dir, 'training.log'))
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
-        self.logger.addHandler(fh)
+        # self.logger.addHandler(fh)
 
         # TensorBoard handler
         self.writer = SummaryWriter(log_dir=log_dir)

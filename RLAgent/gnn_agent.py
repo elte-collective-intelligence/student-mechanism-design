@@ -23,7 +23,6 @@ class GNNAgent:
     ):
         """
         Graph Neural Network Agent with Experience Replay and Epsilon-Greedy policy.
-        Now supports GPU by accepting a device parameter.
         """
         self.node_feature_size = node_feature_size
         self.gamma = gamma

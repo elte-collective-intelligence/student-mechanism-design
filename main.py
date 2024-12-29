@@ -25,6 +25,17 @@ class RewardWeightNet(nn.Module):
         return torch.sigmoid(x) 
 
 def train(args):
+    """
+    Main training function:
+    - Initializes the logger, networks (including Meta RL net for reward weights), and optimizer.
+    - Iterates over epochs:
+        - Chooses an agent/environment configuration.
+        - Predicts new reward weights via the RewardWeightNet (Meta RL).
+        - Inside loop: runs episodes where agents (MrX & Police) select actions based on GNN.
+        - Steps through the environment, gathers rewards, and updates agents.
+        - After episodes, evaluates performance and updates RewardWeightNet towards target difficulty.
+    """
+
     logger = Logger(
         log_dir=args.log_dir,
         wandb_api_key=args.wandb_api_key,
@@ -257,10 +268,10 @@ def train(args):
 
         # Train the DifficultyNet based on the difference between predicted and target difficulty
         target_tensor = torch.FloatTensor([target_difficulty]).to(device)  # Move target to GPU
-        loss = criterion(predicted_weight, target_tensor)
+        loss = criterion(win_ratio, target_tensor)
         logger.log(
             f"Epoch {epoch + 1}: Loss: {loss.item()}, Win Ratio: {win_ratio}, "
-            f"Predicted Difficulty: {predicted_weight}, Target Difficulty: {target_difficulty}"
+            f"Real Difficulty: {win_ratio}, Target Difficulty: {target_difficulty}"
         )
         optimizer.zero_grad()
         loss.backward()
@@ -315,7 +326,14 @@ def create_graph_data(state, agent_id, env):
     return data
 
 def evaluate(args):
-    """Evaluate the agents' win ratio."""
+    """
+    Evaluation function:
+    - Loads pre-trained RewardWeightNet and agent models.
+    - Applies the predicted reward weights in the environment.
+    - Runs a fixed number of episodes:
+        - MrX and Police agents act based on GNN policies (no training).
+        - Logs performance metrics (e.g., win ratio).
+    """
     logger = Logger(
         log_dir=args.log_dir,
         wandb_api_key=args.wandb_api_key,
@@ -326,7 +344,7 @@ def evaluate(args):
     )
 
     reward_weight_net = RewardWeightNet().to(device)
-    reward_weight_net.load_state_dict(logger.load_model('RewardWeightNet', 'v533'), strict=False)
+    reward_weight_net.load_state_dict(logger.load_model('RewardWeightNet'), strict=False)
     reward_weight_net.eval()
 
     police_agent = GNNAgent(node_feature_size=3, device=device)
@@ -369,9 +387,9 @@ def evaluate(args):
 
         # Initialize GNN agents with graph-specific parameters and move them to GPU
         mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
-        mrX_agent.load_state_dict(logger.load_model('MrX', 'v533'), strict=False)
+        mrX_agent.load_state_dict(logger.load_model('MrX'), strict=False)
         police_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
-        police_agent.load_state_dict(logger.load_model('Police', 'v533'), strict=False)
+        police_agent.load_state_dict(logger.load_model('Police'), strict=False)
 
         wins = 0
         for episode in range(args.num_eval_episodes):

@@ -34,15 +34,6 @@ class CustomEnvironment(BaseEnvironment):
         self.reset()
         self.epoch = epoch
         self.episode = 0
-        # hyperparams = {
-        #     "number_of_agents": self.number_of_agents-1,
-        #     "agent_money": self.agent_money,
-        # }
-        
-        # self.logger.log_hyperparameters(hyperparams)
-        # self.logger.log("Environment initialized with hyperparameters: " + str(hyperparams))
-
-        # Initialize rendering attributes
         
 
     def reset(self, episode=0, seed=None, options=None):
@@ -130,14 +121,7 @@ class CustomEnvironment(BaseEnvironment):
                 if pos_to_go not in self.police_positions and pos_to_go != police_pos:
                     self.police_positions[police_index] = pos_to_go
                     self.logger.log(f"{police} position updated to {self.police_positions[police_index]}, ",level="debug")
-                    # print("--------------------")
-                    # print(pos_to_go)
-                    # print(positions_costs)
-                    # print(possible_positions)
-                    # print(np.where(possible_positions == pos_to_go))
-                    # print(positions_costs[np.where(possible_positions == pos_to_go)])
-                    # print(min(positions_costs[np.where(possible_positions == pos_to_go)]))
-                    # print(self.agents_money)
+
                     self.agents_money[police_index+1] -= min(positions_costs[np.where(possible_positions == pos_to_go)])
                 else:
                     self.logger.log(f"{police} move blocked by another police at position {pos_to_go}, ",level="debug")
