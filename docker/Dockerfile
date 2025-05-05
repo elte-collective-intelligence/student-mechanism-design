@@ -1,4 +1,4 @@
-FROM mechanism_design_base
+FROM student_mechanism_design_base
 WORKDIR /app
 COPY . /app
 RUN gcc --version
