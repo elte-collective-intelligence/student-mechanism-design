@@ -267,8 +267,9 @@ def train(args):
         logger.log(f"Epoch {epoch + 1}: Computed target difficulty: {target_difficulty}",level="info")
 
         # Train the DifficultyNet based on the difference between predicted and target difficulty
-        target_tensor = torch.FloatTensor([target_difficulty]).to(device)  # Move target to GPU
-        loss = criterion(win_ratio, target_tensor)
+        target_tensor = torch.FloatTensor([target_difficulty]).to(device).requires_grad_()  # Move target to GPU
+        win_ratio_tensor = torch.FloatTensor([win_ratio]).to(device).requires_grad_()
+        loss = criterion(win_ratio_tensor , target_tensor)
         logger.log(
             f"Epoch {epoch + 1}: Loss: {loss.item()}, Win Ratio: {win_ratio}, "
             f"Real Difficulty: {win_ratio}, Target Difficulty: {target_difficulty}"
@@ -356,7 +357,7 @@ def evaluate(args):
         logger.log_scalar('epoch/num_agents', num_agents)
         logger.log_scalar('epoch/agent_money', agent_money)
         # Predict the difficulty from the number of agents and money
-        inputs = torch.FloatTensor([[num_agents, agent_money]]).to(device)  # Move inputs to GPU
+        inputs = torch.FloatTensor([[num_agents, agent_money, args.graph_nodes, args.graph_edges]]).to(device)  # Move inputs to GPU
         predicted_weight = reward_weight_net(inputs)
         # print(predicted_weight)
         reward_weights = {
@@ -378,6 +379,8 @@ def evaluate(args):
             reward_weights=reward_weights,
             logger=logger,
             epoch=1,
+            graph_nodes=args.graph_nodes,
+            graph_edges=args.graph_edges,
             visualize=True
         )
         node_feature_size = env.number_of_agents + 1  # Assuming node features exist
