@@ -1,0 +1,15 @@
+opencv-python
+numpy
+pillow
+tensorboard
+gym
+gymnasium
+pettingzoo
+scipy
+torch
+torchaudio
+torchvision
+wandb
+matplotlib
+networkx
+torch-geometric
