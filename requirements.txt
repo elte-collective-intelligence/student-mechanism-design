@@ -13,3 +13,4 @@ wandb
 matplotlib
 networkx
 torch-geometric
+torchrl

@@ -4,9 +4,11 @@ import torch.optim as optim
 import numpy as np
 from logger import Logger  # Your custom Logger class
 from RLAgent.gnn_agent import GNNAgent
+from RLAgent.random_agent import RandomAgent
 from Enviroment.yard import CustomEnvironment
 from torch_geometric.data import Data
 import random
+import re
 # Define the device at the beginning
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 print(f"Using device: {device}")  # You may consider logging this instead
@@ -110,8 +112,14 @@ def train(args):
         logger.log(f"Node feature size: {node_feature_size}, MrX action size: {mrX_action_size}, Police action size: {police_action_size}",level="debug")
 
         # Initialize GNN agents with graph-specific parameters and move them to GPU
-        mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
-        police_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
+        if agent_configs["agent_type"] == "gnn":
+            mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+        else:
+            mrX_agent = RandomAgent()
+        if agent_configs["agent_type"] == "gnn":
+            police_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+        else:
+            police_agent = RandomAgent()
         logger.log("GNN agents for MrX and Police initialized.",level="debug")
 
         # Train the MrX and Police agents in the environment
@@ -326,7 +334,7 @@ def create_graph_data(state, agent_id, env):
     logger.log(f"Graph data for agent {agent_id} created.",level="debug")
     return data
 
-def evaluate(args):
+def evaluate(args,agent_configs):
     """
     Evaluation function:
     - Loads pre-trained RewardWeightNet and agent models.
@@ -343,12 +351,14 @@ def evaluate(args):
         wandb_run_name=args.wandb_run_name,
         wandb_resume=args.wandb_resume
     )
-
+    logger.log(agent_configs,level="info")
     reward_weight_net = RewardWeightNet().to(device)
     reward_weight_net.load_state_dict(logger.load_model('RewardWeightNet'), strict=False)
     reward_weight_net.eval()
-
-    police_agent = GNNAgent(node_feature_size=3, device=device)
+    if agent_configs["agent_type"] == "gnn":
+        police_agent = GNNAgent(node_feature_size=3, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+    else:
+        police_agent = RandomAgent()
     for config in args.agent_configurations:
         num_agents, agent_money = config["num_police_agents"], config["agent_money"]  # Unpack the tuple
         agent_money = 20
@@ -389,10 +399,16 @@ def evaluate(args):
         logger.log(f"Node feature size: {node_feature_size}, MrX action size: {mrX_action_size}, Police action size: {police_action_size}",level="debug")
 
         # Initialize GNN agents with graph-specific parameters and move them to GPU
-        mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
-        mrX_agent.load_state_dict(logger.load_model('MrX'), strict=False)
-        police_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
-        police_agent.load_state_dict(logger.load_model('Police'), strict=False)
+        if agent_configs["agent_type"] == "gnn":
+            mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            mrX_agent.load_state_dict(logger.load_model('MrX'), strict=False)
+        else:
+            mrX_agent = RandomAgent()
+        if agent_configs["agent_type"] == "gnn":
+            police_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            police_agent.load_state_dict(logger.load_model('Police'), strict=False)
+        else:
+            police_agent = RandomAgent()
 
         wins = 0
         for episode in range(args.num_eval_episodes):
@@ -526,7 +542,20 @@ if __name__ == "__main__":
         config_args.pop('config', None)
     else:
         config_args = {}
-
+    yaml_loader = yaml.SafeLoader
+    yaml_loader.add_implicit_resolver(
+        u'tag:yaml.org,2002:float',
+        re.compile(u'''^(?:
+        [-+]?(?:[0-9][0-9_]*)\\.[0-9_]*(?:[eE][-+]?[0-9]+)?
+        |[-+]?(?:[0-9][0-9_]*)(?:[eE][-+]?[0-9]+)
+        |\\.[0-9_]+(?:[eE][-+][0-9]+)?
+        |[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\\.[0-9_]*
+        |[-+]?\\.(?:inf|Inf|INF)
+        |\\.(?:nan|NaN|NAN))$''', re.X),
+        list(u'-+0123456789.'))
+    with open("./src/configs/agent/default.yaml", 'r') as f:
+        agent_configs = yaml.load(f,Loader=yaml_loader)
+        print(agent_configs)
     # Handle agent_configurations from command-line if provided
     if 'agent_configurations' in args_dict:
         # Parse the string into a list of tuples or dictionaries
@@ -560,6 +589,6 @@ if __name__ == "__main__":
     args = argparse.Namespace(**combined_args)
 
     if args.evaluate:
-        evaluate(args)
+        evaluate(args,agent_configs)
     else:
         train(args)
