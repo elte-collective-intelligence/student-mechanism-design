@@ -114,10 +114,16 @@ def train(args):
         # Initialize GNN agents with graph-specific parameters and move them to GPU
         if agent_configs["agent_type"] == "gnn":
             mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+        elif agent_configs["agent_type"] == "mappo":
+            pass
+            #mrX_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
         else:
             mrX_agent = RandomAgent()
         if agent_configs["agent_type"] == "gnn":
             police_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+        elif agent_configs["agent_type"] == "mappo":
+            pass
+            #police_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
         else:
             police_agent = RandomAgent()
         logger.log("GNN agents for MrX and Police initialized.",level="debug")
@@ -353,6 +359,9 @@ def evaluate(args,agent_configs):
     reward_weight_net.eval()
     if agent_configs["agent_type"] == "gnn":
         police_agent = GNNAgent(node_feature_size=3, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+    elif agent_configs["agent_type"] == "mappo":
+        pass
+        #police_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
     else:
         police_agent = RandomAgent()
     for config in args.agent_configurations:
@@ -398,11 +407,19 @@ def evaluate(args,agent_configs):
         if agent_configs["agent_type"] == "gnn":
             mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
             mrX_agent.load_state_dict(logger.load_model('MrX'), strict=False)
+        elif agent_configs["agent_type"] == "mappo":
+            pass
+            #mrX_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            #mrX_agent.load_state_dict(logger.load_model('MrX'), strict=False)
         else:
             mrX_agent = RandomAgent()
         if agent_configs["agent_type"] == "gnn":
             police_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
             police_agent.load_state_dict(logger.load_model('Police'), strict=False)
+        elif agent_configs["agent_type"] == "mappo":
+            pass
+            #police_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            #police_agent.load_state_dict(logger.load_model('Police'), strict=False)
         else:
             police_agent = RandomAgent()
 
