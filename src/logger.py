@@ -32,7 +32,7 @@ class Logger:
         self.logger.setLevel(logging.DEBUG)
         self.log_dir = log_dir
         os.makedirs(log_dir, exist_ok=True)
-
+        self.use_wandb=False
         # Console handler
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
@@ -50,29 +50,28 @@ class Logger:
         self.writer = SummaryWriter(log_dir=log_dir)
 
         # Weight and biasses
-        #if wandb_project:
-        #    wandb_kwargs = {
-        #        "project": wandb_project,
-        #        "entity": wandb_entity,
-        #        "config": wandb_config,
-        #        "name": wandb_run_name,
-        #        "dir": log_dir,
-        #        "resume": "allow" if wandb_resume else False
-        #    }
-        #    
-        #    # Remove None values to avoid wandb warnings
-        #    wandb_kwargs = {k: v for k, v in wandb_kwargs.items() if v is not None}
-        #    wandb.login(key=wandb_api_key)
-        #    wandb.init(**wandb_kwargs)
-        #    self.logger.info("Weights & Biases initialized.")
-#
-        #    wandb.define_metric("epoch_step")
-        #    wandb.define_metric("episode_step")
-        #    wandb.define_metric("epoch/", step_metric="epoch_step")
-        #    wandb.define_metric("reward_weight/", step_metric="epoch_step")
-        #    wandb.define_metric("episode/", step_metric="episode_step")
+        if wandb_project != "" and wandb_api_key != "" and wandb_entity != "":
+            wandb_kwargs = {
+                "project": wandb_project,
+                "entity": wandb_entity,
+                "config": wandb_config,
+                "name": wandb_run_name,
+                "dir": log_dir,
+                "resume": "allow" if wandb_resume else False
+            }
             
-
+            # Remove None values to avoid wandb warnings
+            wandb_kwargs = {k: v for k, v in wandb_kwargs.items() if v is not None}
+            wandb.login(key=wandb_api_key)
+            wandb.init(**wandb_kwargs)
+            self.logger.info("Weights & Biases initialized.")
+            self.use_wandb = True
+            wandb.define_metric("epoch_step")
+            wandb.define_metric("episode_step")
+            wandb.define_metric("epoch/", step_metric="epoch_step")
+            wandb.define_metric("reward_weight/", step_metric="epoch_step")
+            wandb.define_metric("episode/", step_metric="episode_step")
+            self.log("Using Wandb initialized.","info")
     def log(self, message, level='info'):
         """
         Log a message to console and file.
@@ -103,8 +102,8 @@ class Logger:
         """
         # self.log(str(step) + " | " + tag + ": " + str(value), level='info')
         self.writer.add_scalar(tag, value, step)
-        #if wandb.run:
-        #    wandb.log({tag: value}, step=step)
+        if self.use_wandb and wandb.run:
+            wandb.log({tag: value}, step=step)
 
     def log_weights(self, weights, step=None):
         """
@@ -119,8 +118,8 @@ class Logger:
 
     def log_plt(self, plt, step=None):
         pass
-        #if wandb.run:
-        #    wandb.log({"chart": wandb.Image(plt)})
+        if self.use_wandb and wandb.run:
+            wandb.log({"chart": wandb.Image(plt)})
 
     def log_metrics(self, metrics, step=None):
         """
@@ -136,8 +135,8 @@ class Logger:
             self.writer.add_scalar(tag, value, step)
 
         # Log to Wandb
-        #if wandb.run:
-        #    wandb.log(metrics, step=step)
+        if self.use_wandb and wandb.run:
+            wandb.log(metrics, step=step)
 
     def log_hyperparameters(self, params):
         """
@@ -146,7 +145,7 @@ class Logger:
         Args:
             params (dict): A dictionary of hyperparameter names and their values.
         """
-        if wandb.run:
+        if self.use_wandb and wandb.run:
             wandb.config.update(params)
 
     def log_model(self, model, model_name):
@@ -158,9 +157,10 @@ class Logger:
         """
         path =  self.log_dir + "/" + model_name + ".pt"
         torch.save(model.state_dict(), path)
-        #artifact = wandb.Artifact(model_name, type='model')
-        #artifact.add_file(path)
-        #wandb.log_artifact(artifact)
+        if self.use_wandb and wandb.run:
+            artifact = wandb.Artifact(model_name, type='model')
+            artifact.add_file(path)
+            wandb.log_artifact(artifact)
 
     def load_model(self, model_name, model_num=None ):
         """
@@ -169,16 +169,16 @@ class Logger:
         Args:
             model_name (str): The name of the model.
         """
-        #if wandb.run:
-        #    if(model_num):
-        #        model_name_with_num = model_name + ":" + str(model_num)
-        #    else:
-        #        model_name_with_num = model_name + ":latest"
-        #    #artifact = wandb.use_artifact(model_name_with_num, type='model')
-        #    #model_dir = artifact.download()
-        #    model_dir = self.log_dir
-        #else:
-        model_dir = self.log_dir
+        if self.use_wandb and wandb.run:
+            if(model_num):
+                model_name_with_num = model_name + ":" + str(model_num)
+            else:
+                model_name_with_num = model_name + ":latest"
+            #artifact = wandb.use_artifact(model_name_with_num, type='model')
+            #model_dir = artifact.download()
+            model_dir = self.log_dir
+        else:
+            model_dir = self.log_dir
         
         model = torch.load(model_dir + "/" + model_name + ".pt")
         return model
@@ -187,5 +187,5 @@ class Logger:
         Close the TensorBoard writer and Weights & Biases run.
         """
         self.writer.close()
-        #if wandb.run:
-        #    wandb.finish()
+        if self.use_wandb and wandb.run:
+            wandb.finish()

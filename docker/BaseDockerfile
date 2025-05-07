@@ -4,5 +4,6 @@ COPY . /app
 RUN apt-get update && apt-get install build-essential -y
 RUN apt-get update && apt-get install ffmpeg libsm6 libxext6  -y
 RUN apt-get install dos2unix
+RUN apt install -y jq
 RUN pip install -r requirements.txt
 RUN gcc --version

@@ -21,11 +21,11 @@ for EXP_DIR in "$EXPERIMENTS_DIR"/*/; do
     apptainer run \
         --nv \
         --bind ./:/app \
-        --bind "$EXP_DIR:/app/experiments" \
+        --bind "$EXP_DIR:/app/src/experiments" \
         "$CONTAINER" \
-        python /app/main.py "$@" \
-        --config "/app/experiments/config.yml" \
-        --log_dir "/app/experiments/logs" \
+        python /app/src/main.py "$@" \
+        --config "/app/src/experiments/config.yml" \
+        --log_dir "/app/src/experiments/logs" \
         --wandb_api_key "$WANDB_API_KEY" \
         --wandb_project "$WANDB_PROJECT" \
         --wandb_entity "$WANDB_ENTITY" \

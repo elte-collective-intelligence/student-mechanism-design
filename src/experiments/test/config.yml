@@ -5,11 +5,11 @@ agent_configurations:
     agent_money: 60
 graph_edges: 190
 graph_nodes: 100
-num_episodes: 70
-num_eval_episodes: 30
-epochs: 10
+num_episodes: 7
+num_eval_episodes: 1
+epochs: 1
 log_dir: 'logs'
 wandb_run_name: 'big_graph'
 wandb_resume: false
 random_seed: 42
-evaluate: False
+evaluate: True

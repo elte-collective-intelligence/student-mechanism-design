@@ -10,6 +10,7 @@ from torch_geometric.data import Data
 import random
 import re
 # Define the device at the beginning
+print(f"CUDA is available: {torch.cuda.is_available()}")
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 print(f"Using device: {device}")  # You may consider logging this instead
 
@@ -63,7 +64,6 @@ def train(args):
     # Validate that the agent configurations list is provided and not empty
     if not hasattr(args, 'agent_configurations') or not args.agent_configurations:
         raise ValueError("args.agent_configurations must be a non-empty list of (num_agents, agent_money) tuples.")
-
     for epoch in range(args.epochs):
         logger.log_scalar('epoch_step', epoch)
 
@@ -128,7 +128,6 @@ def train(args):
             state, _ = env.reset(episode=episode)
             done = False
             total_reward = 0
-
             while not done:
                 # Create graph data for GNN and move to GPU
                 mrX_graph = create_graph_data(state, 'MrX', env).to(device)
@@ -147,7 +146,6 @@ def train(args):
                 action_mask[ mrX_possible_moves] = 1
                 mrX_action = mrX_agent.select_action(mrX_graph,action_mask)
                 logger.log(f"MrX selected action: {mrX_action}",level="debug")
-
                 # Police agents select actions
                 agent_actions = {'MrX': mrX_action}
                 for i in range(num_agents):
@@ -198,7 +196,6 @@ def train(args):
 
             logger.log(f"Epoch {epoch + 1}, Episode {episode + 1}, Total Reward: {total_reward}",level="debug")
             # logger.log_scalar(f'Episode_total_reward{epoch}', total_reward, episode)
-
         # Evaluate performance and calculate the target difficulty
         logger.log(f"Evaluating agent balance after epoch {epoch + 1}.",level="debug")
         logger.log_model(mrX_agent, 'MrX')
@@ -351,7 +348,6 @@ def evaluate(args,agent_configs):
         wandb_run_name=args.wandb_run_name,
         wandb_resume=args.wandb_resume
     )
-    logger.log(agent_configs,level="info")
     reward_weight_net = RewardWeightNet().to(device)
     reward_weight_net.load_state_dict(logger.load_model('RewardWeightNet'), strict=False)
     reward_weight_net.eval()
@@ -504,7 +500,12 @@ if __name__ == "__main__":
     # Parse command-line arguments
     args = parser.parse_args()
     args_dict = vars(args)
-
+    if args_dict["wandb_api_key"] =="null":
+        args_dict["wandb_api_key"] = ""
+    if args_dict["wandb_project"] =="null":
+        args_dict["wandb_project"] = ""
+    if args_dict["wandb_entity"] =="null":
+        args_dict["wandb_entity"] = ""
     # Default values for all parameters
     default_values = {
         'graph_nodes': 50,

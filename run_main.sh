@@ -30,9 +30,26 @@ CONFIG_FILE="${EXP_DIR}/config.yml"
 LOG_DIR="${EXP_DIR}/logs"
 SAVE_PATH="${EXP_DIR}/maml_policy.pth"
 mkdir -p "$LOG_DIR"
+if [ -f ./src/wandb_data.json ]; then
+    WANDB_API_KEY=$(jq -r .wandb_api_key src/wandb_data.json) 
+    echo "API key found!"
+    WANDB_PROJECT=$(jq -r .wandb_project src/wandb_data.json) 
+    echo "Project: $WANDB_PROJECT"
+    WANDB_ENTITY=$(jq -r .wandb_entity src/wandb_data.json) 
+    echo "Entity: $WANDB_ENTITY"
+else
+    echo "wandb_data.json not found, running without WANDB integration!"
+    WANDB_API_KEY=null
+    WANDB_PROJECT=null
+    WANDB_ENTITY=null
+fi
 python /app/src/main.py "$@" \
     --config "$CONFIG_FILE" \
-    --log_dir "$LOG_DIR"
+    --log_dir "$LOG_DIR" \
+    --wandb_api_key $WANDB_API_KEY \
+    --wandb_project $WANDB_PROJECT \
+    --wandb_entity $WANDB_ENTITY \
+    --wandb_run_name "$EXP_NAME" 
 
 if [ $? -eq 0 ]; then
     echo "Experiment '$EXP_NAME' completed successfully."
