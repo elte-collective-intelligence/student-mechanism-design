@@ -104,6 +104,21 @@ This should build the apptainer image.
 
 ## Usage
 
+### Docker support
+
+Build base image:
+```bash
+docker build --progress plain -f ./docker/BaseDockerfile -t student_mechanism_design_base .
+```
+Build main image:
+```bash
+docker build --progress plain -f ./docker/Dockerfile -t student_mechanism_design .
+```
+Run image (-rm deletes the container after its execution):
+```bash
+docker run --rm --mount type=bind,src=$PWD/src/,dst=/app/src student_mechanism_design "<experiment-name>"
+```
+
 ### Wandb config
 
 If you want to use wandb to log your experiments, dont forget to set the enviromental variables:

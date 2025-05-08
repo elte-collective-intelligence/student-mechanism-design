@@ -2,5 +2,5 @@ Build base image:
 docker build --progress plain -f ./docker/BaseDockerfile -t student_mechanism_design_base .
 Build main image:
 docker build --progress plain -f ./docker/Dockerfile -t student_mechanism_design .
-Run image:
-docker run --mount type=bind,src=$PWD/src/,dst=/app/src student_mechanism_design "<experiment-name>"
+Run image (-rm deletes the container after its execution):
+docker run --rm --mount type=bind,src=$PWD/src/,dst=/app/src student_mechanism_design "<experiment-name>"
