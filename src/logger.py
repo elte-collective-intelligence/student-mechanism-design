@@ -9,13 +9,13 @@ class Logger:
 
     def __init__(
         self, 
-        log_dir='logs', 
         wandb_api_key=None,
         wandb_project=None, 
         wandb_entity=None, 
         wandb_config=None, 
         wandb_run_name=None,
-        wandb_resume=False
+        wandb_resume=False,
+        configs={}
     ):
         """
         Initializes the Logger with console, file, TensorBoard, and optionally Weights & Biases logging.
@@ -30,8 +30,9 @@ class Logger:
         """
         self.logger = logging.getLogger('TrainingLogger')
         self.logger.setLevel(logging.DEBUG)
-        self.log_dir = log_dir
-        os.makedirs(log_dir, exist_ok=True)
+        self.configs = configs
+        self.log_dir = self.configs["log_dir"]
+        os.makedirs(self.configs["log_dir"], exist_ok=True)
         self.use_wandb=False
         # Console handler
         ch = logging.StreamHandler()
@@ -41,13 +42,13 @@ class Logger:
         self.logger.addHandler(ch)
 
         # File handler
-        fh = logging.FileHandler(os.path.join(log_dir, 'training.log'))
+        fh = logging.FileHandler(os.path.join(self.configs["log_dir"], self.configs["log_file"]))
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
         # self.logger.addHandler(fh)
 
         # TensorBoard handler
-        self.writer = SummaryWriter(log_dir=log_dir)
+        self.writer = SummaryWriter(log_dir=self.configs["log_dir"])
 
         # Weight and biasses
         if wandb_project != "" and wandb_api_key != "" and wandb_entity != "":
@@ -56,7 +57,7 @@ class Logger:
                 "entity": wandb_entity,
                 "config": wandb_config,
                 "name": wandb_run_name,
-                "dir": log_dir,
+                "dir": self.configs["log_dir"],
                 "resume": "allow" if wandb_resume else False
             }
             
@@ -80,7 +81,7 @@ class Logger:
             message (str): The message to log.
             level (str, optional): The log level ('info', 'warning', 'error').
         """
-        if level == 'info':
+        if level == 'info' or self.configs["verbose"] == True:
             self.logger.info(message)
         elif level == "debug":
             self.logger.debug(message)

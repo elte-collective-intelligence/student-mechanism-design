@@ -9,6 +9,7 @@ from Enviroment.yard import CustomEnvironment
 from torch_geometric.data import Data
 import random
 import re
+import os
 # Define the device at the beginning
 print(f"CUDA is available: {torch.cuda.is_available()}")
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -27,7 +28,7 @@ class RewardWeightNet(nn.Module):
         x = self.fc2(x)
         return torch.sigmoid(x) 
 
-def train(args):
+def train(args,agent_configs,logger_configs):
     """
     Main training function:
     - Initializes the logger, networks (including Meta RL net for reward weights), and optimizer.
@@ -38,14 +39,13 @@ def train(args):
         - Steps through the environment, gathers rewards, and updates agents.
         - After episodes, evaluates performance and updates RewardWeightNet towards target difficulty.
     """
-
     logger = Logger(
-        log_dir=args.log_dir,
         wandb_api_key=args.wandb_api_key,
         wandb_project=args.wandb_project,
         wandb_entity=args.wandb_entity,
         wandb_run_name=args.wandb_run_name,
-        wandb_resume=args.wandb_resume
+        wandb_resume=args.wandb_resume,
+        configs = logger_configs
     )
 
     logger.log("Logger initialized.", level="debug")
@@ -337,7 +337,7 @@ def create_graph_data(state, agent_id, env):
     logger.log(f"Graph data for agent {agent_id} created.",level="debug")
     return data
 
-def evaluate(args,agent_configs):
+def evaluate(args,agent_configs,logger_configs):
     """
     Evaluation function:
     - Loads pre-trained RewardWeightNet and agent models.
@@ -347,12 +347,12 @@ def evaluate(args,agent_configs):
         - Logs performance metrics (e.g., win ratio).
     """
     logger = Logger(
-        log_dir=args.log_dir,
         wandb_api_key=args.wandb_api_key,
         wandb_project=args.wandb_project,
         wandb_entity=args.wandb_entity,
         wandb_run_name=args.wandb_run_name,
-        wandb_resume=args.wandb_resume
+        wandb_resume=args.wandb_resume,
+        configs = logger_configs
     )
     reward_weight_net = RewardWeightNet().to(device)
     reward_weight_net.load_state_dict(logger.load_model('RewardWeightNet'), strict=False)
@@ -502,7 +502,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_episodes', type=int, default=argparse.SUPPRESS, help='Number of episodes per epoch')
     parser.add_argument('--num_eval_episodes', type=int, default=argparse.SUPPRESS, help='Number of evaluation episodes')
     parser.add_argument('--epochs', type=int, default=argparse.SUPPRESS, help='Number of training epochs')
-    parser.add_argument('--log_dir', type=str, default=argparse.SUPPRESS, help='Directory where logs will be saved')
+    parser.add_argument('--exp_dir', type=str, default=argparse.SUPPRESS, help='Directory where logs will be saved')
     parser.add_argument('--wandb_api_key', type=str, default=argparse.SUPPRESS, help='Weights & Biases API key')
     parser.add_argument('--wandb_project', type=str, default=argparse.SUPPRESS, help='Weights & Biases project name')
     parser.add_argument('--wandb_entity', type=str, default=argparse.SUPPRESS, help='Weights & Biases entity (user or team)')
@@ -513,7 +513,8 @@ if __name__ == "__main__":
     # Add agent_configurations argument
     parser.add_argument('--agent_configurations', type=str, default=argparse.SUPPRESS,
                         help='List of (num_police_agents, agent_money) tuples separated by semicolons. E.g., "2,30;3,40;4,50"')
-
+    parser.add_argument('--log_configs', type=str, default="default", help='Select a logger configuration!')
+    parser.add_argument('--agent_configs', type=str, default="default", help='Select an agent configuration!')
     # Parse command-line arguments
     args = parser.parse_args()
     args_dict = vars(args)
@@ -532,7 +533,7 @@ if __name__ == "__main__":
         'num_episodes': 100,
         'num_eval_episodes': 10,
         'epochs': 50,
-        'log_dir': 'logs',
+        'exp_dir': '/',
         'wandb_api_key': None,
         'wandb_project': None,
         'wandb_entity': None,
@@ -540,7 +541,9 @@ if __name__ == "__main__":
         'wandb_resume': False,
         'agent_configurations': [(2, 30), (3, 40), (4, 50)],  # Default configurations
         'random_seed': 42,
-        'evaluate': False
+        'evaluate': False,
+        'log_configs':'default',
+        'agent_configs':'default'
     }
 
     # If a config file is provided, load its parameters
@@ -571,9 +574,11 @@ if __name__ == "__main__":
         |[-+]?\\.(?:inf|Inf|INF)
         |\\.(?:nan|NaN|NAN))$''', re.X),
         list(u'-+0123456789.'))
-    with open("./src/configs/agent/default.yaml", 'r') as f:
+    with open("./src/configs/agent/"+args_dict["agent_configs"]+".yaml", 'r') as f:
         agent_configs = yaml.load(f,Loader=yaml_loader)
-        print(agent_configs)
+    with open("./src/configs/logger/"+args_dict["log_configs"]+".yaml", 'r') as f:
+        logger_configs = yaml.load(f,Loader=yaml_loader)
+    logger_configs["log_dir"] = os.path.join(args_dict["exp_dir"],logger_configs["log_dir"])
     # Handle agent_configurations from command-line if provided
     if 'agent_configurations' in args_dict:
         # Parse the string into a list of tuples or dictionaries
@@ -607,6 +612,6 @@ if __name__ == "__main__":
     args = argparse.Namespace(**combined_args)
 
     if args.evaluate:
-        evaluate(args,agent_configs)
+        evaluate(args,agent_configs,logger_configs)
     else:
-        train(args)
+        train(args,agent_configs,logger_configs)

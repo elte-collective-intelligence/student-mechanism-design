@@ -45,7 +45,7 @@ else
 fi
 python /app/src/main.py "$@" \
     --config "$CONFIG_FILE" \
-    --log_dir "$LOG_DIR" \
+    --exp_dir "$EXP_DIR" \
     --wandb_api_key $WANDB_API_KEY \
     --wandb_project $WANDB_PROJECT \
     --wandb_entity $WANDB_ENTITY \
