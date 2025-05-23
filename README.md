@@ -116,7 +116,7 @@ docker build --progress plain -f ./docker/Dockerfile -t student_mechanism_design
 ```
 Run image (-rm deletes the container after its execution):
 ```bash
-docker run --rm --mount type=bind,src=$PWD/src/,dst=/app/src student_mechanism_design "<experiment-name>"
+docker run --rm --gpus=all --mount type=bind,src=$PWD/src/,dst=/app/src student_mechanism_design "<experiment-name>"
 ```
 
 ### Wandb config
