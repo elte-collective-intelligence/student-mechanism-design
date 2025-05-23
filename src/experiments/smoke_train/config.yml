@@ -46,9 +46,9 @@ agent_configurations:
 
 graph_edges: 10
 graph_nodes: 10
-num_episodes: 5
-num_eval_episodes: 3
-epochs: 2
+num_episodes: 2
+num_eval_episodes: 1
+epochs: 1
 log_dir: 'logs'
 wandb_run_name: 'smoke_train'
 wandb_resume: false

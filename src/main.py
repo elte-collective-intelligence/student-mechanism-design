@@ -7,6 +7,7 @@ from RLAgent.gnn_agent import GNNAgent
 from Enviroment.yard import CustomEnvironment
 from torch_geometric.data import Data
 import random
+from torchrl.envs.libs.pettingzoo import PettingZooWrapper
 # Define the device at the beginning
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 print(f"Using device: {device}")  # You may consider logging this instead
@@ -193,9 +194,9 @@ def train(args):
 
         # Evaluate performance and calculate the target difficulty
         logger.log(f"Evaluating agent balance after epoch {epoch + 1}.",level="debug")
-        logger.log_model(mrX_agent, 'MrX')
-        logger.log_model(police_agent, 'Police')
-        logger.log_model(reward_weight_net, 'RewardWeightNet')
+        # logger.log_model(mrX_agent, 'MrX')
+        # logger.log_model(police_agent, 'Police')
+        # logger.log_model(reward_weight_net, 'RewardWeightNet')
 
         wins = 0
 
@@ -558,6 +559,8 @@ if __name__ == "__main__":
 
     # Convert combined_args to Namespace
     args = argparse.Namespace(**combined_args)
+
+    print(args)
 
     if args.evaluate:
         evaluate(args)

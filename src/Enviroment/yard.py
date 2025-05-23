@@ -31,9 +31,11 @@ class CustomEnvironment(BaseEnvironment):
         self.visualize = visualize
         self.graph_nodes = graph_nodes
         self.graph_edges = graph_edges
+        self.possible_agents = ["MrX"] + [f"Police{n}" for n in range(self.number_of_agents)]
         self.reset()
         self.epoch = epoch
         self.episode = 0
+        
         
 
     def reset(self, episode=0, seed=None, options=None):
@@ -45,7 +47,8 @@ class CustomEnvironment(BaseEnvironment):
         self.logger.log("Resetting the environment.", level="debug")
         self.logger.log(f"Generated board with {self.board.nodes.shape[0]} nodes and {self.board.edge_links.shape[0]} edges.", level="debug")
 
-        self.agents = ["MrX"] + [f"Police{n}" for n in range(self.number_of_agents)]
+        # self.agents = ["MrX"] + [f"Police{n}" for n in range(self.number_of_agents)]
+        self.agents = self.possible_agents
         agent_starting_positions = list(
             np.random.choice(self.board.nodes.shape[0], size=self.number_of_agents + 1, replace=False)
         )
@@ -480,7 +483,7 @@ class CustomEnvironment(BaseEnvironment):
         else:
             return Discrete(num_actions)
 
-    @functools.lru_cache(maxsize=None)
+    @functools.lru_cache(maxsize=None) #TODO: this is broken from the beginning??? IT IS
     def observation_space(self, agent):
         """
         Define the observation space for GNN input.
@@ -489,14 +492,15 @@ class CustomEnvironment(BaseEnvironment):
         node_features_dim = self.number_of_agents + 1  # MrX + police agents
         adjacency_matrix_shape = (self.board.nodes.shape[0], self.board.nodes.shape[0])
 
-        space = {
-            "adjacency_matrix": Graph(adjacency_matrix_shape),
-            "node_features": MultiDiscrete([2] * node_features_dim),
-            "edge_index": Graph((2, self.board.edge_links.shape[0])),
-            "edge_features": Discrete(1),  # Assuming edge weights are single discrete values
-        }
-        self.logger.log(f"Observation space for agent {agent}: {space}, ",level="debug")
-        return space
+        # space = {
+        #     "adjacency_matrix": Graph(adjacency_matrix_shape),
+        #     "node_features": MultiDiscrete([2] * node_features_dim),
+        #     "edge_index": Graph((2, self.board.edge_links.shape[0])),
+        #     "edge_features": Discrete(1),  # Assuming edge weights are single discrete values
+        # }
+        # self.logger.log(f"Observation space for agent {agent}: {space}, ",level="debug")
+        # return space
+        return Discrete(1)
     
     def initialize_render(self, reset=False):
         """
