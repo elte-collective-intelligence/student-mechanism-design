@@ -2,4 +2,4 @@
 __pycache__/
 logs/
 .env
-.json
+*.json

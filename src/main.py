@@ -71,6 +71,7 @@ def train(args,agent_configs,logger_configs):
         
         # Randomly select a (num_agents, agent_money) tuple from the predefined list
         # print(args.agent_configurations)
+        logger.log(args.agent_configurations,level='info')
         selected_config = random.choice(args.agent_configurations)  # Ensure args.agent_configurations is defined
         num_agents, agent_money = selected_config["num_police_agents"], selected_config["agent_money"]  # Unpack the tuple
         logger.log(f"Choosen configuration: {num_agents} agents, {agent_money} money.", level="info")
