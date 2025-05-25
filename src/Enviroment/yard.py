@@ -4,9 +4,13 @@ import heapq
 import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
-from gymnasium.spaces import Discrete, MultiDiscrete, Graph
+from gymnasium.spaces import Discrete, MultiDiscrete, Graph, Box, Dict, MultiBinary
 from Enviroment.base_env import BaseEnvironment
 from Enviroment.graph_layout import ConnectedGraph
+from tensordict import TensorDict
+
+
+MAX_MONEY_UNIVERSE_LIMIT = 10000000000
 
 class CustomEnvironment(BaseEnvironment):
     metadata = {"name": "scotland_yard_env"}
@@ -52,7 +56,7 @@ class CustomEnvironment(BaseEnvironment):
         agent_starting_positions = list(
             np.random.choice(self.board.nodes.shape[0], size=self.number_of_agents + 1, replace=False)
         )
-        self.agents_money = [10000000000] + [self.agent_money for _ in range(self.number_of_agents)]
+        self.agents_money = [MAX_MONEY_UNIVERSE_LIMIT] + [self.agent_money for _ in range(self.number_of_agents)] 
 
         self.logger.log(f"Agent starting positions: {agent_starting_positions}", level="debug")
 
@@ -70,6 +74,7 @@ class CustomEnvironment(BaseEnvironment):
 
         observations = self._get_graph_observations()
         return observations, infos
+        # return observations
 
     def step(self, actions):
         """
@@ -181,6 +186,7 @@ class CustomEnvironment(BaseEnvironment):
             for agent in self.agents
         }
         self.logger.log("Graph observations generated., ",level="debug")
+        # return TensorDict(observations)
         return observations
 
     def _calculate_rewards_terminations(self, is_no_money):
@@ -483,6 +489,25 @@ class CustomEnvironment(BaseEnvironment):
         else:
             return Discrete(num_actions)
 
+    # @functools.lru_cache(maxsize=None) #TODO: this is broken from the beginning??? IT IS
+    # def observation_space(self, agent):
+    #     """
+    #     Define the observation space for GNN input.
+    #     """
+    #     self.logger.log(f"Defining observation space for agent {agent}., ",level="debug")
+    #     node_features_dim = self.number_of_agents + 1  # MrX + police agents
+    #     adjacency_matrix_shape = (self.board.nodes.shape[0], self.board.nodes.shape[0])
+
+    #     space = {
+    #         "adjacency_matrix": Graph(adjacency_matrix_shape),
+    #         "node_features": MultiDiscrete([2] * node_features_dim),
+    #         "edge_index": Graph((2, self.board.edge_links.shape[0])),
+    #         "edge_features": Discrete(1),  # Assuming edge weights are single discrete values
+    #     }
+    #     self.logger.log(f"Observation space for agent {agent}: {space}, ",level="debug")
+    #     return space
+    #     # return Discrete(3)
+
     @functools.lru_cache(maxsize=None) #TODO: this is broken from the beginning??? IT IS
     def observation_space(self, agent):
         """
@@ -492,15 +517,57 @@ class CustomEnvironment(BaseEnvironment):
         node_features_dim = self.number_of_agents + 1  # MrX + police agents
         adjacency_matrix_shape = (self.board.nodes.shape[0], self.board.nodes.shape[0])
 
-        # space = {
-        #     "adjacency_matrix": Graph(adjacency_matrix_shape),
+        print(f"EDGE INDEX SHAPE: {(2, self.board.edge_links.shape[0])}")
+        # space = Dict({
+        #     # "adjacency_matrix": Graph(adjacency_matrix_shape),
+        #     # "adjacency_matrix": MultiBinary(adjacency_matrix_shape),
         #     "node_features": MultiDiscrete([2] * node_features_dim),
-        #     "edge_index": Graph((2, self.board.edge_links.shape[0])),
+        #     # "edge_index": Graph((2, self.board.edge_links.shape[0])),
+        #     "edge_index": Box(low=0, high=self.board.nodes.shape[0], shape=(2, self.board.edge_links.shape[0]), dtype=np.int64),
         #     "edge_features": Discrete(1),  # Assuming edge weights are single discrete values
-        # }
-        # self.logger.log(f"Observation space for agent {agent}: {space}, ",level="debug")
-        # return space
-        return Discrete(1)
+        # })
+        print(f"NODE FEAT DIM: {node_features_dim}")
+        print(f"NODE SPACE SHAPE FROM OBSEV: {(self.board.nodes.shape[0], self.number_of_agents + 1)}")
+        space = Dict({
+            "adjacency_matrix": Box(
+                low=0.0, high=1.0, shape= adjacency_matrix_shape, dtype=np.int64
+            ),
+            # "node_features": MultiDiscrete([2] * node_features_dim),
+            # "node_features": MultiDiscrete([self.board.nodes.shape[0]*node_features_dim]),
+            "node_features": Box(
+                low=0.0, high=1.0, shape=(self.board.nodes.shape[0], node_features_dim), dtype=np.int64
+            ),
+            "edge_index": Box(
+                low=0, high=self.board.nodes.shape[0], shape=(2, self.board.edge_links.shape[0]), dtype=np.int32  # 10 edges, 10 nodes total
+            ),
+            "edge_features": Box(
+                low=0, high=3, shape=(self.board.nodes.shape[0],), dtype=np.int32  # assuming edge types ∈ {0,1,2,3}
+            ),
+            "MrX_pos": Discrete(self.board.nodes.shape[0]),  # assuming 10 nodes
+            "Polices_pos": MultiDiscrete([self.board.nodes.shape[0]]*node_features_dim),  # 2 police agents
+            "Currency": MultiDiscrete([10]*node_features_dim)  # assuming max value = 100 for safety
+        })
+        self.logger.log(f"Observation space for agent {agent}: {space}, ",level="debug")
+        return space
+
+    # @functools.lru_cache(maxsize=None)
+    # def observation_space(self, agent):
+    #     self.logger.log(f"Defining observation space for agent {agent}.", level="debug")
+
+    #     # Use fixed max sizes instead of sampling-dependent sizes (e.g., from self.board)
+    #     num_nodes = self.graph_nodes
+    #     num_edges = self.graph_edges
+    #     node_features_dim = self.number_of_agents + 1
+
+    #     space = Dict({
+    #         "adjacency_matrix": Box(low=0, high=1, shape=(num_nodes, num_nodes), dtype=np.float32),
+    #         "node_features": MultiDiscrete([2] * node_features_dim),
+    #         "edge_index": Box(low=0, high=num_nodes - 1, shape=(2, num_edges), dtype=np.int64),
+    #         "edge_features": Discrete(2),  # assuming binary edge features
+    #     })
+
+    #     self.logger.log(f"Observation space for agent {agent}: {space}", level="debug")
+    #     return space
     
     def initialize_render(self, reset=False):
         """

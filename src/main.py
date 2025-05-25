@@ -560,7 +560,7 @@ if __name__ == "__main__":
     # Convert combined_args to Namespace
     args = argparse.Namespace(**combined_args)
 
-    print(args)
+    # print(args)
 
     if args.evaluate:
         evaluate(args)
