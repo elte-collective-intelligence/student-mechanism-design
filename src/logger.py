@@ -3,7 +3,6 @@ from torch.utils.tensorboard import SummaryWriter
 import wandb
 import os
 import torch
-
 class Logger:
     """Logger for training progress, rewards, and other metrics with Weights & Biases integration."""
 
@@ -117,10 +116,9 @@ class Logger:
         for name, param in weights.items():
             self.log_scalar("reward_weight/"+name, param, step)
 
-    def log_plt(self, plt, step=None):
-        pass
+    def log_plt(self, name, plt, step=None):
         if self.use_wandb and wandb.run:
-            wandb.log({"chart": wandb.Image(plt)})
+            wandb.log({name: wandb.Image(plt)})
 
     def log_metrics(self, metrics, step=None):
         """
