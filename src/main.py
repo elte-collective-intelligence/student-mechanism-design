@@ -28,7 +28,7 @@ class RewardWeightNet(nn.Module):
         x = self.fc2(x)
         return torch.sigmoid(x) 
 
-def train(args,agent_configs,logger_configs):
+def train(args,agent_configs,logger_configs,visualization_configs):
     """
     Main training function:
     - Initializes the logger, networks (including Meta RL net for reward weights), and optimizer.
@@ -102,7 +102,8 @@ def train(args,agent_configs,logger_configs):
             logger=logger,
             epoch=epoch,
             graph_nodes=args.graph_nodes,
-            graph_edges=args.graph_edges
+            graph_edges=args.graph_edges,
+            vis_configs = visualization_configs
         )
         logger.log(f"Environment created with weights {reward_weights}.",level="debug")
 
@@ -338,7 +339,7 @@ def create_graph_data(state, agent_id, env):
     logger.log(f"Graph data for agent {agent_id} created.",level="debug")
     return data
 
-def evaluate(args,agent_configs,logger_configs):
+def evaluate(args,agent_configs,logger_configs,visualization_configs):
     """
     Evaluation function:
     - Loads pre-trained RewardWeightNet and agent models.
@@ -397,7 +398,7 @@ def evaluate(args,agent_configs,logger_configs):
             epoch=1,
             graph_nodes=args.graph_nodes,
             graph_edges=args.graph_edges,
-            visualize=True
+            vis_configs = visualization_configs
         )
         node_feature_size = env.number_of_agents + 1  # Assuming node features exist
         mrX_action_size = env.action_space('MrX').n
@@ -516,6 +517,7 @@ if __name__ == "__main__":
                         help='List of (num_police_agents, agent_money) tuples separated by semicolons. E.g., "2,30;3,40;4,50"')
     parser.add_argument('--log_configs', type=str, default="default", help='Select a logger configuration!')
     parser.add_argument('--agent_configs', type=str, default="default", help='Select an agent configuration!')
+    parser.add_argument('--vis_configs', type=str, default="default", help='Select an agent configuration!')
     # Parse command-line arguments
     args = parser.parse_args()
     args_dict = vars(args)
@@ -579,7 +581,10 @@ if __name__ == "__main__":
         agent_configs = yaml.load(f,Loader=yaml_loader)
     with open("./src/configs/logger/"+args_dict["log_configs"]+".yaml", 'r') as f:
         logger_configs = yaml.load(f,Loader=yaml_loader)
+    with open("./src/configs/visualization/"+args_dict["vis_configs"]+".yaml", 'r') as f:
+        visualization_configs = yaml.load(f,Loader=yaml_loader)
     logger_configs["log_dir"] = os.path.join(args_dict["exp_dir"],logger_configs["log_dir"])
+    visualization_configs["save_dir"] = os.path.join(args_dict["exp_dir"],visualization_configs["save_dir"])
     # Handle agent_configurations from command-line if provided
     if 'agent_configurations' in args_dict:
         # Parse the string into a list of tuples or dictionaries
@@ -613,6 +618,6 @@ if __name__ == "__main__":
     args = argparse.Namespace(**combined_args)
 
     if args.evaluate:
-        evaluate(args,agent_configs,logger_configs)
+        evaluate(args,agent_configs,logger_configs,visualization_configs)
     else:
-        train(args,agent_configs,logger_configs)
+        train(args,agent_configs,logger_configs,visualization_configs)

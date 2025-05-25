@@ -11,7 +11,7 @@ from Enviroment.graph_layout import ConnectedGraph
 class CustomEnvironment(BaseEnvironment):
     metadata = {"name": "scotland_yard_env"}
 
-    def __init__(self, number_of_agents, agent_money, reward_weights, logger, epoch, graph_nodes, graph_edges, visualize=False):
+    def __init__(self, number_of_agents, agent_money, reward_weights, logger, epoch, graph_nodes, graph_edges, vis_configs):
         """
         Initialize the environment with given parameters.
         """
@@ -36,7 +36,9 @@ class CustomEnvironment(BaseEnvironment):
         self.hm_edge_collection = None
         self.hm_label_collection = None
         ####
-        self.visualize = visualize
+        self.vis_config = vis_configs
+        self.visualize = vis_configs["visualize_game"]
+        self.visualize_heatmap = vis_configs["visualize_heatmap"]
         self.graph_nodes = graph_nodes
         self.graph_edges = graph_edges
         self.G = None
@@ -71,9 +73,8 @@ class CustomEnvironment(BaseEnvironment):
         self.avg_distance = 0
         infos = {a: {} for a in self.agents}  # Dummy infos
         self.logger.log("Environment reset complete.", level="debug")
-        if self.visualize:
-            self.close_render()
-            self.initialize_render()
+        self.close_render()
+        self.initialize_render()
 
         observations = self._get_graph_observations()
         return observations, infos
@@ -85,8 +86,7 @@ class CustomEnvironment(BaseEnvironment):
         for pos in self.police_positions:
             self.node_visits[pos] += 1
         self.node_visits[self.MrX_pos[0]] += 1
-        if self.visualize:
-            self.render()
+        self.render()
         self.logger.log(f"Step {self.timestep}: Received actions: {actions}", level="debug")
         mrX_action = actions["MrX"]
         mrx_pos = self.MrX_pos[0]
@@ -153,8 +153,7 @@ class CustomEnvironment(BaseEnvironment):
         if any(terminations.values()) or all(truncations.values()):
             self.logger.log("Termination or truncation condition met. Ending episode., ",level="debug")
             self.agents = []
-            if self.visualize:
-                self.render()
+            self.render()
 
         self.logger.log(f"Step {self.timestep} completed., ",level="debug")
         return observations, rewards, terminations, truncations, winner, infos, 
@@ -552,7 +551,7 @@ class CustomEnvironment(BaseEnvironment):
         self.node_collection = nx.draw_networkx_nodes(self.G, self.pos, ax=self.ax, node_size=700, node_color=self.node_colors, edgecolors='black')
 
         # Draw edges
-        self.edge_collection = nx.draw_networkx_edges(self.G, self.pos, ax=self.ax, width=2, edge_color='gray')
+        self.edge_collection = nx.draw_networkx_edges(self.G, self.pos, ax=self.ax, width=2, edge_color='darkgray')
 
         self.label_collection = nx.draw_networkx_labels(self.G, self.pos, ax=self.ax, font_size=10, font_family="sans-serif",font_color="white")
         # Add legend
@@ -606,27 +605,27 @@ class CustomEnvironment(BaseEnvironment):
             # If render has not been initialized, initialize it
             self.initialize_render()
             return
+        if self.visualize or self.visualize_heatmap:
+            # Update node colors based on current positions
+            self.update_node_colors()
+        if self.visualize:
+            # Update the node colors in the plot
+            self.node_collection.set_color(self.node_colors)
 
-        # Update node colors based on current positions
-        self.update_node_colors()
+            # Update the title
+            self.ax.set_title(f"Episode: {self.episode}, Timestep: {self.timestep}", fontsize=16)
+            # Redraw the plot
+            self.fig.canvas.draw()
+            self.fig.canvas.flush_events()
 
-        # Update the node colors in the plot
-        self.node_collection.set_color(self.node_colors)
+            self.logger.log_plt("chart",plt)
+        if self.visualize_heatmap:
+            self.node_collection.set_color(self.heatmap_colors)
+            # Update the title
+            self.ax.set_title(f"Heatmap Episode: {self.episode}, Timestep: {self.timestep}", fontsize=16)
 
-        # Update the title
-        self.ax.set_title(f"Episode: {self.episode}, Timestep: {self.timestep}", fontsize=16)
-        # Redraw the plot
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
+            # Redraw the plot
+            self.fig.canvas.draw()
+            self.fig.canvas.flush_events()
 
-        self.logger.log_plt("chart",plt)
-
-        self.node_collection.set_color(self.heatmap_colors)
-        # Update the title
-        self.ax.set_title(f"Heatmap Episode: {self.episode}, Timestep: {self.timestep}", fontsize=16)
-
-        # Redraw the plot
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-
-        self.logger.log_plt("heatmap",plt)
+            self.logger.log_plt("heatmap",plt)
