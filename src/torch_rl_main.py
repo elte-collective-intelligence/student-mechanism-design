@@ -145,8 +145,8 @@ def train(args):
                 mrX_action_size = env.action_space('MrX').n
                 mrX_possible_moves = env.get_possible_moves(0)
                 action_mask = torch.zeros(mrX_graph.num_nodes, dtype=torch.int32, device=device)
-                action_mask[ mrX_possible_moves] = 1
-                mrX_action = mrX_agent.select_action(mrX_graph,action_mask)
+                action_mask[mrX_possible_moves] = 1
+                mrX_action = mrX_agent.select_action(mrX_graph, action_mask)
                 logger.log(f"MrX selected action: {mrX_action}",level="debug")
 
                 # Police agents select actions
@@ -173,6 +173,7 @@ def train(args):
                 # print(state)
                 # actions_td = state.get("action").clone()
                 # print(actions_td)
+                # print(f"actions: {agent_actions}")
                 for obj_id, act in agent_actions.items():
                     # Here, obj_id matches an agent key inside 'piston'
                     # If agent IDs correspond to the second dim, you need indexing instead
@@ -184,7 +185,8 @@ def train(args):
                     # print(state[obj_id].get('action'))
                     # print(act)
                     # print(state.batch_size)
-                    state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
+                    if act is not None:
+                        state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
                 
                 # print(state)
                 # Step 3: Put the filled actions_td back into the top-level tensordict

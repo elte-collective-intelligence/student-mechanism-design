@@ -15,6 +15,7 @@ MAX_MONEY_UNIVERSE_LIMIT = 1000
 
 class CustomEnvironment(BaseEnvironment):
     metadata = {"name": "scotland_yard_env"}
+    DEFAULT_STAY_ACTION = -1
 
     def __init__(self, number_of_agents, agent_money, reward_weights, logger, epoch, graph_nodes, graph_edges, visualize=False):
         """
@@ -126,6 +127,8 @@ class CustomEnvironment(BaseEnvironment):
 
                 else:
                     pos_to_go = police_pos  # Stay in the same position if the action is out of bounds
+                    # if pos_to_go == -1:
+                    print(f'out of money; staying; {pos_to_go}')
                     self.logger.log(f"{police} action out of bounds. Staying at position {pos_to_go}, ",level="debug")
 
                 if pos_to_go not in self.police_positions and pos_to_go != police_pos:
@@ -444,6 +447,10 @@ class CustomEnvironment(BaseEnvironment):
         # Combine neighbors and weights
         combined_neighbors = np.concatenate([neighbors_from, neighbors_to])
         combined_weights = np.concatenate([weights_from, weights_to])
+
+        combined_neighbors = np.append(combined_neighbors, self.DEFAULT_STAY_ACTION) #
+        combined_weights = np.append(combined_weights, 0)
+
         # Create a structured array to facilitate finding the minimum weight for each neighbor
         dtype = [('node', combined_neighbors.dtype), ('weight', combined_weights.dtype)]
         structured_array = np.array(list(zip(combined_neighbors, combined_weights)), dtype=dtype)
@@ -493,24 +500,7 @@ class CustomEnvironment(BaseEnvironment):
         else:
             return Discrete(num_actions)
 
-    # @functools.lru_cache(maxsize=None) #TODO: this is broken from the beginning??? IT IS
-    # def observation_space(self, agent):
-    #     """
-    #     Define the observation space for GNN input.
-    #     """
-    #     self.logger.log(f"Defining observation space for agent {agent}., ",level="debug")
-    #     node_features_dim = self.number_of_agents + 1  # MrX + police agents
-    #     adjacency_matrix_shape = (self.board.nodes.shape[0], self.board.nodes.shape[0])
 
-    #     space = {
-    #         "adjacency_matrix": Graph(adjacency_matrix_shape),
-    #         "node_features": MultiDiscrete([2] * node_features_dim),
-    #         "edge_index": Graph((2, self.board.edge_links.shape[0])),
-    #         "edge_features": Discrete(1),  # Assuming edge weights are single discrete values
-    #     }
-    #     self.logger.log(f"Observation space for agent {agent}: {space}, ",level="debug")
-    #     return space
-    #     # return Discrete(3)
 
     @functools.lru_cache(maxsize=None) #TODO: this is broken from the beginning??? IT IS
     def observation_space(self, agent):
@@ -554,24 +544,6 @@ class CustomEnvironment(BaseEnvironment):
         self.logger.log(f"Observation space for agent {agent}: {space}, ",level="debug")
         return space
 
-    # @functools.lru_cache(maxsize=None)
-    # def observation_space(self, agent):
-    #     self.logger.log(f"Defining observation space for agent {agent}.", level="debug")
-
-    #     # Use fixed max sizes instead of sampling-dependent sizes (e.g., from self.board)
-    #     num_nodes = self.graph_nodes
-    #     num_edges = self.graph_edges
-    #     node_features_dim = self.number_of_agents + 1
-
-    #     space = Dict({
-    #         "adjacency_matrix": Box(low=0, high=1, shape=(num_nodes, num_nodes), dtype=np.float32),
-    #         "node_features": MultiDiscrete([2] * node_features_dim),
-    #         "edge_index": Box(low=0, high=num_nodes - 1, shape=(2, num_edges), dtype=np.int64),
-    #         "edge_features": Discrete(2),  # assuming binary edge features
-    #     })
-
-    #     self.logger.log(f"Observation space for agent {agent}: {space}", level="debug")
-    #     return space
     
     def initialize_render(self, reset=False):
         """
