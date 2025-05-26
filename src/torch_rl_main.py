@@ -185,13 +185,37 @@ def train(args):
                     # print(act)
                     # print(state.batch_size)
                     state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
+                
                 # print(state)
                 # Step 3: Put the filled actions_td back into the top-level tensordict
                 # state.set("action", actions_td)
 
                 # next_state, rewards, terminations, truncation, _, _ = env.step(state)
-                stuff =  env.step(state)
-                print(stuff)
+                new_state =  env.step(state)['next']
+
+                # print(f'NEW STATE: {new_state}')
+
+                # print(new_state['next'].keys())
+                # print(new_state['next']['MrX'])
+
+                # print('New state: ')
+                # print(new_state['next'].keys())
+                # rewards = {k:v['reward'] for k,v in new_state['next'].items()}
+                # # rewards = {k:new_state[k]['reward'] for k in new_state.keys()}
+                # # terminations = {k:new_state[k]['terminated'] for k in new_state.keys()}
+                # # truncation = {k:new_state[k]['truncated'] for k in new_state.keys()}
+                # rewards = {k:v['reward'] for k,v in new_state['next'].items()}
+                # terminations = {k:v['terminated'] for k,v in new_state['next'].items()}
+                # truncation = {k:v['truncated'] for k,v in new_state['next'].items()}
+
+                rewards = {agent_id:new_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
+                terminations = {agent_id:new_state[agent_id]['terminated'].squeeze() for agent_id in env.possible_agents}
+                truncation = {agent_id:new_state[agent_id]['truncated'].squeeze() for agent_id in env.possible_agents}
+
+                print(f"terminated/truncated: {terminations}\n, {truncation}")
+
+                # print(f'reward remade: {rewards}')
+                # print(stuff)
                 logger.log(f"Executed actions. Rewards: {rewards}, Terminations: {terminations}, Truncations: {truncation}",level="debug")
 
                 done = terminations.get('Police0', False) or all(truncation.values())
@@ -284,7 +308,7 @@ def train(args):
                 total_reward += rewards.get('MrX', 0.0)
                 state = next_state
                 logger.log(f"Total reward updated to: {total_reward}",level="debug")
-                if done:
+                if done: #TODO calc winner from state here! (or in the env class as a separate property)
                     if winner == 'MrX':
                         wins += 1
                         logger.log(f"MrX won the evaluation episode.",level="info")
