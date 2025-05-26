@@ -191,7 +191,7 @@ def train(args):
                 # state.set("action", actions_td)
 
                 # next_state, rewards, terminations, truncation, _, _ = env.step(state)
-                new_state =  env.step(state)['next']
+                next_state =  env.step(state)['next']
 
                 # print(f'NEW STATE: {new_state}')
 
@@ -208,11 +208,11 @@ def train(args):
                 # terminations = {k:v['terminated'] for k,v in new_state['next'].items()}
                 # truncation = {k:v['truncated'] for k,v in new_state['next'].items()}
 
-                rewards = {agent_id:new_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
-                terminations = {agent_id:new_state[agent_id]['terminated'].squeeze() for agent_id in env.possible_agents}
-                truncation = {agent_id:new_state[agent_id]['truncated'].squeeze() for agent_id in env.possible_agents}
+                rewards = {agent_id:next_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
+                terminations = {agent_id:next_state[agent_id]['terminated'].squeeze() for agent_id in env.possible_agents}
+                truncation = {agent_id:next_state[agent_id]['truncated'].squeeze() for agent_id in env.possible_agents}
 
-                print(f"terminated/truncated: {terminations}\n, {truncation}")
+                # print(f"terminated/truncated: {terminations}\n, {truncation}")
 
                 # print(f'reward remade: {rewards}')
                 # print(stuff)
@@ -261,7 +261,7 @@ def train(args):
 
         for episode in range(args.num_eval_episodes):
             logger.log(f"Epoch {epoch + 1}, Evaluation Episode {episode + 1} started.",level="info")
-            state, _ = env.reset(episode=episode)
+            state = env.reset(episode=episode)
             done = False
             total_reward = 0
 
@@ -298,8 +298,16 @@ def train(args):
                     agent_actions[f'Police{i}'] = police_action
                     logger.log(f"Police{i} selected action: {police_action}",level="debug")
 
+                for obj_id, act in agent_actions.items():
+                    state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
+
                 # Execute actions for MrX and Police
-                next_state, rewards, terminations, truncation, winner, _ = env.step(agent_actions)
+                next_state =  env.step(state)['next']
+                rewards = {agent_id:next_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
+                terminations = {agent_id:next_state[agent_id]['terminated'].squeeze() for agent_id in env.possible_agents}
+                truncation = {agent_id:next_state[agent_id]['truncated'].squeeze() for agent_id in env.possible_agents}
+                winner = env.current_winner
+                # next_state, rewards, terminations, truncation, winner, _ = env.step(agent_actions)
                 logger.log(f"Executed actions. Rewards: {rewards}, Terminations: {terminations}, Truncations: {truncation}",level="debug")
 
                 done = terminations.get('Police0', False) or all(truncation.values())
