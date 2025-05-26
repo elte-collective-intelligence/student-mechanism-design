@@ -1,14 +1,16 @@
-import torch
+import torch, random
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
+
+from torch_geometric.data import Data
+from torchrl.envs.libs.pettingzoo import PettingZooWrapper
+from tensordict import TensorDict
+
 from logger import Logger  # Your custom Logger class
 from RLAgent.gnn_agent import GNNAgent
 from Enviroment.yard import CustomEnvironment
-from torch_geometric.data import Data
-import random
-from torchrl.envs.libs.pettingzoo import PettingZooWrapper
-from tensordict import TensorDict
+
 
 # Define the device at the beginning
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -96,7 +98,7 @@ def train(args):
         logger.log(f"Epoch {epoch + 1}: Predicted weights: {reward_weights}", level="debug")
         logger.log_weights(reward_weights)
         # Create environment with predicted difficulty
-        env = CustomEnvironment(
+        env_wrappable = CustomEnvironment(
             number_of_agents=num_agents,
             agent_money=agent_money,
             reward_weights=reward_weights,
@@ -105,6 +107,9 @@ def train(args):
             graph_nodes=args.graph_nodes,
             graph_edges=args.graph_edges
         )
+
+        env = PettingZooWrapper(env=env_wrappable)
+
         logger.log(f"Environment created with weights {reward_weights}.",level="debug")
 
         # Determine node feature size from the environment
@@ -121,7 +126,7 @@ def train(args):
         # Train the MrX and Police agents in the environment
         for episode in range(args.num_episodes):
             logger.log(f"Epoch {epoch + 1}, Episode {episode + 1} started.",level="info")
-            state, _ = env.reset(episode=episode)
+            state = env.reset(episode=episode)
             done = False
             total_reward = 0
 
@@ -306,14 +311,14 @@ def create_graph_data(state, agent_id, env):
     node_features = np.zeros((num_nodes, num_features), dtype=np.float32)
 
     # Highlight MrX position
-    mrX_pos = state.get('MrX', {}).get('MrX_pos', None)
+    mrX_pos = state.get('MrX', {}).get('observation', None).get('MrX_pos', None)
     if mrX_pos is not None:
         node_features[mrX_pos, 0] = 1  # MrX is at index 0
         logger.log(f"Agent {agent_id}: MrX position encoded at node {mrX_pos}.",level="debug")
 
     # Highlight Police positions
     for i in range(env.number_of_agents - 1):
-        police_pos = state.get(f'Police{i}', {}).get('Polices_pos', None)
+        police_pos = state.get(f'Police{i}', {}).get('observation', None).get('Polices_pos', None)
         if police_pos is not None and len(police_pos) > 0:
             node_features[police_pos[0], i + 1] = 1  # Police indices start from 1
             logger.log(f"Agent {agent_id}: Police{i} position encoded at node {police_pos[0]}.",level="debug")

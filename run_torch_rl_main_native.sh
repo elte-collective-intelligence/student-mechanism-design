@@ -30,6 +30,8 @@ CONFIG_FILE="${EXP_DIR}/config.yml"
 LOG_DIR="${EXP_DIR}/logs"
 SAVE_PATH="${EXP_DIR}/maml_policy.pth"
 mkdir -p "$LOG_DIR"
+echo "Configuration file: $CONFIG_FILE"
+echo "Log directory: $LOG_DIR"
 python ./src/torch_rl_main.py "$@" \
     --config "$CONFIG_FILE" \
     --log_dir "$LOG_DIR"
