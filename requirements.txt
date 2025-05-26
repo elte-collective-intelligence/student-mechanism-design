@@ -14,3 +14,4 @@ wandb
 matplotlib
 networkx
 torch-geometric
+tensordict
