@@ -164,7 +164,34 @@ def train(args):
                     logger.log(f"Police{i} selected action: {police_action}",level="debug")
 
                 # Execute actions for MrX and Police
-                next_state, rewards, terminations, truncation, _, _ = env.step(agent_actions)
+
+                # state = env.rand_action(state)
+                # print("rand_action: ")
+                # print(reset_with_action)
+                # stuff = env.step(reset_with_action)
+                # print('stuff:')
+                # print(state)
+                # actions_td = state.get("action").clone()
+                # print(actions_td)
+                for obj_id, act in agent_actions.items():
+                    # Here, obj_id matches an agent key inside 'piston'
+                    # If agent IDs correspond to the second dim, you need indexing instead
+                    # If obj_id is an int index in [0, num_agents), use:
+                    # actions_td["piston"].set_at(obj_id, act)  # or indexing depending on structure
+                    
+                    # If your keys correspond exactly to keys in the TensorDict, do:
+                    # print(f"{obj_id}: ")
+                    # print(state[obj_id].get('action'))
+                    # print(act)
+                    # print(state.batch_size)
+                    state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
+                # print(state)
+                # Step 3: Put the filled actions_td back into the top-level tensordict
+                # state.set("action", actions_td)
+
+                # next_state, rewards, terminations, truncation, _, _ = env.step(state)
+                stuff =  env.step(state)
+                print(stuff)
                 logger.log(f"Executed actions. Rewards: {rewards}, Terminations: {terminations}, Truncations: {truncation}",level="debug")
 
                 done = terminations.get('Police0', False) or all(truncation.values())
