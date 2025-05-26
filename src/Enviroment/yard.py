@@ -40,6 +40,7 @@ class CustomEnvironment(BaseEnvironment):
         self.reset()
         self.epoch = epoch
         self.episode = 0
+        self.current_winner = None #TODO: write it into the info or sth, that's clunky
         
         
 
@@ -137,6 +138,7 @@ class CustomEnvironment(BaseEnvironment):
         # print(self.agents_money)                    
         # Compute rewards and check termination/truncation
         rewards, terminations, truncations, winner = self._calculate_rewards_terminations(is_no_money)
+        self.current_winner = winner
         self.logger.log(f"Rewards: {rewards}, ",level="debug")
         self.logger.log(f"Terminations: {terminations}, ",level="debug")
         self.logger.log(f"Truncations: {truncations}, ",level="debug")
@@ -153,7 +155,8 @@ class CustomEnvironment(BaseEnvironment):
                 self.render()
 
         self.logger.log(f"Step {self.timestep} completed., ",level="debug")
-        return observations, rewards, terminations, truncations, winner, infos, 
+        # return observations, rewards, terminations, truncations, winner, infos, 
+        return observations, rewards, terminations, truncations, infos
 
     def _get_graph_observations(self):
         """
@@ -518,7 +521,7 @@ class CustomEnvironment(BaseEnvironment):
         node_features_dim = self.number_of_agents + 1  # MrX + police agents
         adjacency_matrix_shape = (self.board.nodes.shape[0], self.board.nodes.shape[0])
 
-        print(f"EDGE INDEX SHAPE: {(2, self.board.edge_links.shape[0])}")
+        # print(f"EDGE INDEX SHAPE: {(2, self.board.edge_links.shape[0])}")
         # space = Dict({
         #     # "adjacency_matrix": Graph(adjacency_matrix_shape),
         #     # "adjacency_matrix": MultiBinary(adjacency_matrix_shape),
