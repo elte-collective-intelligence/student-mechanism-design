@@ -10,7 +10,8 @@ from Enviroment.graph_layout import ConnectedGraph
 from tensordict import TensorDict
 
 
-MAX_MONEY_UNIVERSE_LIMIT = 10000000000
+# MAX_MONEY_UNIVERSE_LIMIT = 10000000000
+MAX_MONEY_UNIVERSE_LIMIT = 1000
 
 class CustomEnvironment(BaseEnvironment):
     metadata = {"name": "scotland_yard_env"}
@@ -180,8 +181,8 @@ class CustomEnvironment(BaseEnvironment):
                 "edge_index": edge_index,
                 "edge_features": edge_features,
                 "MrX_pos": self.MrX_pos[0],
-                "Polices_pos" : self.police_positions[1:],
-                "Currency": self.agents_money[1:]
+                "Polices_pos" : self.police_positions[1:], # this includes ALL polics pos BOT ONESELF
+                "Currency": self.agents_money[1:] # TODO: this includes ALL police money
             }
             for agent in self.agents
         }
@@ -526,8 +527,8 @@ class CustomEnvironment(BaseEnvironment):
         #     "edge_index": Box(low=0, high=self.board.nodes.shape[0], shape=(2, self.board.edge_links.shape[0]), dtype=np.int64),
         #     "edge_features": Discrete(1),  # Assuming edge weights are single discrete values
         # })
-        print(f"NODE FEAT DIM: {node_features_dim}")
-        print(f"NODE SPACE SHAPE FROM OBSEV: {(self.board.nodes.shape[0], self.number_of_agents + 1)}")
+        # print(f"NODE FEAT DIM: {node_features_dim}")
+        # print(f"NODE SPACE SHAPE FROM OBSEV: {(self.board.nodes.shape[0], self.number_of_agents + 1)}")
         space = Dict({
             "adjacency_matrix": Box(
                 low=0.0, high=1.0, shape= adjacency_matrix_shape, dtype=np.int64
@@ -544,8 +545,8 @@ class CustomEnvironment(BaseEnvironment):
                 low=0, high=3, shape=(self.board.nodes.shape[0],), dtype=np.int32  # assuming edge types ∈ {0,1,2,3}
             ),
             "MrX_pos": Discrete(self.board.nodes.shape[0]),  # assuming 10 nodes
-            "Polices_pos": MultiDiscrete([self.board.nodes.shape[0]]*node_features_dim),  # 2 police agents
-            "Currency": MultiDiscrete([10]*node_features_dim)  # assuming max value = 100 for safety
+            "Polices_pos": MultiDiscrete([self.board.nodes.shape[0]] * (self.number_of_agents-1)), 
+            "Currency": MultiDiscrete([self.agent_money+1] * (self.number_of_agents-0))  # assuming max value = 100 for safety
         })
         self.logger.log(f"Observation space for agent {agent}: {space}, ",level="debug")
         return space
