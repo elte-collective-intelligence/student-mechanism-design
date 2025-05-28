@@ -160,9 +160,12 @@ def train(args):
                         police_graphs[i],
                         action_mask
                     )
+                    if police_action is None:
+                        # print('REDEFINING!')
+                        police_action = env.DEFAULT_ACTION
                     agent_actions[f'Police{i}'] = police_action
                     logger.log(f"Police{i} selected action: {police_action}",level="debug")
-
+                
                 # Execute actions for MrX and Police
 
                 # state = env.rand_action(state)
@@ -297,6 +300,8 @@ def train(args):
                         police_graphs[i],
                         action_mask
                     )
+                    if police_action is None:
+                        police_action = env.DEFAULT_ACTION
                     agent_actions[f'Police{i}'] = police_action
                     logger.log(f"Police{i} selected action: {police_action}",level="debug")
 

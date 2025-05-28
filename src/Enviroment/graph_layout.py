@@ -4,15 +4,16 @@ import numpy as np
 import networkx as nx
 
 class ConnectedGraph(Graph):
-    def sample(self, mask=None, num_nodes=10, num_edges=None, max_edges_per_node=4):
+    MAX_WEIGHT = 4
+    def sample(self, mask=None, num_nodes=10, num_edges=None, max_edges_per_node=5):
         # Remove all initial edges
         graph_json = {"nodes": list(range(num_nodes)), "edge_links": [], "edges": []}
-        graph = self.from_jsonable([graph_json])[0]
+        # graph = self.from_jsonable([graph_json])[0]
 
         # Create a connected tree using Kruskal's or Prim's algorithm
         edges = self._create_tree(num_nodes)
         graph_json["edge_links"] = edges
-        graph_json["edges"] = [np.random.randint(1, 4) for _ in edges]
+        graph_json["edges"] = [np.random.randint(1, self.MAX_WEIGHT) for _ in edges]
 
         # Add additional edges randomly
         if num_edges is None:
@@ -28,7 +29,12 @@ class ConnectedGraph(Graph):
             ]
             random.shuffle(possible_edges)
 
+            cnt = 1
             for edge in possible_edges:
+                # print(cnt)
+                # print(sum([1 for e in graph_json["edge_links"] if edge[0] in e]))
+                # print(sum([1 for e in graph_json["edge_links"] if edge[1] in e]))
+                cnt+=1
                 if extra_edges <= 0:
                     break
 
@@ -38,9 +44,13 @@ class ConnectedGraph(Graph):
                     and sum([1 for e in graph_json["edge_links"] if edge[1] in e]) < max_edges_per_node
                 ):
                     graph_json["edge_links"].append(edge)
-                    graph_json["edges"].append(np.random.randint(1, 4))
+                    graph_json["edges"].append(np.random.randint(1, self.MAX_WEIGHT))
                     extra_edges -= 1
 
+        if num_edges is not None:
+            # print(f'THE NUMBER OF EDGE LINKS: {len(graph_json["edge_links"])}; num: {num_edges}; extra: {extra_edges}; edges_len: {len(edges)}; possible: {len(possible_edges)}')
+            assert(len(graph_json["edge_links"]) == num_edges), f"The graph generated has a wrong number of edges: {len(graph_json['edge_links'])}, not {num_edges}"
+        
         return self.from_jsonable([graph_json])[0]
 
     def _create_tree(self, num_nodes):

@@ -15,7 +15,7 @@ MAX_MONEY_UNIVERSE_LIMIT = 1000
 
 class CustomEnvironment(BaseEnvironment):
     metadata = {"name": "scotland_yard_env"}
-    DEFAULT_STAY_ACTION = -1
+    DEFAULT_ACTION = -1
 
     def __init__(self, number_of_agents, agent_money, reward_weights, logger, epoch, graph_nodes, graph_edges, visualize=False):
         """
@@ -118,24 +118,26 @@ class CustomEnvironment(BaseEnvironment):
                 self.logger.log(f"{police} possible moves from position {police_pos}: {possible_positions}", level="debug")
                 # print(possible_positions)
                 police_action = actions[police]
-                if police_action is None:
+                # if police_action is None:
+                if police_action == self.DEFAULT_ACTION:
+                    # print('out of money!')
                     continue
                 is_no_money = False
                 if police_action in possible_positions:
                     pos_to_go = police_action
                     self.logger.log(f"{police} moves to position {pos_to_go}", level="debug")
-
                 else:
                     pos_to_go = police_pos  # Stay in the same position if the action is out of bounds
                     # if pos_to_go == -1:
-                    print(f'out of money; staying; {pos_to_go}')
+                    # print(f'out of money; staying; {pos_to_go}; action was: {police_action}')
                     self.logger.log(f"{police} action out of bounds. Staying at position {pos_to_go}, ",level="debug")
 
                 if pos_to_go not in self.police_positions and pos_to_go != police_pos:
                     self.police_positions[police_index] = pos_to_go
-                    self.logger.log(f"{police} position updated to {self.police_positions[police_index]}, ",level="debug")
-
+                    log_msg = f"{police} position updated to {self.police_positions[police_index]}, Money: {self.agents_money[police_index+1]} -> "
                     self.agents_money[police_index+1] -= min(positions_costs[np.where(possible_positions == pos_to_go)])
+                    log_msg += str(self.agents_money[police_index+1])
+                    self.logger.log(log_msg, level="debug")
                 else:
                     self.logger.log(f"{police} move blocked by another police at position {pos_to_go}, ",level="debug")
         # print(self.agents_money)                    
@@ -178,6 +180,7 @@ class CustomEnvironment(BaseEnvironment):
             self.logger.log(f"Police{i} position encoded in node features: {pos}, ",level="debug")
 
         edge_index = self.board.edge_links.T  # Edge index for GNN (source, target pairs)
+        # print(f"EDGE INDEX SHAPE: {edge_index.shape}")
         edge_features = self.board.edges  # Edge weights
 
         observations = {
@@ -431,6 +434,7 @@ class CustomEnvironment(BaseEnvironment):
         """
         # Retrieve the agent's available money
         agent_money = self.agents_money[agent_idx]
+        # print(f'AGENT {agent_idx} MONEY: {agent_money}; AGENT POS: {pos}')
         
         # Find all edges where the current position is the source
         mask_source = self.board.edge_links[:, 0] == pos
@@ -448,8 +452,9 @@ class CustomEnvironment(BaseEnvironment):
         combined_neighbors = np.concatenate([neighbors_from, neighbors_to])
         combined_weights = np.concatenate([weights_from, weights_to])
 
-        combined_neighbors = np.append(combined_neighbors, self.DEFAULT_STAY_ACTION) #
-        combined_weights = np.append(combined_weights, 0)
+        # combined_neighbors = np.append(combined_neighbors, self.DEFAULT_STAY_ACTION) #
+        # combined_neighbors = np.append(combined_neighbors, pos) # the agent can stay
+        # combined_weights = np.append(combined_weights, 0)
 
         # Create a structured array to facilitate finding the minimum weight for each neighbor
         dtype = [('node', combined_neighbors.dtype), ('weight', combined_weights.dtype)]
@@ -463,10 +468,11 @@ class CustomEnvironment(BaseEnvironment):
         unique_weights = sorted_array['weight'][indices]
         
         self.logger.log(
-            f"Agent {self.agents[agent_idx]} at position {pos} can move to: {unique_nodes} with weights {unique_weights}", 
+            f"Agent {self.agents[agent_idx]} (money: {self.agents_money[agent_idx]}) at position {pos} can move to: {unique_nodes} with weights {unique_weights}", 
             level="debug"
         )
         
+        # print(f"possible nodes: {unique_nodes}")
         return unique_nodes, unique_weights
 
     
@@ -507,6 +513,8 @@ class CustomEnvironment(BaseEnvironment):
         """
         Define the observation space for GNN input.
         """
+
+        # print(f"SHAPE: {self.board.edge_links.shape}")
         self.logger.log(f"Defining observation space for agent {agent}., ",level="debug")
         node_features_dim = self.number_of_agents + 1  # MrX + police agents
         adjacency_matrix_shape = (self.board.nodes.shape[0], self.board.nodes.shape[0])
@@ -535,7 +543,7 @@ class CustomEnvironment(BaseEnvironment):
                 low=0, high=self.board.nodes.shape[0], shape=(2, self.board.edge_links.shape[0]), dtype=np.int32  # 10 edges, 10 nodes total
             ),
             "edge_features": Box(
-                low=0, high=3, shape=(self.board.nodes.shape[0],), dtype=np.int32  # assuming edge types ∈ {0,1,2,3}
+                low=0, high=ConnectedGraph.MAX_WEIGHT, shape=(self.board.edges.shape[0],), dtype=np.int32  # assuming edge types ∈ {0,1,2,3}
             ),
             "MrX_pos": Discrete(self.board.nodes.shape[0]),  # assuming 10 nodes
             "Polices_pos": MultiDiscrete([self.board.nodes.shape[0]] * (self.number_of_agents-1)), 
