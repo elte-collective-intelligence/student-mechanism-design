@@ -1,0 +1,14 @@
+# config.yaml
+
+agent_configurations:
+  - num_police_agents: 1
+    agent_money: 100
+graph_edges: 100
+graph_nodes: 50
+num_episodes: 1
+num_eval_episodes: 1
+epochs: 1
+wandb_run_name: 'singular'
+wandb_resume: false
+random_seed: 42
+evaluate: True

@@ -4,11 +4,15 @@ import torch.optim as optim
 import numpy as np
 from logger import Logger  # Your custom Logger class
 from RLAgent.gnn_agent import GNNAgent
+from RLAgent.random_agent import RandomAgent
 from Enviroment.yard import CustomEnvironment
 from torch_geometric.data import Data
 import random
 from torchrl.envs.libs.pettingzoo import PettingZooWrapper
+import re
+import os
 # Define the device at the beginning
+print(f"CUDA is available: {torch.cuda.is_available()}")
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 print(f"Using device: {device}")  # You may consider logging this instead
 
@@ -25,7 +29,7 @@ class RewardWeightNet(nn.Module):
         x = self.fc2(x)
         return torch.sigmoid(x) 
 
-def train(args):
+def train(args,agent_configs,logger_configs,visualization_configs):
     """
     Main training function:
     - Initializes the logger, networks (including Meta RL net for reward weights), and optimizer.
@@ -36,14 +40,13 @@ def train(args):
         - Steps through the environment, gathers rewards, and updates agents.
         - After episodes, evaluates performance and updates RewardWeightNet towards target difficulty.
     """
-
     logger = Logger(
-        log_dir=args.log_dir,
         wandb_api_key=args.wandb_api_key,
         wandb_project=args.wandb_project,
         wandb_entity=args.wandb_entity,
         wandb_run_name=args.wandb_run_name,
-        wandb_resume=args.wandb_resume
+        wandb_resume=args.wandb_resume,
+        configs = logger_configs
     )
 
     logger.log("Logger initialized.", level="debug")
@@ -62,7 +65,6 @@ def train(args):
     # Validate that the agent configurations list is provided and not empty
     if not hasattr(args, 'agent_configurations') or not args.agent_configurations:
         raise ValueError("args.agent_configurations must be a non-empty list of (num_agents, agent_money) tuples.")
-
     for epoch in range(args.epochs):
         logger.log_scalar('epoch_step', epoch)
 
@@ -70,6 +72,7 @@ def train(args):
         
         # Randomly select a (num_agents, agent_money) tuple from the predefined list
         # print(args.agent_configurations)
+        logger.log(args.agent_configurations,level='info')
         selected_config = random.choice(args.agent_configurations)  # Ensure args.agent_configurations is defined
         num_agents, agent_money = selected_config["num_police_agents"], selected_config["agent_money"]  # Unpack the tuple
         logger.log(f"Choosen configuration: {num_agents} agents, {agent_money} money.", level="info")
@@ -100,7 +103,8 @@ def train(args):
             logger=logger,
             epoch=epoch,
             graph_nodes=args.graph_nodes,
-            graph_edges=args.graph_edges
+            graph_edges=args.graph_edges,
+            vis_configs = visualization_configs
         )
         logger.log(f"Environment created with weights {reward_weights}.",level="debug")
 
@@ -111,8 +115,20 @@ def train(args):
         logger.log(f"Node feature size: {node_feature_size}, MrX action size: {mrX_action_size}, Police action size: {police_action_size}",level="debug")
 
         # Initialize GNN agents with graph-specific parameters and move them to GPU
-        mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
-        police_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
+        if agent_configs["agent_type"] == "gnn":
+            mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+        elif agent_configs["agent_type"] == "mappo":
+            pass
+            #mrX_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+        else:
+            mrX_agent = RandomAgent()
+        if agent_configs["agent_type"] == "gnn":
+            police_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+        elif agent_configs["agent_type"] == "mappo":
+            pass
+            #police_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+        else:
+            police_agent = RandomAgent()
         logger.log("GNN agents for MrX and Police initialized.",level="debug")
 
         # Train the MrX and Police agents in the environment
@@ -121,7 +137,6 @@ def train(args):
             state, _ = env.reset(episode=episode)
             done = False
             total_reward = 0
-
             while not done:
                 # Create graph data for GNN and move to GPU
                 mrX_graph = create_graph_data(state, 'MrX', env).to(device)
@@ -140,7 +155,6 @@ def train(args):
                 action_mask[ mrX_possible_moves] = 1
                 mrX_action = mrX_agent.select_action(mrX_graph,action_mask)
                 logger.log(f"MrX selected action: {mrX_action}",level="debug")
-
                 # Police agents select actions
                 agent_actions = {'MrX': mrX_action}
                 for i in range(num_agents):
@@ -191,7 +205,6 @@ def train(args):
 
             logger.log(f"Epoch {epoch + 1}, Episode {episode + 1}, Total Reward: {total_reward}",level="debug")
             # logger.log_scalar(f'Episode_total_reward{epoch}', total_reward, episode)
-
         # Evaluate performance and calculate the target difficulty
         logger.log(f"Evaluating agent balance after epoch {epoch + 1}.",level="debug")
         # logger.log_model(mrX_agent, 'MrX')
@@ -327,7 +340,7 @@ def create_graph_data(state, agent_id, env):
     logger.log(f"Graph data for agent {agent_id} created.",level="debug")
     return data
 
-def evaluate(args):
+def evaluate(args,agent_configs,logger_configs,visualization_configs):
     """
     Evaluation function:
     - Loads pre-trained RewardWeightNet and agent models.
@@ -337,19 +350,23 @@ def evaluate(args):
         - Logs performance metrics (e.g., win ratio).
     """
     logger = Logger(
-        log_dir=args.log_dir,
         wandb_api_key=args.wandb_api_key,
         wandb_project=args.wandb_project,
         wandb_entity=args.wandb_entity,
         wandb_run_name=args.wandb_run_name,
-        wandb_resume=args.wandb_resume
+        wandb_resume=args.wandb_resume,
+        configs = logger_configs
     )
-
     reward_weight_net = RewardWeightNet().to(device)
     reward_weight_net.load_state_dict(logger.load_model('RewardWeightNet'), strict=False)
     reward_weight_net.eval()
-
-    police_agent = GNNAgent(node_feature_size=3, device=device)
+    if agent_configs["agent_type"] == "gnn":
+        police_agent = GNNAgent(node_feature_size=3, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+    elif agent_configs["agent_type"] == "mappo":
+        pass
+        #police_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+    else:
+        police_agent = RandomAgent()
     for config in args.agent_configurations:
         num_agents, agent_money = config["num_police_agents"], config["agent_money"]  # Unpack the tuple
         agent_money = 20
@@ -382,7 +399,7 @@ def evaluate(args):
             epoch=1,
             graph_nodes=args.graph_nodes,
             graph_edges=args.graph_edges,
-            visualize=True
+            vis_configs = visualization_configs
         )
         node_feature_size = env.number_of_agents + 1  # Assuming node features exist
         mrX_action_size = env.action_space('MrX').n
@@ -390,10 +407,24 @@ def evaluate(args):
         logger.log(f"Node feature size: {node_feature_size}, MrX action size: {mrX_action_size}, Police action size: {police_action_size}",level="debug")
 
         # Initialize GNN agents with graph-specific parameters and move them to GPU
-        mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
-        mrX_agent.load_state_dict(logger.load_model('MrX'), strict=False)
-        police_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
-        police_agent.load_state_dict(logger.load_model('Police'), strict=False)
+        if agent_configs["agent_type"] == "gnn":
+            mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            mrX_agent.load_state_dict(logger.load_model('MrX'), strict=False)
+        elif agent_configs["agent_type"] == "mappo":
+            pass
+            #mrX_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            #mrX_agent.load_state_dict(logger.load_model('MrX'), strict=False)
+        else:
+            mrX_agent = RandomAgent()
+        if agent_configs["agent_type"] == "gnn":
+            police_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            police_agent.load_state_dict(logger.load_model('Police'), strict=False)
+        elif agent_configs["agent_type"] == "mappo":
+            pass
+            #police_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            #police_agent.load_state_dict(logger.load_model('Police'), strict=False)
+        else:
+            police_agent = RandomAgent()
 
         wins = 0
         for episode in range(args.num_eval_episodes):
@@ -474,7 +505,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_episodes', type=int, default=argparse.SUPPRESS, help='Number of episodes per epoch')
     parser.add_argument('--num_eval_episodes', type=int, default=argparse.SUPPRESS, help='Number of evaluation episodes')
     parser.add_argument('--epochs', type=int, default=argparse.SUPPRESS, help='Number of training epochs')
-    parser.add_argument('--log_dir', type=str, default=argparse.SUPPRESS, help='Directory where logs will be saved')
+    parser.add_argument('--exp_dir', type=str, default=argparse.SUPPRESS, help='Directory where logs will be saved')
     parser.add_argument('--wandb_api_key', type=str, default=argparse.SUPPRESS, help='Weights & Biases API key')
     parser.add_argument('--wandb_project', type=str, default=argparse.SUPPRESS, help='Weights & Biases project name')
     parser.add_argument('--wandb_entity', type=str, default=argparse.SUPPRESS, help='Weights & Biases entity (user or team)')
@@ -485,11 +516,18 @@ if __name__ == "__main__":
     # Add agent_configurations argument
     parser.add_argument('--agent_configurations', type=str, default=argparse.SUPPRESS,
                         help='List of (num_police_agents, agent_money) tuples separated by semicolons. E.g., "2,30;3,40;4,50"')
-
+    parser.add_argument('--log_configs', type=str, default="default", help='Select a logger configuration!')
+    parser.add_argument('--agent_configs', type=str, default="default", help='Select an agent configuration!')
+    parser.add_argument('--vis_configs', type=str, default="default", help='Select an agent configuration!')
     # Parse command-line arguments
     args = parser.parse_args()
     args_dict = vars(args)
-
+    if args_dict["wandb_api_key"] =="null":
+        args_dict["wandb_api_key"] = ""
+    if args_dict["wandb_project"] =="null":
+        args_dict["wandb_project"] = ""
+    if args_dict["wandb_entity"] =="null":
+        args_dict["wandb_entity"] = ""
     # Default values for all parameters
     default_values = {
         'graph_nodes': 50,
@@ -499,7 +537,7 @@ if __name__ == "__main__":
         'num_episodes': 100,
         'num_eval_episodes': 10,
         'epochs': 50,
-        'log_dir': 'logs',
+        'exp_dir': '/',
         'wandb_api_key': None,
         'wandb_project': None,
         'wandb_entity': None,
@@ -507,7 +545,9 @@ if __name__ == "__main__":
         'wandb_resume': False,
         'agent_configurations': [(2, 30), (3, 40), (4, 50)],  # Default configurations
         'random_seed': 42,
-        'evaluate': False
+        'evaluate': False,
+        'log_configs':'default',
+        'agent_configs':'default'
     }
 
     # If a config file is provided, load its parameters
@@ -527,7 +567,25 @@ if __name__ == "__main__":
         config_args.pop('config', None)
     else:
         config_args = {}
-
+    yaml_loader = yaml.SafeLoader
+    yaml_loader.add_implicit_resolver(
+        u'tag:yaml.org,2002:float',
+        re.compile(u'''^(?:
+        [-+]?(?:[0-9][0-9_]*)\\.[0-9_]*(?:[eE][-+]?[0-9]+)?
+        |[-+]?(?:[0-9][0-9_]*)(?:[eE][-+]?[0-9]+)
+        |\\.[0-9_]+(?:[eE][-+][0-9]+)?
+        |[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\\.[0-9_]*
+        |[-+]?\\.(?:inf|Inf|INF)
+        |\\.(?:nan|NaN|NAN))$''', re.X),
+        list(u'-+0123456789.'))
+    with open("./src/configs/agent/"+args_dict["agent_configs"]+".yaml", 'r') as f:
+        agent_configs = yaml.load(f,Loader=yaml_loader)
+    with open("./src/configs/logger/"+args_dict["log_configs"]+".yaml", 'r') as f:
+        logger_configs = yaml.load(f,Loader=yaml_loader)
+    with open("./src/configs/visualization/"+args_dict["vis_configs"]+".yaml", 'r') as f:
+        visualization_configs = yaml.load(f,Loader=yaml_loader)
+    logger_configs["log_dir"] = os.path.join(args_dict["exp_dir"],logger_configs["log_dir"])
+    visualization_configs["save_dir"] = os.path.join(args_dict["exp_dir"],visualization_configs["save_dir"])
     # Handle agent_configurations from command-line if provided
     if 'agent_configurations' in args_dict:
         # Parse the string into a list of tuples or dictionaries
@@ -563,6 +621,6 @@ if __name__ == "__main__":
     # print(args)
 
     if args.evaluate:
-        evaluate(args)
+        evaluate(args,agent_configs,logger_configs,visualization_configs)
     else:
-        train(args)
+        train(args,agent_configs,logger_configs,visualization_configs)

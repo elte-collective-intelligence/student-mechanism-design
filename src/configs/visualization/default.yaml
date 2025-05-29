@@ -1,0 +1,4 @@
+visualize_game: True
+visualize_heatmap: True
+save_visualization: False
+save_dir: 'logs'

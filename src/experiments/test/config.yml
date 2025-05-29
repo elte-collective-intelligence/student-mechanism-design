@@ -2,14 +2,13 @@
 
 agent_configurations:
   - num_police_agents: 2
-    agent_money: 16
+    agent_money: 60
 graph_edges: 190
 graph_nodes: 100
 num_episodes: 7
-num_eval_episodes: 3
-epochs: 10
-log_dir: 'logs'
+num_eval_episodes: 1
+epochs: 1
 wandb_run_name: 'big_graph'
 wandb_resume: false
 random_seed: 42
-evaluate: True
+evaluate: False

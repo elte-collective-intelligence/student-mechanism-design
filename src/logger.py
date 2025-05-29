@@ -3,19 +3,18 @@ from torch.utils.tensorboard import SummaryWriter
 import wandb
 import os
 import torch
-
 class Logger:
     """Logger for training progress, rewards, and other metrics with Weights & Biases integration."""
 
     def __init__(
         self, 
-        log_dir='logs', 
         wandb_api_key=None,
         wandb_project=None, 
         wandb_entity=None, 
         wandb_config=None, 
         wandb_run_name=None,
-        wandb_resume=False
+        wandb_resume=False,
+        configs={}
     ):
         """
         Initializes the Logger with console, file, TensorBoard, and optionally Weights & Biases logging.
@@ -30,9 +29,10 @@ class Logger:
         """
         self.logger = logging.getLogger('TrainingLogger')
         self.logger.setLevel(logging.DEBUG)
-        self.log_dir = log_dir
-        os.makedirs(log_dir, exist_ok=True)
-
+        self.configs = configs
+        self.log_dir = self.configs["log_dir"]
+        os.makedirs(self.configs["log_dir"], exist_ok=True)
+        self.use_wandb=False
         # Console handler
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
@@ -41,22 +41,22 @@ class Logger:
         self.logger.addHandler(ch)
 
         # File handler
-        fh = logging.FileHandler(os.path.join(log_dir, 'training.log'))
+        fh = logging.FileHandler(os.path.join(self.configs["log_dir"], self.configs["log_file"]))
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
         # self.logger.addHandler(fh)
 
         # TensorBoard handler
-        self.writer = SummaryWriter(log_dir=log_dir)
+        self.writer = SummaryWriter(log_dir=self.configs["log_dir"])
 
         # Weight and biasses
-        if wandb_project:
+        if wandb_project != "" and wandb_api_key != "" and wandb_entity != "":
             wandb_kwargs = {
                 "project": wandb_project,
                 "entity": wandb_entity,
                 "config": wandb_config,
                 "name": wandb_run_name,
-                "dir": log_dir,
+                "dir": self.configs["log_dir"],
                 "resume": "allow" if wandb_resume else False
             }
             
@@ -65,14 +65,13 @@ class Logger:
             wandb.login(key=wandb_api_key)
             wandb.init(**wandb_kwargs)
             self.logger.info("Weights & Biases initialized.")
-
+            self.use_wandb = True
             wandb.define_metric("epoch_step")
             wandb.define_metric("episode_step")
             wandb.define_metric("epoch/", step_metric="epoch_step")
             wandb.define_metric("reward_weight/", step_metric="epoch_step")
             wandb.define_metric("episode/", step_metric="episode_step")
-            
-
+            self.log("Using Wandb initialized.","info")
     def log(self, message, level='info'):
         """
         Log a message to console and file.
@@ -81,7 +80,7 @@ class Logger:
             message (str): The message to log.
             level (str, optional): The log level ('info', 'warning', 'error').
         """
-        if level == 'info':
+        if level == 'info' or self.configs["verbose"] == True:
             self.logger.info(message)
         elif level == "debug":
             self.logger.debug(message)
@@ -103,7 +102,7 @@ class Logger:
         """
         # self.log(str(step) + " | " + tag + ": " + str(value), level='info')
         self.writer.add_scalar(tag, value, step)
-        if wandb.run:
+        if self.use_wandb and wandb.run:
             wandb.log({tag: value}, step=step)
 
     def log_weights(self, weights, step=None):
@@ -117,10 +116,9 @@ class Logger:
         for name, param in weights.items():
             self.log_scalar("reward_weight/"+name, param, step)
 
-    def log_plt(self, plt, step=None):
-
-        if wandb.run:
-            wandb.log({"chart": wandb.Image(plt)})
+    def log_plt(self, name, plt, step=None):
+        if self.use_wandb and wandb.run:
+            wandb.log({name: wandb.Image(plt)})
 
     def log_metrics(self, metrics, step=None):
         """
@@ -136,7 +134,7 @@ class Logger:
             self.writer.add_scalar(tag, value, step)
 
         # Log to Wandb
-        if wandb.run:
+        if self.use_wandb and wandb.run:
             wandb.log(metrics, step=step)
 
     def log_hyperparameters(self, params):
@@ -146,7 +144,7 @@ class Logger:
         Args:
             params (dict): A dictionary of hyperparameter names and their values.
         """
-        if wandb.run:
+        if self.use_wandb and wandb.run:
             wandb.config.update(params)
 
     def log_model(self, model, model_name):
@@ -158,9 +156,10 @@ class Logger:
         """
         path =  self.log_dir + "/" + model_name + ".pt"
         torch.save(model.state_dict(), path)
-        artifact = wandb.Artifact(model_name, type='model')
-        artifact.add_file(path)
-        wandb.log_artifact(artifact)
+        if self.use_wandb and wandb.run:
+            artifact = wandb.Artifact(model_name, type='model')
+            artifact.add_file(path)
+            wandb.log_artifact(artifact)
 
     def load_model(self, model_name, model_num=None ):
         """
@@ -169,13 +168,14 @@ class Logger:
         Args:
             model_name (str): The name of the model.
         """
-        if wandb.run:
+        if self.use_wandb and wandb.run:
             if(model_num):
                 model_name_with_num = model_name + ":" + str(model_num)
             else:
                 model_name_with_num = model_name + ":latest"
-            artifact = wandb.use_artifact(model_name_with_num, type='model')
-            model_dir = artifact.download()
+            #artifact = wandb.use_artifact(model_name_with_num, type='model')
+            #model_dir = artifact.download()
+            model_dir = self.log_dir
         else:
             model_dir = self.log_dir
         
@@ -186,5 +186,5 @@ class Logger:
         Close the TensorBoard writer and Weights & Biases run.
         """
         self.writer.close()
-        if wandb.run:
+        if self.use_wandb and wandb.run:
             wandb.finish()

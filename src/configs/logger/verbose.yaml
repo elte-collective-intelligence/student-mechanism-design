@@ -1,0 +1,3 @@
+verbose: True
+log_dir: 'logs'
+log_file: 'run.log'

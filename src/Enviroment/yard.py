@@ -17,7 +17,7 @@ class CustomEnvironment(BaseEnvironment):
     metadata = {"name": "scotland_yard_env"}
     DEFAULT_ACTION = -1
 
-    def __init__(self, number_of_agents, agent_money, reward_weights, logger, epoch, graph_nodes, graph_edges, visualize=False):
+    def __init__(self, number_of_agents, agent_money, reward_weights, logger, epoch, graph_nodes, graph_edges, vis_configs):
         """
         Initialize the environment with given parameters.
         """
@@ -34,16 +34,26 @@ class CustomEnvironment(BaseEnvironment):
         self.node_collection = None
         self.edge_collection = None
         self.label_collection = None  # To store node labels
-        self.visualize = visualize
+        #### Heatmap
+        self.heatmap = None
+        self.heatmap_colors = None
+        self.node_visits = None
+        self.hm_node_collection = None
+        self.hm_edge_collection = None
+        self.hm_label_collection = None
+        ####
+        self.vis_config = vis_configs
+        self.visualize = vis_configs["visualize_game"]
+        self.visualize_heatmap = vis_configs["visualize_heatmap"]
         self.graph_nodes = graph_nodes
         self.graph_edges = graph_edges
         self.possible_agents = ["MrX"] + [f"Police{n}" for n in range(self.number_of_agents)]
+        self.current_winner = None #TODO: write it into the info or sth, that's clunky
+        self.G = None
+        self.avg_distance = 0
         self.reset()
         self.epoch = epoch
         self.episode = 0
-        self.current_winner = None #TODO: write it into the info or sth, that's clunky
-        
-        
 
     def reset(self, episode=0, seed=None, options=None):
         """
@@ -51,11 +61,13 @@ class CustomEnvironment(BaseEnvironment):
         """
         self.episode = episode
         self.board = self.observation_graph.sample(num_nodes=self.graph_nodes, num_edges=self.graph_edges)
+        self.heatmap = self.board
         self.logger.log("Resetting the environment.", level="debug")
         self.logger.log(f"Generated board with {self.board.nodes.shape[0]} nodes and {self.board.edge_links.shape[0]} edges.", level="debug")
 
         # self.agents = ["MrX"] + [f"Police{n}" for n in range(self.number_of_agents)]
         self.agents = self.possible_agents
+        self.node_visits = np.zeros((self.board.nodes.shape[0]),dtype=np.int32)
         agent_starting_positions = list(
             np.random.choice(self.board.nodes.shape[0], size=self.number_of_agents + 1, replace=False)
         )
@@ -68,12 +80,11 @@ class CustomEnvironment(BaseEnvironment):
         self.timestep = 0
         self.logger.log(f"MrX initial position: {self.MrX_pos[0]}", level="debug")
         self.logger.log(f"Police initial positions: {self.police_positions}", level="debug")
-
+        self.avg_distance = 0
         infos = {a: {} for a in self.agents}  # Dummy infos
         self.logger.log("Environment reset complete.", level="debug")
-        if self.visualize:
-            self.close_render()
-            self.initialize_render()
+        self.close_render()
+        self.initialize_render()
 
         observations = self._get_graph_observations()
         return observations, infos
@@ -83,8 +94,10 @@ class CustomEnvironment(BaseEnvironment):
         """
         Execute actions for all agents and update the environment.
         """
-        if self.visualize:
-            self.render()
+        for pos in self.police_positions:
+            self.node_visits[pos] += 1
+        self.node_visits[self.MrX_pos[0]] += 1
+        self.render()
         self.logger.log(f"Step {self.timestep}: Received actions: {actions}", level="debug")
         mrX_action = actions["MrX"]
         mrx_pos = self.MrX_pos[0]
@@ -156,8 +169,7 @@ class CustomEnvironment(BaseEnvironment):
         if any(terminations.values()) or all(truncations.values()):
             self.logger.log("Termination or truncation condition met. Ending episode., ",level="debug")
             self.agents = []
-            if self.visualize:
-                self.render()
+            self.render()
 
         self.logger.log(f"Step {self.timestep} completed., ",level="debug")
         # return observations, rewards, terminations, truncations, winner, infos, 
@@ -242,12 +254,12 @@ class CustomEnvironment(BaseEnvironment):
         police_distances = [self.get_distance(mrX_pos, police_pos) for police_pos in self.police_positions]
         self.logger.log(f"Police distances from MrX: {police_distances}, ", level="debug")
         closest_distance = min(police_distances)
-        avg_distance = np.mean(police_distances)
-        self.logger.log(f"MrX closest distance: {closest_distance}, average distance: {avg_distance}, ", level="debug")
+        self.avg_distance = np.mean(police_distances)
+        self.logger.log(f"MrX closest distance: {closest_distance}, average distance: {self.avg_distance}, ", level="debug")
         position_penalty = len(self._get_possible_moves(mrX_pos,0)[0])
         mrX_reward = (
             self.reward_weights["Mrx_closest"] * (-1 / (closest_distance + 1))  # Distance penalty
-            + self.reward_weights["Mrx_average"] * (-1 / (avg_distance + 1))  # Average distance penalty
+            + self.reward_weights["Mrx_average"] * (-1 / (self.avg_distance + 1))  # Average distance penalty
             + self.reward_weights["Mrx_position"] * (position_penalty)  # Position reward
             + (1 - self.reward_weights["Mrx_time"]) * (0.1 * self.timestep)  # Time reward
         )
@@ -256,7 +268,7 @@ class CustomEnvironment(BaseEnvironment):
 
         # Log MrX reward components as scalars
         distance_penalty_mrX = -1 / (closest_distance + 1)
-        avg_distance_penalty_mrX = -1 / (avg_distance + 1)
+        avg_distance_penalty_mrX = -1 / (self.avg_distance + 1)
         time_reward_mrX = 0.1 * self.timestep
 
         self.logger.log_scalar("episode_step", self.timestep)
@@ -265,7 +277,12 @@ class CustomEnvironment(BaseEnvironment):
         self.logger.log_scalar(f'episode/epoch_{self.epoch}/MrX_avg_distance_penalty', avg_distance_penalty_mrX)
         self.logger.log_scalar(f'episode/epoch_{self.epoch}/MrX_time_reward', time_reward_mrX)
         self.logger.log_scalar(f'episode/epoch_{self.epoch}/MrX_total_reward', mrX_reward)
-
+        self.logger.log_scalar(f'episode/epoch_{self.epoch}/average_distance_to_MrX', self.avg_distance)
+        police_dist_sum = 0.0
+        for police_pos_1 in self.police_positions:
+            for police_pos_2 in self.police_positions:
+                police_dist_sum += self.get_distance(police_pos_1, police_pos_2)
+        self.logger.log_scalar(f'episode/epoch_{self.epoch}/average_distance_between_officers', police_dist_sum / (len(self.police_positions)**2))
         # Compute rewards for police
         for i, police in enumerate(self.agents[1:]):  # Skip MrX
             police_pos = self.police_positions[i]
@@ -562,18 +579,18 @@ class CustomEnvironment(BaseEnvironment):
 
         # Create a NetworkX graph
         graph = self.board
-        G = nx.Graph()
+        self.G = nx.Graph()
         num_nodes = graph.nodes.shape[0]
-        G.add_nodes_from(range(num_nodes))
+        self.G.add_nodes_from(range(num_nodes))
         edges = [tuple(edge) for edge in graph.edge_links]
-        G.add_edges_from(edges)
+        self.G.add_edges_from(edges)
         # Add edge weights if available
         if hasattr(graph, 'edges') and graph.edges is not None:
             for idx, edge in enumerate(graph.edge_links):
-                G.edges[tuple(edge)]['weight'] = graph.edges[idx]
+                self.G.edges[tuple(edge)]['weight'] = graph.edges[idx]
 
         # Choose a layout
-        self.pos = nx.kamada_kawai_layout(G)  # For reproducibility
+        self.pos = nx.kamada_kawai_layout(self.G)  # For reproducibility
 
         # Initialize matplotlib figure and axis
         plt.ion()  # Turn on interactive mode
@@ -581,17 +598,17 @@ class CustomEnvironment(BaseEnvironment):
         self.ax.set_title(f"Connected Graph Visualization at Timestep {self.timestep}", fontsize=16)
 
         # Draw nodes
-        self.node_colors = ['lightblue'] * G.number_of_nodes()  # Default color
+        self.node_colors = ['lightblue'] * self.G.number_of_nodes()  # Default color
+        self.heatmap_colors = ['lightblue'] * self.G.number_of_nodes()
         # Highlight MrX and police positions
         self.update_node_colors()
 
-        self.node_collection = nx.draw_networkx_nodes(G, self.pos, ax=self.ax, node_size=700, node_color=self.node_colors, edgecolors='black')
+        self.node_collection = nx.draw_networkx_nodes(self.G, self.pos, ax=self.ax, node_size=700, node_color=self.node_colors, edgecolors='black')
 
         # Draw edges
-        self.edge_collection = nx.draw_networkx_edges(G, self.pos, ax=self.ax, width=2, edge_color='gray')
+        self.edge_collection = nx.draw_networkx_edges(self.G, self.pos, ax=self.ax, width=2, edge_color='darkgray')
 
-        self.label_collection = nx.draw_networkx_labels(G, self.pos, ax=self.ax, font_size=10, font_family="sans-serif")
-
+        self.label_collection = nx.draw_networkx_labels(self.G, self.pos, ax=self.ax, font_size=10, font_family="sans-serif",font_color="white")
         # Add legend
         import matplotlib.patches as mpatches
         red_patch = mpatches.Patch(color='red', label='MrX')
@@ -602,6 +619,9 @@ class CustomEnvironment(BaseEnvironment):
 
         # Display the plot
         plt.show()
+
+        # Display the plot
+        plt.show()
         self.logger.log("Render plot initialized.", level="debug")
 
     def update_node_colors(self):
@@ -609,14 +629,17 @@ class CustomEnvironment(BaseEnvironment):
         Update the colors of the nodes based on the positions of MrX and police agents.
         """
         # Reset all colors to default
-        self.node_colors = ['lightblue'] * self.board.nodes.shape[0]
-
+        self.node_colors = ['gray'] * self.board.nodes.shape[0]
+        self.heatmap_colors = []
         # Color MrX's position red
         self.node_colors[self.MrX_pos[0]] = 'red'
 
         # Color police positions blue
         for pos in self.police_positions:
             self.node_colors[pos] = 'blue'
+        visit_max = np.amax([np.amax(self.node_visits),1.0])
+        for pos in range(self.node_visits.shape[0]):
+            self.heatmap_colors.append(((self.node_visits[pos]/visit_max) * 0.6,0,0))
 
     def close_render(self):
         """Closes the matplotlib plot."""
@@ -627,6 +650,8 @@ class CustomEnvironment(BaseEnvironment):
             self.ax = None
             self.node_collection = None
             self.edge_collection = None
+            self.hm_node_collection = None
+            self.hm_edge_collection = None
             self.logger.log("Render plot closed.", level="debug")
 
     def render(self):
@@ -635,18 +660,27 @@ class CustomEnvironment(BaseEnvironment):
             # If render has not been initialized, initialize it
             self.initialize_render()
             return
+        if self.visualize or self.visualize_heatmap:
+            # Update node colors based on current positions
+            self.update_node_colors()
+        if self.visualize:
+            # Update the node colors in the plot
+            self.node_collection.set_color(self.node_colors)
 
-        # Update node colors based on current positions
-        self.update_node_colors()
+            # Update the title
+            self.ax.set_title(f"Episode: {self.episode}, Timestep: {self.timestep}", fontsize=16)
+            # Redraw the plot
+            self.fig.canvas.draw()
+            self.fig.canvas.flush_events()
 
-        # Update the node colors in the plot
-        self.node_collection.set_color(self.node_colors)
+            self.logger.log_plt("chart",plt)
+        if self.visualize_heatmap:
+            self.node_collection.set_color(self.heatmap_colors)
+            # Update the title
+            self.ax.set_title(f"Heatmap Episode: {self.episode}, Timestep: {self.timestep}", fontsize=16)
 
-        # Update the title
-        self.ax.set_title(f"Episode: {self.episode}, Timestep: {self.timestep}", fontsize=16)
+            # Redraw the plot
+            self.fig.canvas.draw()
+            self.fig.canvas.flush_events()
 
-        # Redraw the plot
-        self.fig.canvas.draw()
-        self.fig.canvas.flush_events()
-
-        self.logger.log_plt(plt)
+            self.logger.log_plt("heatmap",plt)
