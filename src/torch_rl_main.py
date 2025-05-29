@@ -214,9 +214,9 @@ def train(args,agent_configs,logger_configs,visualization_configs):
 
         # Evaluate performance and calculate the target difficulty
         logger.log(f"Evaluating agent balance after epoch {epoch + 1}.",level="debug")
-        # logger.log_model(mrX_agent, 'MrX')
-        # logger.log_model(police_agent, 'Police')
-        # logger.log_model(reward_weight_net, 'RewardWeightNet')
+        logger.log_model(mrX_agent, 'MrX')
+        logger.log_model(police_agent, 'Police')
+        logger.log_model(reward_weight_net, 'RewardWeightNet')
 
         wins = 0
 
