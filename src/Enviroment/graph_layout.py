@@ -4,8 +4,8 @@ import numpy as np
 import networkx as nx
 
 class ConnectedGraph(Graph):
-    MAX_WEIGHT = 4
-    def sample(self, mask=None, num_nodes=10, num_edges=None, max_edges_per_node=5):
+    MAX_WEIGHT = 5
+    def sample(self, mask=None, num_nodes=10, num_edges=None, max_edges_per_node=4):
         # Remove all initial edges
         graph_json = {"nodes": list(range(num_nodes)), "edge_links": [], "edges": []}
         # graph = self.from_jsonable([graph_json])[0]
