@@ -1,20 +1,20 @@
-import torch, random
+import torch, re, os, random
+
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-
-from torch_geometric.data import Data
-from torchrl.envs.libs.pettingzoo import PettingZooWrapper
-from tensordict import TensorDict
-
 from logger import Logger  # Your custom Logger class
 from RLAgent.gnn_agent import GNNAgent
+from RLAgent.random_agent import RandomAgent
 from Enviroment.yard import CustomEnvironment
+from torch_geometric.data import Data
 
+from torchrl.envs.libs.pettingzoo import PettingZooWrapper
 
 # Define the device at the beginning
-device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 print(f"RUNNING TORCHRL VERSION")
+print(f"CUDA is available: {torch.cuda.is_available()}")
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 print(f"Using device: {device}")  # You may consider logging this instead
 
 class RewardWeightNet(nn.Module):
@@ -30,7 +30,7 @@ class RewardWeightNet(nn.Module):
         x = self.fc2(x)
         return torch.sigmoid(x) 
 
-def train(args):
+def train(args,agent_configs,logger_configs,visualization_configs):
     """
     Main training function:
     - Initializes the logger, networks (including Meta RL net for reward weights), and optimizer.
@@ -41,14 +41,13 @@ def train(args):
         - Steps through the environment, gathers rewards, and updates agents.
         - After episodes, evaluates performance and updates RewardWeightNet towards target difficulty.
     """
-
     logger = Logger(
-        log_dir=args.log_dir,
         wandb_api_key=args.wandb_api_key,
         wandb_project=args.wandb_project,
         wandb_entity=args.wandb_entity,
         wandb_run_name=args.wandb_run_name,
-        wandb_resume=args.wandb_resume
+        wandb_resume=args.wandb_resume,
+        configs = logger_configs
     )
 
     logger.log("Logger initialized.", level="debug")
@@ -67,7 +66,6 @@ def train(args):
     # Validate that the agent configurations list is provided and not empty
     if not hasattr(args, 'agent_configurations') or not args.agent_configurations:
         raise ValueError("args.agent_configurations must be a non-empty list of (num_agents, agent_money) tuples.")
-
     for epoch in range(args.epochs):
         logger.log_scalar('epoch_step', epoch)
 
@@ -75,6 +73,7 @@ def train(args):
         
         # Randomly select a (num_agents, agent_money) tuple from the predefined list
         # print(args.agent_configurations)
+        logger.log(args.agent_configurations,level='info')
         selected_config = random.choice(args.agent_configurations)  # Ensure args.agent_configurations is defined
         num_agents, agent_money = selected_config["num_police_agents"], selected_config["agent_money"]  # Unpack the tuple
         logger.log(f"Choosen configuration: {num_agents} agents, {agent_money} money.", level="info")
@@ -105,7 +104,8 @@ def train(args):
             logger=logger,
             epoch=epoch,
             graph_nodes=args.graph_nodes,
-            graph_edges=args.graph_edges
+            graph_edges=args.graph_edges,
+            vis_configs = visualization_configs
         )
 
         env = PettingZooWrapper(env=env_wrappable)
@@ -161,66 +161,22 @@ def train(args):
                         action_mask
                     )
                     if police_action is None:
-                        # print('REDEFINING!')
                         police_action = env.DEFAULT_ACTION
                     agent_actions[f'Police{i}'] = police_action
                     logger.log(f"Police{i} selected action: {police_action}",level="debug")
-                
                 # Execute actions for MrX and Police
-
-                # state = env.rand_action(state)
-                # print("rand_action: ")
-                # print(reset_with_action)
-                # stuff = env.step(reset_with_action)
-                # print('stuff:')
-                # print(state)
-                # actions_td = state.get("action").clone()
-                # print(actions_td)
-                # print(f"actions: {agent_actions}")
                 for obj_id, act in agent_actions.items():
-                    # Here, obj_id matches an agent key inside 'piston'
-                    # If agent IDs correspond to the second dim, you need indexing instead
-                    # If obj_id is an int index in [0, num_agents), use:
-                    # actions_td["piston"].set_at(obj_id, act)  # or indexing depending on structure
-                    
-                    # If your keys correspond exactly to keys in the TensorDict, do:
-                    # print(f"{obj_id}: ")
-                    # print(state[obj_id].get('action'))
-                    # print(act)
-                    # print(state.batch_size)
                     if act is not None:
                         state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
-                
-                # print(state)
-                # Step 3: Put the filled actions_td back into the top-level tensordict
-                # state.set("action", actions_td)
+
 
                 # next_state, rewards, terminations, truncation, _, _ = env.step(state)
                 next_state =  env.step(state)['next']
-
-                # print(f'NEW STATE: {new_state}')
-
-                # print(new_state['next'].keys())
-                # print(new_state['next']['MrX'])
-
-                # print('New state: ')
-                # print(new_state['next'].keys())
-                # rewards = {k:v['reward'] for k,v in new_state['next'].items()}
-                # # rewards = {k:new_state[k]['reward'] for k in new_state.keys()}
-                # # terminations = {k:new_state[k]['terminated'] for k in new_state.keys()}
-                # # truncation = {k:new_state[k]['truncated'] for k in new_state.keys()}
-                # rewards = {k:v['reward'] for k,v in new_state['next'].items()}
-                # terminations = {k:v['terminated'] for k,v in new_state['next'].items()}
-                # truncation = {k:v['truncated'] for k,v in new_state['next'].items()}
-
+                if act is not None:
+                        state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
                 rewards = {agent_id:next_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
                 terminations = {agent_id:next_state[agent_id]['terminated'].squeeze() for agent_id in env.possible_agents}
                 truncation = {agent_id:next_state[agent_id]['truncated'].squeeze() for agent_id in env.possible_agents}
-
-                # print(f"terminated/truncated: {terminations}\n, {truncation}")
-
-                # print(f'reward remade: {rewards}')
-                # print(stuff)
                 logger.log(f"Executed actions. Rewards: {rewards}, Terminations: {terminations}, Truncations: {truncation}",level="debug")
 
                 done = terminations.get('Police0', False) or all(truncation.values())
@@ -323,7 +279,7 @@ def train(args):
                 total_reward += rewards.get('MrX', 0.0)
                 state = next_state
                 logger.log(f"Total reward updated to: {total_reward}",level="debug")
-                if done: #TODO calc winner from state here! (or in the env class as a separate property)
+                if done:
                     if winner == 'MrX':
                         wins += 1
                         logger.log(f"MrX won the evaluation episode.",level="info")
@@ -401,7 +357,7 @@ def create_graph_data(state, agent_id, env):
     logger.log(f"Graph data for agent {agent_id} created.",level="debug")
     return data
 
-def evaluate(args):
+def evaluate(args,agent_configs,logger_configs,visualization_configs):
     """
     Evaluation function:
     - Loads pre-trained RewardWeightNet and agent models.
@@ -411,19 +367,23 @@ def evaluate(args):
         - Logs performance metrics (e.g., win ratio).
     """
     logger = Logger(
-        log_dir=args.log_dir,
         wandb_api_key=args.wandb_api_key,
         wandb_project=args.wandb_project,
         wandb_entity=args.wandb_entity,
         wandb_run_name=args.wandb_run_name,
-        wandb_resume=args.wandb_resume
+        wandb_resume=args.wandb_resume,
+        configs = logger_configs
     )
-
     reward_weight_net = RewardWeightNet().to(device)
     reward_weight_net.load_state_dict(logger.load_model('RewardWeightNet'), strict=False)
     reward_weight_net.eval()
-
-    police_agent = GNNAgent(node_feature_size=3, device=device)
+    if agent_configs["agent_type"] == "gnn":
+        police_agent = GNNAgent(node_feature_size=3, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+    elif agent_configs["agent_type"] == "mappo":
+        pass
+        #police_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+    else:
+        police_agent = RandomAgent()
     for config in args.agent_configurations:
         num_agents, agent_money = config["num_police_agents"], config["agent_money"]  # Unpack the tuple
         agent_money = 20
@@ -456,7 +416,7 @@ def evaluate(args):
             epoch=1,
             graph_nodes=args.graph_nodes,
             graph_edges=args.graph_edges,
-            visualize=True
+            vis_configs = visualization_configs
         )
         node_feature_size = env.number_of_agents + 1  # Assuming node features exist
         mrX_action_size = env.action_space('MrX').n
@@ -464,10 +424,24 @@ def evaluate(args):
         logger.log(f"Node feature size: {node_feature_size}, MrX action size: {mrX_action_size}, Police action size: {police_action_size}",level="debug")
 
         # Initialize GNN agents with graph-specific parameters and move them to GPU
-        mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
-        mrX_agent.load_state_dict(logger.load_model('MrX'), strict=False)
-        police_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
-        police_agent.load_state_dict(logger.load_model('Police'), strict=False)
+        if agent_configs["agent_type"] == "gnn":
+            mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            mrX_agent.load_state_dict(logger.load_model('MrX'), strict=False)
+        elif agent_configs["agent_type"] == "mappo":
+            pass
+            #mrX_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            #mrX_agent.load_state_dict(logger.load_model('MrX'), strict=False)
+        else:
+            mrX_agent = RandomAgent()
+        if agent_configs["agent_type"] == "gnn":
+            police_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            police_agent.load_state_dict(logger.load_model('Police'), strict=False)
+        elif agent_configs["agent_type"] == "mappo":
+            pass
+            #police_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            #police_agent.load_state_dict(logger.load_model('Police'), strict=False)
+        else:
+            police_agent = RandomAgent()
 
         wins = 0
         for episode in range(args.num_eval_episodes):
@@ -548,7 +522,7 @@ if __name__ == "__main__":
     parser.add_argument('--num_episodes', type=int, default=argparse.SUPPRESS, help='Number of episodes per epoch')
     parser.add_argument('--num_eval_episodes', type=int, default=argparse.SUPPRESS, help='Number of evaluation episodes')
     parser.add_argument('--epochs', type=int, default=argparse.SUPPRESS, help='Number of training epochs')
-    parser.add_argument('--log_dir', type=str, default=argparse.SUPPRESS, help='Directory where logs will be saved')
+    parser.add_argument('--exp_dir', type=str, default=argparse.SUPPRESS, help='Directory where logs will be saved')
     parser.add_argument('--wandb_api_key', type=str, default=argparse.SUPPRESS, help='Weights & Biases API key')
     parser.add_argument('--wandb_project', type=str, default=argparse.SUPPRESS, help='Weights & Biases project name')
     parser.add_argument('--wandb_entity', type=str, default=argparse.SUPPRESS, help='Weights & Biases entity (user or team)')
@@ -559,11 +533,18 @@ if __name__ == "__main__":
     # Add agent_configurations argument
     parser.add_argument('--agent_configurations', type=str, default=argparse.SUPPRESS,
                         help='List of (num_police_agents, agent_money) tuples separated by semicolons. E.g., "2,30;3,40;4,50"')
-
+    parser.add_argument('--log_configs', type=str, default="default", help='Select a logger configuration!')
+    parser.add_argument('--agent_configs', type=str, default="default", help='Select an agent configuration!')
+    parser.add_argument('--vis_configs', type=str, default="default", help='Select an agent configuration!')
     # Parse command-line arguments
     args = parser.parse_args()
     args_dict = vars(args)
-
+    if args_dict["wandb_api_key"] =="null":
+        args_dict["wandb_api_key"] = ""
+    if args_dict["wandb_project"] =="null":
+        args_dict["wandb_project"] = ""
+    if args_dict["wandb_entity"] =="null":
+        args_dict["wandb_entity"] = ""
     # Default values for all parameters
     default_values = {
         'graph_nodes': 50,
@@ -573,7 +554,7 @@ if __name__ == "__main__":
         'num_episodes': 100,
         'num_eval_episodes': 10,
         'epochs': 50,
-        'log_dir': 'logs',
+        'exp_dir': '/',
         'wandb_api_key': None,
         'wandb_project': None,
         'wandb_entity': None,
@@ -581,7 +562,9 @@ if __name__ == "__main__":
         'wandb_resume': False,
         'agent_configurations': [(2, 30), (3, 40), (4, 50)],  # Default configurations
         'random_seed': 42,
-        'evaluate': False
+        'evaluate': False,
+        'log_configs':'default',
+        'agent_configs':'default'
     }
 
     # If a config file is provided, load its parameters
@@ -601,7 +584,25 @@ if __name__ == "__main__":
         config_args.pop('config', None)
     else:
         config_args = {}
-
+    yaml_loader = yaml.SafeLoader
+    yaml_loader.add_implicit_resolver(
+        u'tag:yaml.org,2002:float',
+        re.compile(u'''^(?:
+        [-+]?(?:[0-9][0-9_]*)\\.[0-9_]*(?:[eE][-+]?[0-9]+)?
+        |[-+]?(?:[0-9][0-9_]*)(?:[eE][-+]?[0-9]+)
+        |\\.[0-9_]+(?:[eE][-+][0-9]+)?
+        |[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\\.[0-9_]*
+        |[-+]?\\.(?:inf|Inf|INF)
+        |\\.(?:nan|NaN|NAN))$''', re.X),
+        list(u'-+0123456789.'))
+    with open("./src/configs/agent/"+args_dict["agent_configs"]+".yaml", 'r') as f:
+        agent_configs = yaml.load(f,Loader=yaml_loader)
+    with open("./src/configs/logger/"+args_dict["log_configs"]+".yaml", 'r') as f:
+        logger_configs = yaml.load(f,Loader=yaml_loader)
+    with open("./src/configs/visualization/"+args_dict["vis_configs"]+".yaml", 'r') as f:
+        visualization_configs = yaml.load(f,Loader=yaml_loader)
+    logger_configs["log_dir"] = os.path.join(args_dict["exp_dir"],logger_configs["log_dir"])
+    visualization_configs["save_dir"] = os.path.join(args_dict["exp_dir"],visualization_configs["save_dir"])
     # Handle agent_configurations from command-line if provided
     if 'agent_configurations' in args_dict:
         # Parse the string into a list of tuples or dictionaries
@@ -637,6 +638,6 @@ if __name__ == "__main__":
     # print(args)
 
     if args.evaluate:
-        evaluate(args)
+        evaluate(args,agent_configs,logger_configs,visualization_configs)
     else:
-        train(args)
+        train(args,agent_configs,logger_configs,visualization_configs)
