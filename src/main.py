@@ -152,8 +152,8 @@ def train(args,agent_configs,logger_configs,visualization_configs):
                 mrX_action_size = env.action_space('MrX').n
                 mrX_possible_moves = env.get_possible_moves(0)
                 action_mask = torch.zeros(mrX_graph.num_nodes, dtype=torch.int32, device=device)
-                action_mask[ mrX_possible_moves] = 1
-                mrX_action = mrX_agent.select_action(mrX_graph,action_mask)
+                action_mask[mrX_possible_moves] = 1
+                mrX_action = mrX_agent.select_action(mrX_graph, action_mask)
                 logger.log(f"MrX selected action: {mrX_action}",level="debug")
                 # Police agents select actions
                 agent_actions = {'MrX': mrX_action}

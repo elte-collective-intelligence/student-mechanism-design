@@ -184,8 +184,7 @@ def train(args,agent_configs,logger_configs,visualization_configs):
 
                 # next_state, rewards, terminations, truncation, _, _ = env.step(state)
                 next_state =  env.step(state)['next']
-                if act is not None:
-                        state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
+                
                 rewards = {agent_id:next_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
                 terminations = {agent_id:next_state[agent_id]['terminated'].squeeze() for agent_id in env.possible_agents}
                 truncation = {agent_id:next_state[agent_id]['truncated'].squeeze() for agent_id in env.possible_agents}
@@ -420,7 +419,7 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
         logger.log(f"Predicted weights: {reward_weights}", level="debug")
         logger.log_weights(reward_weights)
         # Create environment with predicted difficulty
-        env = CustomEnvironment(
+        env_wrappable = CustomEnvironment(
             number_of_agents=num_agents,
             agent_money=agent_money,
             reward_weights=reward_weights,
@@ -430,6 +429,8 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
             graph_edges=args.graph_edges,
             vis_configs = visualization_configs
         )
+        env = PettingZooWrapper(env=env_wrappable)
+
         node_feature_size = env.number_of_agents + 1  # Assuming node features exist
         mrX_action_size = env.action_space('MrX').n
         police_action_size = env.action_space('Police0').n  # Assuming all police have the same action space
@@ -458,7 +459,7 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
         wins = 0
         for episode in range(args.num_eval_episodes):
             logger.log(f"Evaluation Episode {episode + 1} started.",level="info")
-            state, _ = env.reset(episode=episode)
+            state = env.reset(episode=episode)
             done = False
             total_reward = 0
             while not done:
@@ -491,11 +492,23 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
                         police_graphs[i],
                         action_mask
                     )
+
+                    if police_action is None:
+                        police_action = env.DEFAULT_ACTION
                     agent_actions[f'Police{i}'] = police_action
                     logger.log(f"Police{i} selected action: {police_action}",level="debug")
 
+                for obj_id, act in agent_actions.items():
+                    if act is not None:
+                        state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
+
                 # Execute actions for MrX and Police
-                next_state, rewards, terminations, truncation, winner, _ = env.step(agent_actions)
+                # next_state, rewards, terminations, truncation, winner, _ = env.step(agent_actions)
+                next_state =  env.step(state)['next']
+                rewards = {agent_id:next_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
+                terminations = {agent_id:next_state[agent_id]['terminated'].squeeze() for agent_id in env.possible_agents}
+                truncation = {agent_id:next_state[agent_id]['truncated'].squeeze() for agent_id in env.possible_agents}
+                winner = env.current_winner
                 logger.log(f"Executed actions. Rewards: {rewards}, Terminations: {terminations}, Truncations: {truncation}",level="debug")
 
                 done = terminations.get('Police0', False) or all(truncation.values())
