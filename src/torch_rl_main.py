@@ -119,8 +119,20 @@ def train(args,agent_configs,logger_configs,visualization_configs):
         logger.log(f"Node feature size: {node_feature_size}, MrX action size: {mrX_action_size}, Police action size: {police_action_size}",level="debug")
 
         # Initialize GNN agents with graph-specific parameters and move them to GPU
-        mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
-        police_agent = GNNAgent(node_feature_size=node_feature_size, device=device)
+        if agent_configs["agent_type"] == "gnn":
+            mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+        elif agent_configs["agent_type"] == "mappo":
+            pass
+            #mrX_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+        else:
+            mrX_agent = RandomAgent()
+        if agent_configs["agent_type"] == "gnn":
+            police_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+        elif agent_configs["agent_type"] == "mappo":
+            pass
+            #police_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+        else:
+            police_agent = RandomAgent()
         logger.log("GNN agents for MrX and Police initialized.",level="debug")
 
         # Train the MrX and Police agents in the environment
