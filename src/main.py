@@ -319,13 +319,11 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
 
     # Training loop over epochs
     for epoch in range(args.epochs):
-        # Select configuration for this epoch
         selected_config = random.choice(args.agent_configurations)
         num_agents = selected_config["num_police_agents"]
         agent_money = selected_config["agent_money"]
         logger.log(f"Number of police agents: {num_agents}, Agent money: {agent_money}, ")
 
-        # Calculate reward weights using meta-learning network
         inputs = torch.FloatTensor([[num_agents, agent_money, args.graph_nodes, args.graph_edges]]).to(device)
         predicted_weight = reward_weight_net(inputs)
         reward_weights = {
@@ -351,16 +349,15 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
             vis_configs=visualization_configs
         )
 
-        # Reset environment to get initial state for dimension analysis
+        # Reset environment
         initial_state, _ = env.reset(episode=0)
         mrx_features = initial_state['MrX']['node_features']
-        #print(f"MrX features shape: {mrx_features.shape}")
 
-        # Extract dimensions - correct way
-        feature_dim = mrx_features.shape[1]  # Number of features per node (3)
-        num_nodes = mrx_features.shape[0]  # Number of nodes in the graph (100)
+        # Extract dimensions
+        feature_dim = mrx_features.shape[1]
+        num_nodes = mrx_features.shape[0]
 
-        # For global observations in MAPPO
+        # Global observations
         global_obs_dim = feature_dim * (num_agents + 1)
 
         # Set action space size to number of nodes
@@ -369,7 +366,7 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
         # Create MrX agent with a single policy
         mrX_agent = MappoAgent(
             n_agents=1,
-            obs_size=feature_dim,  # Use feature dimension (3)
+            obs_size=feature_dim,
             global_obs_size=global_obs_dim,
             action_size=max_action_dim,
             hidden_size=agent_configs["hidden_size"],
@@ -381,10 +378,10 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
             epsilon=agent_configs["epsilon"]
         )
 
-        # Create Police agent with multiple policies (one per police agent)
+        # Create Police agent with multiple policies
         police_agent = MappoAgent(
             n_agents=num_agents,
-            obs_size=feature_dim,  # Use feature dimension (3)
+            obs_size=feature_dim,
             global_obs_size=global_obs_dim,
             action_size=max_action_dim,
             hidden_size=agent_configs["hidden_size"],
@@ -409,14 +406,14 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
 
                 # Process MrX
                 mrx_key = 'MrX'
-                mrx_pos = env.MrX_pos  # Use the MrX_pos attribute directly
+                mrx_pos = env.MrX_pos
 
                 # Get node features for MrX's current node
                 mrx_node_features = state[mrx_key]['node_features'][mrx_pos]
                 mrx_obs = torch.tensor(mrx_node_features, dtype=torch.float32, device=device)
 
                 # Get valid moves for MrX
-                possible_moves = env.get_possible_moves(0)  # MrX is agent_idx 0
+                possible_moves = env.get_possible_moves(0)
 
                 # Create action mask for MrX
                 action_mask = torch.zeros(max_action_dim, dtype=torch.float32, device=device)
@@ -441,18 +438,17 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                     agent_key = f'Police{police_idx}'
 
                     # Get police position
-                    police_pos = env.police_positions[police_idx]  # Use police_positions directly
+                    police_pos = env.police_positions[police_idx]
 
                     # Get node features for police's current node
                     police_node_features = state[agent_key]['node_features'][police_pos]
                     police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
 
                     # Get valid moves for this police agent
-                    possible_moves = env.get_possible_moves(police_idx + 1)  # Police start at agent_idx 1
+                    possible_moves = env.get_possible_moves(police_idx + 1)
 
                     # Create action mask for police
                     action_mask = torch.zeros(max_action_dim, dtype=torch.float32, device=device)
-                    print(f"possible moves for {police_idx}: ",possible_moves)
                     for move in possible_moves:
                         if move < max_action_dim:
                             action_mask[move] = 1.0
@@ -460,7 +456,6 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                     # Select action for police
                     try:
                         police_action, police_log_prob, _ = police_agent.select_action(police_idx, police_obs,action_mask)
-                        print(f"police {police_idx} actions: ", police_action)
                         obs_list.append(police_obs)
                         actions.append(police_action)
                         log_probs.append(police_log_prob)
@@ -491,13 +486,11 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                 # Create global observation
                 processed_obs_list = []
                 for obs in obs_list:
-                    # Convert 1D tensors to 2D by adding a batch dimension
                     if obs.ndim == 1:
-                        processed_obs_list.append(obs.unsqueeze(0))  # Convert [features] to [1, features]
+                        processed_obs_list.append(obs.unsqueeze(0))
                     else:
-                        processed_obs_list.append(obs)  # Keep 2D tensors as they are
+                        processed_obs_list.append(obs)
 
-                # Now all tensors in processed_obs_list have 2 dimensions
                 global_obs = torch.cat(processed_obs_list)
 
                 # Store experiences for MrX
@@ -509,14 +502,13 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                                        [rewards[i + 1]], [log_probs[i + 1]], [dones[i + 1]])
 
                 # Update state and track reward
-                total_reward += rewards[0]  # Track MrX reward
+                total_reward += rewards[0]
                 state = next_state
 
             # Update policies after episode
             mrX_agent.ppo_update()
             police_agent.ppo_update()
 
-            # Log episode results
             logger.log_scalar(f'episode/mrx_reward', total_reward)
 
         # Evaluation loop
@@ -540,7 +532,6 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                     if move < max_action_dim:
                         action_mask[move] = 1.0
 
-                # No exploration during evaluation
                 mrx_action, _, _ = mrX_agent.select_action(0, mrx_obs, action_mask)
                 actions.append(mrx_action)
 
@@ -560,18 +551,15 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                     police_action, _, _ = police_agent.select_action(police_idx, police_obs, action_mask)
                     actions.append(police_action)
 
-                # Prepare actions for environment step
                 agent_actions = {
                     'MrX': actions[0],
                     **{f'Police{i}': actions[i + 1] for i in range(num_agents)}
                 }
 
-                # Take environment step
                 next_state, reward_dict, term_dict, trunc_dict, winner, _ = env.step(agent_actions)
                 done = term_dict.get('Police0', False) or all(trunc_dict.values())
                 state = next_state
 
-                # Track MrX wins
                 if done and winner == 'MrX':
                     wins += 1
 
@@ -579,11 +567,9 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
         win_ratio = wins / args.num_eval_episodes
         target_difficulty = compute_target_difficulty(win_ratio)
 
-        # Ensure both tensors have the same shape [1]
-        win_tensor = torch.tensor(win_ratio, dtype=torch.float32, device=device)  # shape []
-        target_tensor = torch.tensor(target_difficulty, dtype=torch.float32, device=device)  # shape []
+        win_tensor = torch.tensor(win_ratio, dtype=torch.float32, device=device)
+        target_tensor = torch.tensor(target_difficulty, dtype=torch.float32, device=device)
         target_tensor.requires_grad = True
-        # Use a single value for loss calculation
         loss = criterion(win_tensor, target_tensor)
         optimizer.zero_grad()
         loss.backward()
@@ -594,7 +580,6 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
             f"Real Difficulty: {win_ratio}, Target Difficulty: {target_difficulty}"
         )
 
-        # Log epoch metrics
         logger.log_scalar('epoch/loss', loss.item())
         logger.log_scalar('epoch/win_ratio', win_ratio)
 

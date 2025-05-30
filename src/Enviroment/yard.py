@@ -120,8 +120,8 @@ class CustomEnvironment(BaseEnvironment):
                 self.logger.log(f"{police} possible moves from position {police_pos}: {possible_positions}", level="debug")
                 #print(possible_positions)
                 police_action = actions[police]
-                print("yard police action:",police_action)
-                if police_action is None:
+                #print("yard police action:",police_action)
+                if police_action is None or int(self.agents_money[police_index+1]) == 0:
                     continue
                 is_no_money = False
                 if police_action in possible_positions:
@@ -140,7 +140,7 @@ class CustomEnvironment(BaseEnvironment):
                     self.agents_money[police_index+1] -= min(positions_costs[np.where(possible_positions == pos_to_go)])
                 else:
                     self.logger.log(f"{police} move blocked by another police at position {pos_to_go}, ",level="debug")
-        # print(self.agents_money)                    
+        #print(self.agents_money)
         # Compute rewards and check termination/truncation
         rewards, terminations, truncations, winner = self._calculate_rewards_terminations(is_no_money)
         self.logger.log(f"Rewards: {rewards}, ",level="debug")
