@@ -8,10 +8,10 @@ from gymnasium.spaces import Discrete, MultiDiscrete, Graph, Box, Dict, MultiBin
 from Enviroment.base_env import BaseEnvironment
 from Enviroment.graph_layout import ConnectedGraph
 from tensordict import TensorDict
+import time
 
 
-# MAX_MONEY_UNIVERSE_LIMIT = 10000000000
-MAX_MONEY_UNIVERSE_LIMIT = 1000
+MAX_MONEY_LIMIT = 1000
 
 class CustomEnvironment(BaseEnvironment):
     metadata = {"name": "scotland_yard_env"}
@@ -65,13 +65,12 @@ class CustomEnvironment(BaseEnvironment):
         self.logger.log("Resetting the environment.", level="debug")
         self.logger.log(f"Generated board with {self.board.nodes.shape[0]} nodes and {self.board.edge_links.shape[0]} edges.", level="debug")
 
-        # self.agents = ["MrX"] + [f"Police{n}" for n in range(self.number_of_agents)]
         self.agents = self.possible_agents
         self.node_visits = np.zeros((self.board.nodes.shape[0]),dtype=np.int32)
         agent_starting_positions = list(
             np.random.choice(self.board.nodes.shape[0], size=self.number_of_agents + 1, replace=False)
         )
-        self.agents_money = [MAX_MONEY_UNIVERSE_LIMIT] + [self.agent_money for _ in range(self.number_of_agents)] 
+        self.agents_money = [MAX_MONEY_LIMIT] + [self.agent_money for _ in range(self.number_of_agents)] 
 
         self.logger.log(f"Agent starting positions: {agent_starting_positions}", level="debug")
 
@@ -88,7 +87,6 @@ class CustomEnvironment(BaseEnvironment):
 
         observations = self._get_graph_observations()
         return observations, infos
-        # return observations
 
     def step(self, actions):
         """
@@ -118,22 +116,21 @@ class CustomEnvironment(BaseEnvironment):
                 self.logger.log(f"MrX position updated to {self.MrX_pos[0]}", level="debug")
             else:
                 self.logger.log(f"MrX move blocked by police at position {pos_to_go}", level="debug")
-        # print(self.MrX_pos)
+        
         # Process police actions
         is_no_money = True
         for police in actions.keys():
             if police != "MrX":
                 police_index = self.agents.index(police) - 1
-                # print(police_index)
+                
                 police_pos = self.police_positions[police_index]
                 self.logger.log(f"{police} current position: {police_pos}, action taken: {actions[police]}", level="debug")
                 possible_positions, positions_costs = self._get_possible_moves(police_pos, police_index+1)
                 self.logger.log(f"{police} possible moves from position {police_pos}: {possible_positions}", level="debug")
-                # print(possible_positions)
+                
                 police_action = actions[police]
-                # if police_action is None:
+                
                 if police_action == self.DEFAULT_ACTION:
-                    # print('out of money!')
                     continue
                 is_no_money = False
                 if police_action in possible_positions:
@@ -141,8 +138,6 @@ class CustomEnvironment(BaseEnvironment):
                     self.logger.log(f"{police} moves to position {pos_to_go}", level="debug")
                 else:
                     pos_to_go = police_pos  # Stay in the same position if the action is out of bounds
-                    # if pos_to_go == -1:
-                    # print(f'out of money; staying; {pos_to_go}; action was: {police_action}')
                     self.logger.log(f"{police} action out of bounds. Staying at position {pos_to_go}, ",level="debug")
 
                 if pos_to_go not in self.police_positions and pos_to_go != police_pos:
@@ -153,7 +148,7 @@ class CustomEnvironment(BaseEnvironment):
                     self.logger.log(log_msg, level="debug")
                 else:
                     self.logger.log(f"{police} move blocked by another police at position {pos_to_go}, ",level="debug")
-        # print(self.agents_money)                    
+
         # Compute rewards and check termination/truncation
         rewards, terminations, truncations, winner = self._calculate_rewards_terminations(is_no_money)
         self.current_winner = winner
@@ -172,7 +167,7 @@ class CustomEnvironment(BaseEnvironment):
             self.render()
 
         self.logger.log(f"Step {self.timestep} completed., ",level="debug")
-        # return observations, rewards, terminations, truncations, winner, infos, 
+        time.sleep(1)
         return observations, rewards, terminations, truncations, infos
 
     def _get_graph_observations(self):
@@ -192,7 +187,6 @@ class CustomEnvironment(BaseEnvironment):
             self.logger.log(f"Police{i} position encoded in node features: {pos}, ",level="debug")
 
         edge_index = self.board.edge_links.T  # Edge index for GNN (source, target pairs)
-        # print(f"EDGE INDEX SHAPE: {edge_index.shape}")
         edge_features = self.board.edges  # Edge weights
 
         observations = {
@@ -208,7 +202,6 @@ class CustomEnvironment(BaseEnvironment):
             for agent in self.agents
         }
         self.logger.log("Graph observations generated., ",level="debug")
-        # return TensorDict(observations)
         return observations
 
     def _calculate_rewards_terminations(self, is_no_money):
@@ -451,7 +444,6 @@ class CustomEnvironment(BaseEnvironment):
         """
         # Retrieve the agent's available money
         agent_money = self.agents_money[agent_idx]
-        # print(f'AGENT {agent_idx} MONEY: {agent_money}; AGENT POS: {pos}')
         
         # Find all edges where the current position is the source
         mask_source = self.board.edge_links[:, 0] == pos
@@ -469,10 +461,6 @@ class CustomEnvironment(BaseEnvironment):
         combined_neighbors = np.concatenate([neighbors_from, neighbors_to])
         combined_weights = np.concatenate([weights_from, weights_to])
 
-        # combined_neighbors = np.append(combined_neighbors, self.DEFAULT_STAY_ACTION) #
-        # combined_neighbors = np.append(combined_neighbors, pos) # the agent can stay
-        # combined_weights = np.append(combined_weights, 0)
-
         # Create a structured array to facilitate finding the minimum weight for each neighbor
         dtype = [('node', combined_neighbors.dtype), ('weight', combined_weights.dtype)]
         structured_array = np.array(list(zip(combined_neighbors, combined_weights)), dtype=dtype)
@@ -489,7 +477,6 @@ class CustomEnvironment(BaseEnvironment):
             level="debug"
         )
         
-        # print(f"possible nodes: {unique_nodes}")
         return unique_nodes, unique_weights
 
     
@@ -530,41 +517,25 @@ class CustomEnvironment(BaseEnvironment):
         """
         Define the observation space for GNN input.
         """
-
-        # print(f"SHAPE: {self.board.edge_links.shape}")
         self.logger.log(f"Defining observation space for agent {agent}., ",level="debug")
         node_features_dim = self.number_of_agents + 1  # MrX + police agents
         adjacency_matrix_shape = (self.board.nodes.shape[0], self.board.nodes.shape[0])
-
-        # print(f"EDGE INDEX SHAPE: {(2, self.board.edge_links.shape[0])}")
-        # space = Dict({
-        #     # "adjacency_matrix": Graph(adjacency_matrix_shape),
-        #     # "adjacency_matrix": MultiBinary(adjacency_matrix_shape),
-        #     "node_features": MultiDiscrete([2] * node_features_dim),
-        #     # "edge_index": Graph((2, self.board.edge_links.shape[0])),
-        #     "edge_index": Box(low=0, high=self.board.nodes.shape[0], shape=(2, self.board.edge_links.shape[0]), dtype=np.int64),
-        #     "edge_features": Discrete(1),  # Assuming edge weights are single discrete values
-        # })
-        # print(f"NODE FEAT DIM: {node_features_dim}")
-        # print(f"NODE SPACE SHAPE FROM OBSEV: {(self.board.nodes.shape[0], self.number_of_agents + 1)}")
         space = Dict({
             "adjacency_matrix": Box(
                 low=0.0, high=1.0, shape= adjacency_matrix_shape, dtype=np.int64
             ),
-            # "node_features": MultiDiscrete([2] * node_features_dim),
-            # "node_features": MultiDiscrete([self.board.nodes.shape[0]*node_features_dim]),
             "node_features": Box(
                 low=0.0, high=1.0, shape=(self.board.nodes.shape[0], node_features_dim), dtype=np.int64
             ),
             "edge_index": Box(
-                low=0, high=self.board.nodes.shape[0], shape=(2, self.board.edge_links.shape[0]), dtype=np.int32  # 10 edges, 10 nodes total
+                low=0, high=self.board.nodes.shape[0], shape=(2, self.board.edge_links.shape[0]), dtype=np.int32  
             ),
             "edge_features": Box(
-                low=0, high=ConnectedGraph.MAX_WEIGHT, shape=(self.board.edges.shape[0],), dtype=np.int32  # assuming edge types ∈ {0,1,2,3}
+                low=0, high=ConnectedGraph.MAX_WEIGHT, shape=(self.board.edges.shape[0],), dtype=np.int32  
             ),
-            "MrX_pos": Discrete(self.board.nodes.shape[0]),  # assuming 10 nodes
+            "MrX_pos": Discrete(self.board.nodes.shape[0]), 
             "Polices_pos": MultiDiscrete([self.board.nodes.shape[0]] * (self.number_of_agents-1)), 
-            "Currency": MultiDiscrete([self.agent_money+1] * (self.number_of_agents-0))  # assuming max value = 100 for safety
+            "Currency": MultiDiscrete([self.agent_money+1] * (self.number_of_agents-0))  
         })
         self.logger.log(f"Observation space for agent {agent}: {space}, ",level="debug")
         return space

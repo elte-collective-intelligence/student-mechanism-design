@@ -31,9 +31,6 @@ class ConnectedGraph(Graph):
 
             cnt = 1
             for edge in possible_edges:
-                # print(cnt)
-                # print(sum([1 for e in graph_json["edge_links"] if edge[0] in e]))
-                # print(sum([1 for e in graph_json["edge_links"] if edge[1] in e]))
                 cnt+=1
                 if extra_edges <= 0:
                     break
@@ -48,7 +45,6 @@ class ConnectedGraph(Graph):
                     extra_edges -= 1
 
         if num_edges is not None:
-            # print(f'THE NUMBER OF EDGE LINKS: {len(graph_json["edge_links"])}; num: {num_edges}; extra: {extra_edges}; edges_len: {len(edges)}; possible: {len(possible_edges)}')
             assert(len(graph_json["edge_links"]) == num_edges), f"The graph generated has a wrong number of edges: {len(graph_json['edge_links'])}, not {num_edges}"
         
         return self.from_jsonable([graph_json])[0]

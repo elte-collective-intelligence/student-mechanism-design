@@ -72,12 +72,11 @@ def train(args,agent_configs,logger_configs,visualization_configs):
         logger.log(f"Starting epoch {epoch + 1}/{args.epochs}.", level="info")
         
         # Randomly select a (num_agents, agent_money) tuple from the predefined list
-        # print(args.agent_configurations)
+        
         logger.log(args.agent_configurations,level='info')
         selected_config = random.choice(args.agent_configurations)  # Ensure args.agent_configurations is defined
         num_agents, agent_money = selected_config["num_police_agents"], selected_config["agent_money"]  # Unpack the tuple
         logger.log(f"Choosen configuration: {num_agents} agents, {agent_money} money.", level="info")
-        # print(selected_config)
         logger.log_scalar('epoch/num_agents', num_agents)
         logger.log_scalar('epoch/agent_money', agent_money)
         # Predict the difficulty from the number of agents and money
@@ -181,8 +180,6 @@ def train(args,agent_configs,logger_configs,visualization_configs):
                     if act is not None:
                         state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
 
-
-                # next_state, rewards, terminations, truncation, _, _ = env.step(state)
                 next_state =  env.step(state)['next']
                 
                 rewards = {agent_id:next_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
@@ -281,7 +278,6 @@ def train(args,agent_configs,logger_configs,visualization_configs):
                 terminations = {agent_id:next_state[agent_id]['terminated'].squeeze() for agent_id in env.possible_agents}
                 truncation = {agent_id:next_state[agent_id]['truncated'].squeeze() for agent_id in env.possible_agents}
                 winner = env.current_winner
-                # next_state, rewards, terminations, truncation, winner, _ = env.step(agent_actions)
                 logger.log(f"Executed actions. Rewards: {rewards}, Terminations: {terminations}, Truncations: {truncation}",level="debug")
 
                 done = terminations.get('Police0', False) or all(truncation.values())
@@ -503,7 +499,6 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
                         state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
 
                 # Execute actions for MrX and Police
-                # next_state, rewards, terminations, truncation, winner, _ = env.step(agent_actions)
                 next_state =  env.step(state)['next']
                 rewards = {agent_id:next_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
                 terminations = {agent_id:next_state[agent_id]['terminated'].squeeze() for agent_id in env.possible_agents}
@@ -659,8 +654,6 @@ if __name__ == "__main__":
 
     # Convert combined_args to Namespace
     args = argparse.Namespace(**combined_args)
-
-    # print(args)
 
     if args.evaluate:
         evaluate(args,agent_configs,logger_configs,visualization_configs)
