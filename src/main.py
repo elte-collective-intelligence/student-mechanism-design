@@ -297,7 +297,12 @@ def train(args,agent_configs,logger_configs,visualization_configs):
     logger.log("Training completed.")
     logger.close()
 
+
 def train_mappo(args, agent_configs, logger_configs, visualization_configs):
+    """
+    Train a MAPPO (Multi-Agent Proximal Policy Optimization) agent.
+    """
+    # Initialize logger
     logger = Logger(
         wandb_api_key=args.wandb_api_key,
         wandb_project=args.wandb_project,
@@ -307,15 +312,20 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
         configs=logger_configs
     )
 
+    # Set up meta-learning components
     reward_weight_net = RewardWeightNet().to(device)
     optimizer = optim.Adam(reward_weight_net.parameters(), lr=0.001)
     criterion = nn.MSELoss()
 
+    # Training loop over epochs
     for epoch in range(args.epochs):
+        # Select configuration for this epoch
         selected_config = random.choice(args.agent_configurations)
         num_agents = selected_config["num_police_agents"]
         agent_money = selected_config["agent_money"]
+        logger.log(f"Number of police agents: {num_agents}, Agent money: {agent_money}, ")
 
+        # Calculate reward weights using meta-learning network
         inputs = torch.FloatTensor([[num_agents, agent_money, args.graph_nodes, args.graph_edges]]).to(device)
         predicted_weight = reward_weight_net(inputs)
         reward_weights = {
@@ -329,6 +339,7 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
             "Mrx_time": predicted_weight[0, 7]
         }
 
+        # Initialize environment
         env = CustomEnvironment(
             number_of_agents=num_agents,
             agent_money=agent_money,
@@ -340,15 +351,25 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
             vis_configs=visualization_configs
         )
 
-        max_action_dim = 0
-        for agent_key in ['MrX'] + [f'Police{i}' for i in range(num_agents)]:
-            max_action_dim = max(max_action_dim, env.action_space(agent_key).n)
-        obs_dim = num_agents + 1
-        global_obs_dim = obs_dim * (num_agents + 1)
+        # Reset environment to get initial state for dimension analysis
+        initial_state, _ = env.reset(episode=0)
+        mrx_features = initial_state['MrX']['node_features']
+        #print(f"MrX features shape: {mrx_features.shape}")
 
+        # Extract dimensions - correct way
+        feature_dim = mrx_features.shape[1]  # Number of features per node (3)
+        num_nodes = mrx_features.shape[0]  # Number of nodes in the graph (100)
+
+        # For global observations in MAPPO
+        global_obs_dim = feature_dim * (num_agents + 1)
+
+        # Set action space size to number of nodes
+        max_action_dim = args.graph_nodes
+
+        # Create MrX agent with a single policy
         mrX_agent = MappoAgent(
             n_agents=1,
-            obs_size=obs_dim,
+            obs_size=feature_dim,  # Use feature dimension (3)
             global_obs_size=global_obs_dim,
             action_size=max_action_dim,
             hidden_size=agent_configs["hidden_size"],
@@ -360,9 +381,10 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
             epsilon=agent_configs["epsilon"]
         )
 
+        # Create Police agent with multiple policies (one per police agent)
         police_agent = MappoAgent(
             n_agents=num_agents,
-            obs_size=obs_dim,
+            obs_size=feature_dim,  # Use feature dimension (3)
             global_obs_size=global_obs_dim,
             action_size=max_action_dim,
             hidden_size=agent_configs["hidden_size"],
@@ -373,109 +395,206 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
             buffer_size=agent_configs["buffer_size"],
             epsilon=agent_configs["epsilon"]
         )
-
+        # Training episodes
         for episode in range(args.num_episodes):
             state, _ = env.reset(episode=episode)
             done = False
             total_reward = 0
 
+            # Episode loop
             while not done:
                 obs_list = []
                 actions = []
                 log_probs = []
 
-                for agent_idx in range(num_agents + 1):
-                    agent_key = 'MrX' if agent_idx == 0 else f'Police{agent_idx - 1}'
+                # Process MrX
+                mrx_key = 'MrX'
+                mrx_pos = env.MrX_pos  # Use the MrX_pos attribute directly
 
-                    obs = torch.tensor(state[agent_key]['node_features'], dtype=torch.float32, device=device)
-                    possible_moves = env.get_possible_moves(agent_idx)
+                # Get node features for MrX's current node
+                mrx_node_features = state[mrx_key]['node_features'][mrx_pos]
+                mrx_obs = torch.tensor(mrx_node_features, dtype=torch.float32, device=device)
 
-                    max_move = max(possible_moves) if len(possible_moves) > 0 else 0
-                    action_dim = max(max_move + 1, env.action_space(agent_key).n)
-                    action_mask = torch.zeros(action_dim, dtype=torch.float32, device=device)
-                    for move in possible_moves:
+                # Get valid moves for MrX
+                possible_moves = env.get_possible_moves(0)  # MrX is agent_idx 0
+
+                # Create action mask for MrX
+                action_mask = torch.zeros(max_action_dim, dtype=torch.float32, device=device)
+                for move in possible_moves:
+                    if move < max_action_dim:
                         action_mask[move] = 1.0
 
-                    print(f"Agent: {agent_key}, action_dim: {action_dim}, possible_moves: {possible_moves}")
+                # Select action for MrX
+                try:
+                    mrx_action, mrx_log_prob, _ = mrX_agent.select_action(0, mrx_obs, action_mask)
+                    obs_list.append(mrx_obs)
+                    actions.append(mrx_action)
+                    log_probs.append(mrx_log_prob)
+                except Exception as e:
+                    print(f"Error in MrX action selection: {e}")
+                    print(f"MrX obs shape: {mrx_obs.shape}, expected obs_size: {feature_dim}")
+                    print(f"Action mask shape: {action_mask.shape}")
+                    raise
 
-                    print("action_mask.size:", action_mask.shape[0])
-                    print("expected size:", mrX_agent.action_size)
+                # Process Police agents
+                for police_idx in range(num_agents):
+                    agent_key = f'Police{police_idx}'
 
-                    action, log_prob, _ = police_agent.select_action(agent_idx - 1, obs, action_mask)
+                    # Get police position
+                    police_pos = env.police_positions[police_idx]  # Use police_positions directly
 
-                    obs_list.append(obs)
-                    actions.append(action)
-                    log_probs.append(log_prob)
+                    # Get node features for police's current node
+                    police_node_features = state[agent_key]['node_features'][police_pos]
+                    police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
 
+                    # Get valid moves for this police agent
+                    possible_moves = env.get_possible_moves(police_idx + 1)  # Police start at agent_idx 1
+
+                    # Create action mask for police
+                    action_mask = torch.zeros(max_action_dim, dtype=torch.float32, device=device)
+                    print(f"possible moves for {police_idx}: ",possible_moves)
+                    for move in possible_moves:
+                        if move < max_action_dim:
+                            action_mask[move] = 1.0
+
+                    # Select action for police
+                    try:
+                        police_action, police_log_prob, _ = police_agent.select_action(police_idx, police_obs,action_mask)
+                        print(f"police {police_idx} actions: ", police_action)
+                        obs_list.append(police_obs)
+                        actions.append(police_action)
+                        log_probs.append(police_log_prob)
+                    except Exception as e:
+                        print(f"Error in Police {police_idx} action selection: {e}")
+                        print(f"Police obs shape: {police_obs.shape}, expected obs_size: {feature_dim}")
+                        print(f"Action mask shape: {action_mask.shape}")
+                        raise
+
+                # Prepare actions for environment step
                 agent_actions = {
                     'MrX': actions[0],
                     **{f'Police{i}': actions[i + 1] for i in range(num_agents)}
                 }
 
+
+                # Take environment step
                 next_state, reward_dict, term_dict, trunc_dict, _, _ = env.step(agent_actions)
                 done = term_dict.get('Police0', False) or all(trunc_dict.values())
 
-                rewards = [reward_dict.get('MrX', 0.0)] + [reward_dict.get(f'Police{i}', 0.0) for i in range(num_agents)]
-                dones = [term_dict.get('MrX', False)] + [term_dict.get(f'Police{i}', False) for i in range(num_agents)]
+                # Extract rewards and dones for all agents
+                rewards = [reward_dict.get('MrX', 0.0)] + [reward_dict.get(f'Police{i}', 0.0) for i in
+                                                           range(num_agents)]
+                dones = [term_dict.get('MrX', False) or trunc_dict.get('MrX', False)] + \
+                        [term_dict.get(f'Police{i}', False) or trunc_dict.get(f'Police{i}', False) for i in
+                         range(num_agents)]
 
-                global_obs = torch.cat(obs_list)
+                # Create global observation
+                processed_obs_list = []
+                for obs in obs_list:
+                    # Convert 1D tensors to 2D by adding a batch dimension
+                    if obs.ndim == 1:
+                        processed_obs_list.append(obs.unsqueeze(0))  # Convert [features] to [1, features]
+                    else:
+                        processed_obs_list.append(obs)  # Keep 2D tensors as they are
 
+                # Now all tensors in processed_obs_list have 2 dimensions
+                global_obs = torch.cat(processed_obs_list)
+
+                # Store experiences for MrX
                 mrX_agent.store([obs_list[0]], global_obs, [actions[0]], [rewards[0]], [log_probs[0]], [dones[0]])
-                for i in range(num_agents):
-                    police_agent.store([obs_list[i + 1]], global_obs, [actions[i + 1]], [rewards[i + 1]],
-                                       [log_probs[i + 1]], [dones[i + 1]])
 
-                total_reward += rewards[0]
+                # Store experiences for Police agents
+                for i in range(num_agents):
+                    police_agent.store([obs_list[i + 1]], global_obs, [actions[i + 1]],
+                                       [rewards[i + 1]], [log_probs[i + 1]], [dones[i + 1]])
+
+                # Update state and track reward
+                total_reward += rewards[0]  # Track MrX reward
                 state = next_state
 
+            # Update policies after episode
             mrX_agent.ppo_update()
             police_agent.ppo_update()
 
-        #evaluation loop
+            # Log episode results
+            logger.log_scalar(f'episode/mrx_reward', total_reward)
+
+        # Evaluation loop
         wins = 0
         for eval_ep in range(args.num_eval_episodes):
             state, _ = env.reset(episode=eval_ep)
             done = False
+
             while not done:
                 actions = []
 
-                for agent_idx in range(num_agents + 1):
-                    agent_key = 'MrX' if agent_idx == 0 else f'Police{agent_idx - 1}'
-                    obs = torch.tensor(state[agent_key]['node_features'], dtype=torch.float32, device=device)
-                    possible_moves = env.get_possible_moves(agent_idx)
+                # Process MrX in evaluation mode
+                mrx_key = 'MrX'
+                mrx_pos = env.MrX_pos
+                mrx_node_features = state[mrx_key]['node_features'][mrx_pos]
+                mrx_obs = torch.tensor(mrx_node_features, dtype=torch.float32, device=device)
 
-                    max_move = max(possible_moves) if len(possible_moves) > 0 else 0
-                    action_dim = max(max_move + 1, env.action_space(agent_key).n)
-                    action_mask = torch.zeros(action_dim, dtype=torch.float32, device=device)
-                    for move in possible_moves:
+                possible_moves = env.get_possible_moves(0)
+                action_mask = torch.zeros(max_action_dim, dtype=torch.float32, device=device)
+                for move in possible_moves:
+                    if move < max_action_dim:
                         action_mask[move] = 1.0
 
-                        action, _, _ = police_agent.select_action(agent_idx - 1, obs, action_mask)
+                # No exploration during evaluation
+                mrx_action, _, _ = mrX_agent.select_action(0, mrx_obs, action_mask)
+                actions.append(mrx_action)
 
-                    actions.append(action)
+                # Process Police agents in evaluation mode
+                for police_idx in range(num_agents):
+                    agent_key = f'Police{police_idx}'
+                    police_pos = env.police_positions[police_idx]
+                    police_node_features = state[agent_key]['node_features'][police_pos]
+                    police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
 
+                    possible_moves = env.get_possible_moves(police_idx + 1)
+                    action_mask = torch.zeros(max_action_dim, dtype=torch.float32, device=device)
+                    for move in possible_moves:
+                        if move < max_action_dim:
+                            action_mask[move] = 1.0
+
+                    police_action, _, _ = police_agent.select_action(police_idx, police_obs, action_mask)
+                    actions.append(police_action)
+
+                # Prepare actions for environment step
                 agent_actions = {
                     'MrX': actions[0],
                     **{f'Police{i}': actions[i + 1] for i in range(num_agents)}
                 }
 
+                # Take environment step
                 next_state, reward_dict, term_dict, trunc_dict, winner, _ = env.step(agent_actions)
                 done = term_dict.get('Police0', False) or all(trunc_dict.values())
                 state = next_state
 
+                # Track MrX wins
                 if done and winner == 'MrX':
                     wins += 1
 
+        # Calculate win ratio and update difficulty through meta-learning
         win_ratio = wins / args.num_eval_episodes
         target_difficulty = compute_target_difficulty(win_ratio)
-        target_tensor = torch.FloatTensor([target_difficulty]).to(device)
-        win_tensor = torch.FloatTensor([win_ratio]).to(device)
 
+        # Ensure both tensors have the same shape [1]
+        win_tensor = torch.tensor(win_ratio, dtype=torch.float32, device=device)  # shape []
+        target_tensor = torch.tensor(target_difficulty, dtype=torch.float32, device=device)  # shape []
+        target_tensor.requires_grad = True
+        # Use a single value for loss calculation
         loss = criterion(win_tensor, target_tensor)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
+        logger.log(
+            f"Epoch {epoch + 1}: Loss: {loss.item()}, Win Ratio: {win_ratio}, "
+            f"Real Difficulty: {win_ratio}, Target Difficulty: {target_difficulty}"
+        )
+
+        # Log epoch metrics
         logger.log_scalar('epoch/loss', loss.item())
         logger.log_scalar('epoch/win_ratio', win_ratio)
 
