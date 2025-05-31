@@ -10,6 +10,7 @@ from Enviroment.yard import CustomEnvironment
 from torch_geometric.data import Data
 
 from torchrl.envs.libs.pettingzoo import PettingZooWrapper
+from torchrl.envs import step_mdp
 
 # Define the device at the beginning
 print(f"RUNNING TORCHRL VERSION")
@@ -75,7 +76,7 @@ def train(args,agent_configs,logger_configs,visualization_configs):
         
         logger.log(args.agent_configurations,level='info')
         selected_config = random.choice(args.agent_configurations)  # Ensure args.agent_configurations is defined
-        num_agents, agent_money = selected_config["num_police_agents"], selected_config["agent_money"]  # Unpack the tuple
+        num_agents, agent_money = selected_config["num_police_agents"] + 1, selected_config["agent_money"]  # Unpack the tuple
         logger.log(f"Choosen configuration: {num_agents} agents, {agent_money} money.", level="info")
         logger.log_scalar('epoch/num_agents', num_agents)
         logger.log_scalar('epoch/agent_money', agent_money)
@@ -180,7 +181,8 @@ def train(args,agent_configs,logger_configs,visualization_configs):
                     if act is not None:
                         state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
 
-                next_state =  env.step(state)['next']
+                state_stepped =  env.step(state)
+                next_state = step_mdp(state_stepped)
                 
                 rewards = {agent_id:next_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
                 terminations = {agent_id:next_state[agent_id]['terminated'].squeeze() for agent_id in env.possible_agents}
@@ -273,7 +275,9 @@ def train(args,agent_configs,logger_configs,visualization_configs):
                     state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
 
                 # Execute actions for MrX and Police
-                next_state =  env.step(state)['next']
+                state_stepped =  env.step(state)
+                next_state = step_mdp(state_stepped)
+
                 rewards = {agent_id:next_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
                 terminations = {agent_id:next_state[agent_id]['terminated'].squeeze() for agent_id in env.possible_agents}
                 truncation = {agent_id:next_state[agent_id]['truncated'].squeeze() for agent_id in env.possible_agents}
@@ -392,7 +396,7 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
     else:
         police_agent = RandomAgent()
     for config in args.agent_configurations:
-        num_agents, agent_money = config["num_police_agents"], config["agent_money"]  # Unpack the tuple
+        num_agents, agent_money = config["num_police_agents"] + 1, config["agent_money"]  # Unpack the tuple
         agent_money = 20
         logger.log(f"Choosen configuration: {num_agents} agents, {agent_money} money.", level="info")
         # print(selected_config)
@@ -499,7 +503,8 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
                         state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
 
                 # Execute actions for MrX and Police
-                next_state =  env.step(state)['next']
+                state_stepped =  env.step(state)
+                next_state = step_mdp(state_stepped)
                 rewards = {agent_id:next_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
                 terminations = {agent_id:next_state[agent_id]['terminated'].squeeze() for agent_id in env.possible_agents}
                 truncation = {agent_id:next_state[agent_id]['truncated'].squeeze() for agent_id in env.possible_agents}
