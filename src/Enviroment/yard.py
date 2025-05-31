@@ -133,6 +133,7 @@ class CustomEnvironment(BaseEnvironment):
                 if police_action == self.DEFAULT_ACTION:
                     continue
                 is_no_money = False
+                #TODO: all police blocked
                 if police_action in possible_positions:
                     pos_to_go = police_action
                     self.logger.log(f"{police} moves to position {pos_to_go}", level="debug")
@@ -167,7 +168,6 @@ class CustomEnvironment(BaseEnvironment):
             self.render()
 
         self.logger.log(f"Step {self.timestep} completed., ",level="debug")
-        time.sleep(1)
         return observations, rewards, terminations, truncations, infos
 
     def _get_graph_observations(self):

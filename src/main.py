@@ -224,8 +224,8 @@ def train(args,agent_configs,logger_configs,visualization_configs):
 
         # Evaluate performance and calculate the target difficulty
         logger.log(f"Evaluating agent balance after epoch {epoch + 1}.",level="debug")
-        logger.log_model(mrX_agent, 'MrX')
-        logger.log_model(police_agent, 'Police')
+        logger.log_model(mrX_agent, f'MrX_{node_feature_size}_agents')
+        logger.log_model(police_agent, f'Police_{node_feature_size}_agents')
         logger.log_model(reward_weight_net, 'RewardWeightNet')
 
         wins = 0
@@ -437,9 +437,15 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
         logger.log(f"Node feature size: {node_feature_size}, MrX action size: {mrX_action_size}, Police action size: {police_action_size}",level="debug")
 
         # Initialize GNN agents with graph-specific parameters and move them to GPU
+
+        MrX_model_name = f'MrX_{node_feature_size}_agents'
+        Police_model_name = f'Police_{node_feature_size}_agents'
+        for name in [MrX_model_name, Police_model_name]:
+            if not logger.model_exists(name):
+                logger.log(f"WARNING: the weights for the {name} do not exist!",level="info")
         if agent_configs["agent_type"] == "gnn":
             mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
-            mrX_agent.load_state_dict(logger.load_model('MrX'), strict=False)
+            mrX_agent.load_state_dict(logger.load_model(MrX_model_name), strict=False)
         elif agent_configs["agent_type"] == "mappo":
             pass
             #mrX_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
@@ -448,7 +454,7 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
             mrX_agent = RandomAgent()
         if agent_configs["agent_type"] == "gnn":
             police_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
-            police_agent.load_state_dict(logger.load_model('Police'), strict=False)
+            police_agent.load_state_dict(logger.load_model(Police_model_name), strict=False)
         elif agent_configs["agent_type"] == "mappo":
             pass
             #police_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
