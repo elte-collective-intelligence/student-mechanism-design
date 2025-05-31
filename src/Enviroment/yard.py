@@ -619,7 +619,6 @@ class CustomEnvironment(BaseEnvironment):
 
     def close_render(self):
         """Closes the matplotlib plot."""
-        self.logger.log("Closing renderer!")
         if self.fig is not None:
             plt.ioff()  # Turn off interactive mode
             plt.close(self.fig)

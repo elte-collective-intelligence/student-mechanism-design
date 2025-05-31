@@ -30,7 +30,10 @@ class RewardWeightNet(nn.Module):
         x = self.relu(x)
         x = self.fc2(x)
         return torch.sigmoid(x) 
-
+def create_curriculum(num_epochs, base_graph_nodes,base_graph_edges,curriculum_range):
+    node_curriculum = np.arange(base_graph_nodes - curriculum_range * base_graph_nodes,base_graph_nodes + curriculum_range * base_graph_nodes + 1,((base_graph_nodes + curriculum_range * base_graph_nodes) - (base_graph_nodes - curriculum_range * base_graph_nodes))/(num_epochs-1))
+    edge_curriculum = np.arange(base_graph_edges - curriculum_range * base_graph_edges,base_graph_edges + curriculum_range * base_graph_edges + 1,((base_graph_edges + curriculum_range * base_graph_edges) - (base_graph_edges - curriculum_range * base_graph_edges))/(num_epochs-1))
+    return node_curriculum,edge_curriculum
 def train(args,agent_configs,logger_configs,visualization_configs):
     """
     Main training function:
@@ -67,6 +70,9 @@ def train(args,agent_configs,logger_configs,visualization_configs):
     # Validate that the agent configurations list is provided and not empty
     if not hasattr(args, 'agent_configurations') or not args.agent_configurations:
         raise ValueError("args.agent_configurations must be a non-empty list of (num_agents, agent_money) tuples.")
+    node_curriculum,edge_curriculum = create_curriculum(args.epochs,args.graph_nodes,args.graph_edges,0.5)
+    logger.log(f"Node curriculum: {node_curriculum}",level="info")
+    logger.log(f"Edge curriculum: {edge_curriculum}",level="info")
     for epoch in range(args.epochs):
         logger.log_scalar('epoch_step', epoch)
 
@@ -103,8 +109,8 @@ def train(args,agent_configs,logger_configs,visualization_configs):
             reward_weights=reward_weights,
             logger=logger,
             epoch=epoch,
-            graph_nodes=args.graph_nodes,
-            graph_edges=args.graph_edges,
+            graph_nodes=int(node_curriculum[epoch]),
+            graph_edges=int(edge_curriculum[epoch]),
             vis_configs = visualization_configs
         )
 
