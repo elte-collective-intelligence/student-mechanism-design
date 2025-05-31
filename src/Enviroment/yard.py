@@ -167,7 +167,6 @@ class CustomEnvironment(BaseEnvironment):
             self.render()
 
         self.logger.log(f"Step {self.timestep} completed., ",level="debug")
-        time.sleep(1)
         return observations, rewards, terminations, truncations, infos
 
     def _get_graph_observations(self):
