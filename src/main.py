@@ -64,10 +64,22 @@ def train(args,agent_configs,logger_configs,visualization_configs):
 
     logger.log(f"Starting training with variable agents and money settings.", level="debug")
 
+    if len(args.agent_configurations) > args.epochs:
+        logger.log(f"WARNING: more configs than epochs. Somme config won't be used.", level="info")
+        configs = random.sample(args.agent_configurations, k=args.epochs) 
+    else:
+        print(args.epochs)
+        print(len(args.agent_configurations))
+        configs = args.agent_configurations + \
+        random.sample(args.agent_configurations, k=args.epochs - len(args.agent_configurations))
+        random.shuffle(configs)
+
     # Validate that the agent configurations list is provided and not empty
     if not hasattr(args, 'agent_configurations') or not args.agent_configurations:
         raise ValueError("args.agent_configurations must be a non-empty list of (num_agents, agent_money) tuples.")
-    for epoch in range(args.epochs):
+
+    # Shuffle the agent configurations list to randomize the order each epoch
+    for epoch, selected_config in enumerate(configs):
         logger.log_scalar('epoch_step', epoch)
 
         logger.log(f"Starting epoch {epoch + 1}/{args.epochs}.", level="info")
@@ -75,7 +87,8 @@ def train(args,agent_configs,logger_configs,visualization_configs):
         # Randomly select a (num_agents, agent_money) tuple from the predefined list
         
         logger.log(args.agent_configurations,level='info')
-        selected_config = random.choice(args.agent_configurations)  # Ensure args.agent_configurations is defined
+        # selected_config = random.choice(args.agent_configurations)  # Ensure args.agent_configurations is defined
+
         num_agents, agent_money = selected_config["num_police_agents"] + 1, selected_config["agent_money"]  # Unpack the tuple
         logger.log(f"Choosen configuration: {num_agents} agents, {agent_money} money.", level="info")
         logger.log_scalar('epoch/num_agents', num_agents)
@@ -118,9 +131,14 @@ def train(args,agent_configs,logger_configs,visualization_configs):
         police_action_size = env.action_space('Police0').n  # Assuming all police have the same action space
         logger.log(f"Node feature size: {node_feature_size}, MrX action size: {mrX_action_size}, Police action size: {police_action_size}",level="debug")
 
+        MrX_model_name = f'MrX_{node_feature_size}_agents'
+        Police_model_name = f'Police_{node_feature_size}_agents'
+
         # Initialize GNN agents with graph-specific parameters and move them to GPU
         if agent_configs["agent_type"] == "gnn":
             mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            if logger.model_exists(MrX_model_name):
+                mrX_agent.load_state_dict(logger.load_model(MrX_model_name), strict=False)
         elif agent_configs["agent_type"] == "mappo":
             pass
             #mrX_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
@@ -128,6 +146,8 @@ def train(args,agent_configs,logger_configs,visualization_configs):
             mrX_agent = RandomAgent()
         if agent_configs["agent_type"] == "gnn":
             police_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            if logger.model_exists(Police_model_name):
+                police_agent.load_state_dict(logger.load_model(Police_model_name), strict=False)
         elif agent_configs["agent_type"] == "mappo":
             pass
             #police_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
