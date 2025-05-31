@@ -806,6 +806,7 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
                         logger.log(f"MrX won the evaluation episode.",level="info")
                     else:
                         logger.log(f"MrX lost the evaluation episode.",level="info")
+            env.save_visualizations()
         win_ratio = wins / args.num_eval_episodes
         logger.log(f"Evaluation completed. Win Ratio: {win_ratio}")     
         return
@@ -910,7 +911,9 @@ if __name__ == "__main__":
     with open("./src/configs/visualization/"+args_dict["vis_configs"]+".yaml", 'r') as f:
         visualization_configs = yaml.load(f,Loader=yaml_loader)
     logger_configs["log_dir"] = os.path.join(args_dict["exp_dir"],logger_configs["log_dir"])
+    os.makedirs(logger_configs["log_dir"],exist_ok=True)
     visualization_configs["save_dir"] = os.path.join(args_dict["exp_dir"],visualization_configs["save_dir"])
+    os.makedirs(visualization_configs["save_dir"],exist_ok=True)
     # Handle agent_configurations from command-line if provided
     if 'agent_configurations' in args_dict:
         # Parse the string into a list of tuples or dictionaries
