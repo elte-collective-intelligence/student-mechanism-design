@@ -1,4 +1,5 @@
-agent_type: gnn
+agent_type: mappo
+hidden_size: 128
 node_feature_size: -1
 gamma: 0.99
 lr: 1e-3

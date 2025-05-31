@@ -127,10 +127,9 @@ class CustomEnvironment(BaseEnvironment):
                 self.logger.log(f"{police} current position: {police_pos}, action taken: {actions[police]}", level="debug")
                 possible_positions, positions_costs = self._get_possible_moves(police_pos, police_index+1)
                 self.logger.log(f"{police} possible moves from position {police_pos}: {possible_positions}", level="debug")
-                
                 police_action = actions[police]
-                
-                if police_action == self.DEFAULT_ACTION:
+                #if police_action == self.DEFAULT_ACTION:
+                if police_action is None or int(self.agents_money[police_index+1]) == 0:
                     continue
                 is_no_money = False
                 if police_action in possible_positions:
@@ -138,6 +137,7 @@ class CustomEnvironment(BaseEnvironment):
                     self.logger.log(f"{police} moves to position {pos_to_go}", level="debug")
                 else:
                     pos_to_go = police_pos  # Stay in the same position if the action is out of bounds
+                    #print("POS to go: ",pos_to_go)
                     self.logger.log(f"{police} action out of bounds. Staying at position {pos_to_go}, ",level="debug")
 
                 if pos_to_go not in self.police_positions and pos_to_go != police_pos:
@@ -655,3 +655,11 @@ class CustomEnvironment(BaseEnvironment):
             self.fig.canvas.flush_events()
 
             self.logger.log_plt("heatmap",plt)
+
+    def get_mrx_position(self):
+        """Return the current node index where MrX is located."""
+        return self.MrX_pos  # Adapt to your environment's internal representation
+
+    def get_police_position(self, police_idx):
+        """Return the current node index where a specific police agent is located."""
+        return self.police_positions[police_idx]  # Adapt to your environment's internal representation
