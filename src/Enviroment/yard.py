@@ -3,13 +3,14 @@ import functools
 import heapq
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import networkx as nx
 from gymnasium.spaces import Discrete, MultiDiscrete, Graph, Box, Dict, MultiBinary
 from Enviroment.base_env import BaseEnvironment
 from Enviroment.graph_layout import ConnectedGraph
 from tensordict import TensorDict
 import time
-
+import cv2 as cv
 
 MAX_MONEY_LIMIT = 1000
 
@@ -51,9 +52,12 @@ class CustomEnvironment(BaseEnvironment):
         self.current_winner = None #TODO: write it into the info or sth, that's clunky
         self.G = None
         self.avg_distance = 0
+        self.run_images = []
+        self.heatmap_images = []
         self.reset()
         self.epoch = epoch
         self.episode = 0
+
 
     def reset(self, episode=0, seed=None, options=None):
         """
@@ -129,7 +133,7 @@ class CustomEnvironment(BaseEnvironment):
                 self.logger.log(f"{police} possible moves from position {police_pos}: {possible_positions}", level="debug")
                 police_action = actions[police]
                 #if police_action == self.DEFAULT_ACTION:
-                if police_action is None or int(self.agents_money[police_index+1]) == 0:
+                if police_action is None or int(self.agents_money[police_index+1]) == 0 or police_action == self.DEFAULT_ACTION:
                     continue
                 is_no_money = False
                 if police_action in possible_positions:
@@ -546,7 +550,8 @@ class CustomEnvironment(BaseEnvironment):
         """
 
         self.logger.log("Initializing render plot.", level="debug")
-
+        self.run_images = []
+        self.heatmap_images = []
         # Create a NetworkX graph
         graph = self.board
         self.G = nx.Graph()
@@ -609,7 +614,7 @@ class CustomEnvironment(BaseEnvironment):
             self.node_colors[pos] = 'blue'
         visit_max = np.amax([np.amax(self.node_visits),1.0])
         for pos in range(self.node_visits.shape[0]):
-            self.heatmap_colors.append(((self.node_visits[pos]/visit_max) * 0.6,0,0))
+            self.heatmap_colors.append(((self.node_visits[pos]/visit_max) * 0.9,0,0))
 
     def close_render(self):
         """Closes the matplotlib plot."""
@@ -623,7 +628,28 @@ class CustomEnvironment(BaseEnvironment):
             self.hm_node_collection = None
             self.hm_edge_collection = None
             self.logger.log("Render plot closed.", level="debug")
-
+    def save_visualizations(self):
+        if self.vis_config["save_visualization"] == True:
+            if len(self.run_images) > 0:
+                self.logger.log(f"Saving GIF as run_epoch_{self.epoch}-episode_{self.episode+1}.gif")
+                f,a = plt.subplots()
+                img = a.imshow(self.run_images[0],animated=True)
+                def update_gif(i):
+                    img.set_array(self.run_images[i])
+                    return img,
+                animation_fig = animation.FuncAnimation(f,update_gif,frames=len(self.run_images),interval=400,blit=True,repeat_delay=10,)
+                plt.show()
+                animation_fig.save(self.vis_config["save_dir"]+"/"+f"run_epoch_{self.epoch}-episode_{self.episode+1}.gif")
+            if len(self.heatmap_images) > 0:
+                self.logger.log(f"Saving GIF as heatmap_epoch_{self.epoch}-episode_{self.episode+1}.gif")
+                f,a = plt.subplots()
+                img = a.imshow(self.heatmap_images[0],animated=True)
+                def update_gif(i):
+                    img.set_array(self.heatmap_images[i])
+                    return img,
+                animation_fig = animation.FuncAnimation(f,update_gif,frames=len(self.heatmap_images),interval=400,blit=True,repeat_delay=10,)
+                plt.show()
+                animation_fig.save(self.vis_config["save_dir"]+"/"+f"heatmap_epoch_{self.epoch}-episode_{self.episode+1}.gif")
     def render(self):
         """Renders the environment."""
         if self.fig is None or self.ax is None:
@@ -642,7 +668,10 @@ class CustomEnvironment(BaseEnvironment):
             # Redraw the plot
             self.fig.canvas.draw()
             self.fig.canvas.flush_events()
-
+            buffer = self.fig.canvas.tostring_argb()
+            w,h = self.fig.canvas.get_width_height()
+            image = np.frombuffer(buffer,dtype=np.uint8).reshape(h,w,4)[:,:,1:]
+            self.run_images.append(image)
             self.logger.log_plt("chart",plt)
         if self.visualize_heatmap:
             self.node_collection.set_color(self.heatmap_colors)
@@ -652,7 +681,10 @@ class CustomEnvironment(BaseEnvironment):
             # Redraw the plot
             self.fig.canvas.draw()
             self.fig.canvas.flush_events()
-
+            buffer = self.fig.canvas.tostring_argb()
+            w,h = self.fig.canvas.get_width_height()
+            image = np.frombuffer(buffer,dtype=np.uint8).reshape(h,w,4)[:,:,1:]
+            self.heatmap_images.append(image)
             self.logger.log_plt("heatmap",plt)
 
     def get_mrx_position(self):
