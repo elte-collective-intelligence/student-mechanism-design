@@ -31,8 +31,8 @@ class RewardWeightNet(nn.Module):
         x = self.fc2(x)
         return torch.sigmoid(x) 
 def create_curriculum(num_epochs, base_graph_nodes,base_graph_edges,curriculum_range):
-    node_curriculum = np.arange(base_graph_nodes - curriculum_range * base_graph_nodes,base_graph_nodes + curriculum_range * base_graph_nodes + 1,((base_graph_nodes + curriculum_range * base_graph_nodes) - (base_graph_nodes - curriculum_range * base_graph_nodes))/(num_epochs-1))
-    edge_curriculum = np.arange(base_graph_edges - curriculum_range * base_graph_edges,base_graph_edges + curriculum_range * base_graph_edges + 1,((base_graph_edges + curriculum_range * base_graph_edges) - (base_graph_edges - curriculum_range * base_graph_edges))/(num_epochs-1))
+    node_curriculum = np.arange(base_graph_nodes - curriculum_range * base_graph_nodes,base_graph_nodes + curriculum_range * base_graph_nodes + 1,((base_graph_nodes + curriculum_range * base_graph_nodes) - (base_graph_nodes - curriculum_range * base_graph_nodes))/max(num_epochs-1,1))
+    edge_curriculum = np.arange(base_graph_edges - curriculum_range * base_graph_edges,base_graph_edges + curriculum_range * base_graph_edges + 1,((base_graph_edges + curriculum_range * base_graph_edges) - (base_graph_edges - curriculum_range * base_graph_edges))/max(num_epochs-1,1))
     return node_curriculum,edge_curriculum
 def modify_curriculum(win_ratio,node_curriculum,edge_curriculum, modification_rate):
     modification_percentage = 1.0 + (2.0 * modification_rate) * win_ratio - modification_rate
@@ -74,8 +74,6 @@ def train(args,agent_configs,logger_configs,visualization_configs):
         logger.log(f"WARNING: more configs than epochs. Somme config won't be used.", level="info")
         configs = random.sample(args.agent_configurations, k=args.epochs) 
     else:
-        print(args.epochs)
-        print(len(args.agent_configurations))
         configs = args.agent_configurations + \
         random.sample(args.agent_configurations, k=args.epochs - len(args.agent_configurations))
         random.shuffle(configs)
@@ -505,7 +503,8 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                     agent_key = f'Police{police_idx}'
 
                     # Get node features for police's current node
-                    police_node_features = state[agent_key]['observation']['Polices_pos']
+                    police_node_features = state[agent_key]['observation']['Polices_pos'].sum(dim=1)
+
                     police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
 
                     # Get valid moves for this police agent
@@ -610,7 +609,7 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                 # Process Police agents in evaluation mode
                 for police_idx in range(num_agents):
                     agent_key = f'Police{police_idx}'
-                    police_node_features = state[agent_key]['observation']['Polices_pos']
+                    police_node_features = state[agent_key]['observation']['Polices_pos'].sum(dim=1)
                     police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
 
                     possible_moves = env.get_possible_moves(police_idx + 1)
