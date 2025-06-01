@@ -488,7 +488,6 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
 
                 # Get node features for MrX's current node
                 mrx_node_features = state[mrx_key]['observation']['MrX_pos']
-                #mrx_obs = torch.tensor(mrx_node_features, dtype=torch.float32, device=device)
                 mrx_obs = mrx_node_features.detach().clone().to(dtype=torch.float32, device=device)
                 # Get valid moves for MrX
                 possible_moves = env.get_possible_moves(0)
@@ -606,6 +605,7 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
         # Evaluation loop
         wins = 0
         for eval_ep in range(args.num_eval_episodes):
+            logger.log(f"Epoch {epoch + 1}, Episode {eval_ep + 1} started.", level="info")
             state = env.reset(episode=eval_ep)
             done = False
 
@@ -613,7 +613,6 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                 actions = []
 
                 mrx_node_features = state[mrx_key]['observation']['MrX_pos']
-                #mrx_obs = torch.tensor(mrx_node_features, dtype=torch.float32, device=device)
                 mrx_obs = mrx_node_features.detach().clone().to(dtype=torch.float32, device=device)
                 possible_moves = env.get_possible_moves(0)
                 action_mask = torch.zeros(max_action_dim, dtype=torch.float32, device=device)
@@ -947,7 +946,6 @@ def evaluate_mappo(args, agent_configs, logger_configs, visualization_configs):
             "Police_proximity": predicted_weight[0, 9],
             "Police_overlap_penalty": predicted_weight[0, 10]
         }
-        node_curriculum, edge_curriculum = create_curriculum(args.epochs, args.graph_nodes, args.graph_edges, 0.5)
         # Create environment
         env_wrappable = CustomEnvironment(
             number_of_agents=num_agents,
@@ -963,8 +961,8 @@ def evaluate_mappo(args, agent_configs, logger_configs, visualization_configs):
 
         # Get obs/action dimensions
         state = env.reset(episode=0)
-        mrx_obs = torch.tensor(state['MrX']['observation']['MrX_pos'], dtype=torch.float32, device=device)
-        police_obs = torch.tensor(state['Police0']['observation']['Polices_pos'], dtype=torch.float32, device=device)
+        mrx_obs = state['MrX']['observation']['MrX_pos'].detach().clone().to(dtype=torch.float32, device=device)
+        police_obs = state['Police0']['observation']['Polices_pos'].detach().clone().to(dtype=torch.float32, device=device)
         mrx_feat_dim = mrx_obs.shape[-1]
         police_feat_dim = police_obs.shape[-1]
         global_obs_dim = mrx_feat_dim * (num_agents + 1)
@@ -999,7 +997,7 @@ def evaluate_mappo(args, agent_configs, logger_configs, visualization_configs):
             while not done:
                 actions = []
 
-                mrx_obs = torch.tensor(state['MrX']['observation']['MrX_pos'], dtype=torch.float32, device=device)
+                mrx_obs = state['MrX']['observation']['MrX_pos'].detach().clone().to(dtype=torch.float32, device=device)
                 mrx_moves = env.get_possible_moves(0)
                 mrx_mask = torch.zeros(action_dim, dtype=torch.float32, device=device)
                 mrx_mask[mrx_moves] = 1.0
@@ -1007,7 +1005,7 @@ def evaluate_mappo(args, agent_configs, logger_configs, visualization_configs):
                 actions.append(mrx_action)
 
                 for i in range(num_agents):
-                    police_obs = torch.tensor(state[f'Police{i}']['observation']['Polices_pos'],dtype=torch.float32, device=device).sum(dim=1)
+                    police_obs = state[f'Police{i}']['observation']['Polices_pos'].detach().clone().to(dtype=torch.float32, device=device).sum(dim=1)
                     police_moves = env.get_possible_moves(i + 1)
                     police_mask = torch.zeros(action_dim, dtype=torch.float32, device=device)
                     police_mask[police_moves] = 1.0
