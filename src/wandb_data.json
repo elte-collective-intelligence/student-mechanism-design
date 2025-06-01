@@ -1,5 +1,5 @@
 {
-    "wandb_api_key":"<api-key>",
-    "wandb_project":"<project-name>",
-    "wandb_entity":"<entity-name>"
+    "wandb_api_key":"null",
+    "wandb_project":"null",
+    "wandb_entity":"null"
 }

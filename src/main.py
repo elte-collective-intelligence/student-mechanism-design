@@ -21,6 +21,8 @@ print(f"Using device: {device}")  # You may consider logging this instead
 
 
 def create_curriculum(num_epochs, base_graph_nodes,base_graph_edges,curriculum_range):
+    if num_epochs <= 1:
+        return np.asarray([base_graph_nodes]),np.asarray([base_graph_edges])
     node_curriculum = np.arange(base_graph_nodes - curriculum_range * base_graph_nodes,base_graph_nodes + curriculum_range * base_graph_nodes + 1,((base_graph_nodes + curriculum_range * base_graph_nodes) - (base_graph_nodes - curriculum_range * base_graph_nodes))/max(num_epochs-1,1))
     edge_curriculum = np.arange(base_graph_edges - curriculum_range * base_graph_edges,base_graph_edges + curriculum_range * base_graph_edges + 1,((base_graph_edges + curriculum_range * base_graph_edges) - (base_graph_edges - curriculum_range * base_graph_edges))/max(num_epochs-1,1))
     return node_curriculum,edge_curriculum
@@ -308,7 +310,7 @@ def train(args,agent_configs,logger_configs,visualization_configs):
                         logger.log(f"MrX won the evaluation episode.",level="info")
                     else:
                         logger.log(f"MrX lost the evaluation episode.",level="info")
-
+            env.save_visualizations()
         win_ratio = wins / args.num_eval_episodes
         
         logger.log(f"Evaluation completed. Win Ratio: {win_ratio}")
@@ -463,8 +465,8 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
 
                 # Get node features for MrX's current node
                 mrx_node_features = state[mrx_key]['observation']['MrX_pos']
-                mrx_obs = torch.tensor(mrx_node_features, dtype=torch.float32, device=device)
-
+                #mrx_obs = torch.tensor(mrx_node_features, dtype=torch.float32, device=device)
+                mrx_obs = mrx_node_features.detach().clone().to(dtype=torch.float32, device=device)
                 # Get valid moves for MrX
                 possible_moves = env.get_possible_moves(0)
 
@@ -493,8 +495,8 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                     # Get node features for police's current node
                     police_node_features = state[agent_key]['observation']['Polices_pos'].sum(dim=1)
 
-                    police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
-
+                    #police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
+                    police_obs = police_node_features.detach().clone().to(dtype=torch.float32, device=device)
                     # Get valid moves for this police agent
                     possible_moves = env.get_possible_moves(police_idx + 1)
 
@@ -587,8 +589,8 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                 actions = []
 
                 mrx_node_features = state[mrx_key]['observation']['MrX_pos']
-                mrx_obs = torch.tensor(mrx_node_features, dtype=torch.float32, device=device)
-
+                #mrx_obs = torch.tensor(mrx_node_features, dtype=torch.float32, device=device)
+                mrx_obs = mrx_node_features.detach().clone().to(dtype=torch.float32, device=device)
                 possible_moves = env.get_possible_moves(0)
                 action_mask = torch.zeros(max_action_dim, dtype=torch.float32, device=device)
                 for move in possible_moves:
@@ -602,8 +604,8 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                 for police_idx in range(num_agents):
                     agent_key = f'Police{police_idx}'
                     police_node_features = state[agent_key]['observation']['Polices_pos'].sum(dim=1)
-                    police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
-
+                    #police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
+                    police_obs = police_node_features.detach().clone().to(dtype=torch.float32, device=device)
                     possible_moves = env.get_possible_moves(police_idx + 1)
                     action_mask = torch.zeros(max_action_dim, dtype=torch.float32, device=device)
                     for move in possible_moves:
@@ -638,7 +640,7 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
 
                 if done and winner == 'MrX':
                     wins += 1
-
+            env.save_visualizations()
         # Calculate win ratio and update difficulty through meta-learning
         win_ratio = wins / args.num_eval_episodes
         node_curriculum,edge_curriculum = modify_curriculum(win_ratio,node_curriculum,edge_curriculum,0.1)
