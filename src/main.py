@@ -583,6 +583,10 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
 
             logger.log_scalar(f'episode/mrx_reward', total_reward)
 
+        logger.log(f"Evaluating agent balance after epoch {epoch + 1}.", level="debug")
+        logger.log_model(mrX_agent, "mappo_MrX")
+        logger.log_model(police_agent, "mappo_Police")
+        logger.log_model(reward_weight_net, 'mappo_RewardWeightNet')
         # Evaluation loop
         wins = 0
         for eval_ep in range(args.num_eval_episodes):
@@ -713,6 +717,7 @@ def create_graph_data(state, agent_id, env):
     return data
 
 def evaluate(args,agent_configs,logger_configs,visualization_configs):
+    print("Evaluating...")
     """
     Evaluation function:
     - Loads pre-trained RewardWeightNet and agent models.
@@ -734,9 +739,6 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
     reward_weight_net.eval()
     if agent_configs["agent_type"] == "gnn":
         police_agent = GNNAgent(node_feature_size=3, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
-    elif agent_configs["agent_type"] == "mappo":
-        pass
-        #police_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
     else:
         police_agent = RandomAgent()
     for config in args.agent_configurations:
@@ -789,20 +791,12 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
                 logger.log(f"WARNING: the weights for the {name} do not exist!",level="info")
         if agent_configs["agent_type"] == "gnn":
             mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
-            mrX_agent.load_state_dict(logger.load_model(MrX_model_name), strict=False)
-        elif agent_configs["agent_type"] == "mappo":
-            pass
-            #mrX_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
-            #mrX_agent.load_state_dict(logger.load_model('MrX'), strict=False)
+            mrX_agent.load_state_dict(logger.load_model('MrX'), strict=False)
         else:
             mrX_agent = RandomAgent()
         if agent_configs["agent_type"] == "gnn":
             police_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
-            police_agent.load_state_dict(logger.load_model(Police_model_name), strict=False)
-        elif agent_configs["agent_type"] == "mappo":
-            pass
-            #police_agent = MappoAgent(state_size=, action_size=, device=device,hidden_size=agent_configs["hidden_size"], gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
-            #police_agent.load_state_dict(logger.load_model('Police'), strict=False)
+            police_agent.load_state_dict(logger.load_model('Police'), strict=False)
         else:
             police_agent = RandomAgent()
 
@@ -877,6 +871,121 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
         win_ratio = wins / args.num_eval_episodes
         logger.log(f"Evaluation completed. Win Ratio: {win_ratio}")     
         return
+
+def evaluate_mappo(args, agent_configs, logger_configs, visualization_configs):
+    print("EValuate mappo")
+    """
+    MAPPO-specific evaluation function.
+    Evaluates trained MAPPO agents using RewardWeightNet predicted difficulty.
+    """
+    logger = Logger(
+        wandb_api_key=args.wandb_api_key,
+        wandb_project=args.wandb_project,
+        wandb_entity=args.wandb_entity,
+        wandb_run_name=args.wandb_run_name,
+        wandb_resume=args.wandb_resume,
+        configs=logger_configs
+    )
+
+    reward_weight_net = RewardWeightNet().to(device)
+    reward_weight_net.load_state_dict(logger.load_model('mappo_RewardWeightNet'), strict=False)
+    reward_weight_net.eval()
+
+    for config in args.agent_configurations:
+        num_agents = config["num_police_agents"]
+        agent_money = config["agent_money"]
+        logger.log(f"Evaluating MAPPO with {num_agents} agents and {agent_money} money.", level="info")
+
+        # Predict weights
+        inputs = torch.FloatTensor([[num_agents, agent_money, args.graph_nodes, args.graph_edges]]).to(device)
+        predicted_weight = reward_weight_net(inputs)
+        reward_weights = {
+            "Police_distance": predicted_weight[0, 0],
+            "Police_group": predicted_weight[0, 1],
+            "Police_position": predicted_weight[0, 2],
+            "Police_time": predicted_weight[0, 3],
+            "Mrx_closest": predicted_weight[0, 4],
+            "Mrx_average": predicted_weight[0, 5],
+            "Mrx_position": predicted_weight[0, 6],
+            "Mrx_time": predicted_weight[0, 7]
+        }
+
+        # Create environment
+        env_wrappable = CustomEnvironment(
+            number_of_agents=num_agents,
+            agent_money=agent_money,
+            reward_weights=reward_weights,
+            logger=logger,
+            epoch=1,
+            graph_nodes=args.graph_nodes,
+            graph_edges=args.graph_edges,
+            vis_configs=visualization_configs
+        )
+        env = PettingZooWrapper(env=env_wrappable)
+
+        # Get obs/action dimensions
+        state = env.reset(episode=0)
+        mrx_obs = torch.tensor(state['MrX']['observation']['MrX_pos'], dtype=torch.float32, device=device)
+        feat_dim = mrx_obs.shape[-1]
+        global_obs_dim = feat_dim * (num_agents + 1)
+        action_dim = args.graph_nodes
+
+        # Load agents
+        mrX_agent = MappoAgent(1, feat_dim, global_obs_dim, action_dim, agent_configs["hidden_size"],
+                               device, agent_configs["gamma"], agent_configs["lr"],
+                               agent_configs["batch_size"], agent_configs["buffer_size"],
+                               agent_configs["epsilon"])
+        police_agent = MappoAgent(num_agents, feat_dim, global_obs_dim, action_dim, agent_configs["hidden_size"],
+                                  device, agent_configs["gamma"], agent_configs["lr"],
+                                  agent_configs["batch_size"], agent_configs["buffer_size"],
+                                  agent_configs["epsilon"])
+
+        mrX_agent.load_state_dict(logger.load_model('mappo_Mrx'), strict=False)
+        police_agent.load_state_dict(logger.load_model('mappo_police'), strict=False)
+
+        # Run evaluation episodes
+        wins = 0
+        for episode in range(args.num_eval_episodes):
+            state = env.reset(episode=episode)
+            done = False
+
+            while not done:
+                actions = []
+
+                mrx_obs = torch.tensor(state['MrX']['observation']['MrX_pos'], dtype=torch.float32, device=device)
+                mrx_moves = env.get_possible_moves(0)
+                mrx_mask = torch.zeros(action_dim, dtype=torch.float32, device=device)
+                mrx_mask[mrx_moves] = 1.0
+                mrx_action, _, _ = mrX_agent.select_action(0, mrx_obs, mrx_mask)
+                actions.append(mrx_action)
+
+                for i in range(num_agents):
+                    police_obs = torch.tensor(state[f'Police{i}']['observation']['Polices_pos'],
+                                              dtype=torch.float32, device=device)
+                    police_moves = env.get_possible_moves(i + 1)
+                    police_mask = torch.zeros(action_dim, dtype=torch.float32, device=device)
+                    police_mask[police_moves] = 1.0
+                    police_action, _, _ = police_agent.select_action(i, police_obs, police_mask)
+                    actions.append(police_action)
+
+                agent_actions = {'MrX': actions[0], **{f'Police{i}': actions[i + 1] for i in range(num_agents)}}
+                for agent_id, action in agent_actions.items():
+                    if action is not None:
+                        state[agent_id]["action"] = torch.tensor([action], dtype=torch.int64)
+
+                next_state = env.step(state)['next']
+                state = next_state
+                terminations = {aid: next_state[aid]['terminated'].squeeze() for aid in env.possible_agents}
+                truncations = {aid: next_state[aid]['truncated'].squeeze() for aid in env.possible_agents}
+                done = terminations.get('Police0', False) or all(truncations.values())
+
+                if done and env.current_winner == 'MrX':
+                    wins += 1
+
+        win_ratio = wins / args.num_eval_episodes
+        logger.log(f"MAPPO Evaluation completed. Win ratio: {win_ratio}", level="info")
+        return
+
 def compute_target_difficulty(win_ratio, target_balance=0.5):
     """Adjust the target difficulty based on the win/loss ratio."""
     # You can add logging here if needed
@@ -1014,7 +1123,10 @@ if __name__ == "__main__":
     args = argparse.Namespace(**combined_args)
 
     if args.evaluate:
-        evaluate(args,agent_configs,logger_configs,visualization_configs)
+        if agent_configs["agent_type"] == "mappo":
+            evaluate_mappo(args, agent_configs, logger_configs, visualization_configs)
+        else:
+            evaluate(args, agent_configs, logger_configs, visualization_configs)
     else:
         if agent_configs["agent_type"] == "mappo":
             train_mappo(args,agent_configs,logger_configs,visualization_configs)
