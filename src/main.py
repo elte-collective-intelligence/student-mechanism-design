@@ -34,6 +34,9 @@ def create_curriculum(num_epochs, base_graph_nodes,base_graph_edges,curriculum_r
     node_curriculum = np.arange(base_graph_nodes - curriculum_range * base_graph_nodes,base_graph_nodes + curriculum_range * base_graph_nodes + 1,((base_graph_nodes + curriculum_range * base_graph_nodes) - (base_graph_nodes - curriculum_range * base_graph_nodes))/(num_epochs-1))
     edge_curriculum = np.arange(base_graph_edges - curriculum_range * base_graph_edges,base_graph_edges + curriculum_range * base_graph_edges + 1,((base_graph_edges + curriculum_range * base_graph_edges) - (base_graph_edges - curriculum_range * base_graph_edges))/(num_epochs-1))
     return node_curriculum,edge_curriculum
+def modify_curriculum(win_ratio,node_curriculum,edge_curriculum, modification_rate):
+    modification_percentage = 1.0 + (2.0 * modification_rate) * win_ratio - modification_rate
+    return node_curriculum * modification_percentage,edge_curriculum * modification_percentage
 def train(args,agent_configs,logger_configs,visualization_configs):
     """
     Main training function:
@@ -299,13 +302,16 @@ def train(args,agent_configs,logger_configs,visualization_configs):
                         logger.log(f"MrX lost the evaluation episode.",level="info")
 
         win_ratio = wins / args.num_eval_episodes
+        
         logger.log(f"Evaluation completed. Win Ratio: {win_ratio}")
 
         logger.log(f"Epoch {epoch + 1}, Episode {episode + 1}, Total Reward: {total_reward}",level="debug")
 
         # win_ratio = evaluate_agent_balance(mrX_agent, police_agent, env, args.num_eval_episodes, device)
         logger.log(f"Epoch {epoch + 1}: Win Ratio: {win_ratio}",level="info")
-
+        node_curriculum,edge_curriculum = modify_curriculum(win_ratio,node_curriculum,edge_curriculum,0.1)
+        logger.log(f"Modified node curriculum: {node_curriculum}",level="info")
+        logger.log(f"Modified edge curriculum: {edge_curriculum}",level="info")
         target_difficulty = compute_target_difficulty(win_ratio)
         logger.log(f"Epoch {epoch + 1}: Computed target difficulty: {target_difficulty}",level="info")
 
@@ -598,6 +604,9 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
 
         # Calculate win ratio and update difficulty through meta-learning
         win_ratio = wins / args.num_eval_episodes
+        node_curriculum,edge_curriculum = modify_curriculum(win_ratio,node_curriculum,edge_curriculum,0.1)
+        logger.log(f"Modified node curriculum: {node_curriculum}",level="info")
+        logger.log(f"Modified edge curriculum: {edge_curriculum}",level="info")
         target_difficulty = compute_target_difficulty(win_ratio)
 
         win_tensor = torch.tensor(win_ratio, dtype=torch.float32, device=device)
