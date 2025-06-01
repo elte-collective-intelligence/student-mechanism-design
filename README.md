@@ -2,16 +2,17 @@
 
 ## Introduction
 
-This repository presents a meta-learning approach for reinforcement learning (RL) environments, leveraging Graph Neural Networks (GNNs) to enable dynamic adaptability. The project emphasizes multi-agent setups where agents collaboratively learn optimal policies, focusing on flexibility, shared information, and environment-aware strategies.
+This repository presents a meta-learning approach for reinforcement learning (RL) environments, leveraging Multi Agent Proximal Policy Optimization (MAPPO) (and Graph Neural Networks (GNNs)) to enable dynamic adaptability. The project emphasizes multi-agent setups where agents collaboratively learn optimal policies, focusing on flexibility, shared information, and environment-aware strategies.
 
 ## Overview
 
-The project aims to equip RL agents with the ability to adapt to varying task difficulties and dynamic interactions using meta-learning techniques and GNNs. Agents interact in a simulated city-like grid, taking on distinct objectives and utilizing shared information for optimized decision-making.
+The project aims to equip RL agents with the ability to adapt to varying task difficulties and dynamic interactions using meta-learning techniques and MAPPO (with backward compatibility for Graph Neural Networks (GNNs)). Agents interact in a simulated city-like grid, taking on distinct objectives and utilizing shared information for optimized decision-making.
 
 ### Key Features
 
 - **Meta-Learning**: Dynamically balances success and failure rates to achieve a 50/50 outcome.
 - **Graph Neural Networks**: Models agent relationships, enabling enhanced real-time adaptability.
+- **MAPPO**:
 - **Multi-Agent Policies**: Develops specialized strategies for distinct roles.
 - **Dynamic Environment**: Adjusts parameters like agent count and resources to ensure evolving difficulty.
 - **Shared Policemen Policy**: Unifies strategies across agents for improved coordination.
@@ -41,6 +42,10 @@ GNNs enhance the system by:
 - **Spatial and Temporal Encoding**: Capturing dynamic relationships among agents.
 - **State Sharing**: Facilitating coordinated strategies across multiple agents.
 - **Policy Adaptability**: Supporting flexible decision-making through graph-based message passing.
+
+### MAPPO Integration
+
+
 
 ### Policies
 
@@ -75,7 +80,8 @@ GNNs enhance the system by:
 - **RLAgent/gnn_agent.py**  
   - Defines GNNAgent, a DQN-like agent using a GNN (GNNModel) to compute Q-values for graph nodes.  
   - Handles experience replay, epsilon-greedy action selection, and network updates.  
-
+- **RLAgent/mappo_agent.py**
+  
 ### Main Training Loop (in main.py, train function)
 
 1. **Initialize** logger, network(s), optimizers, and hyperparameters.  
@@ -85,7 +91,8 @@ GNNs enhance the system by:
    - **Inside loop**: for each episode:
      - Reset environment, get initial state.  
      - While not done:  
-       - Build GNN input (create_graph_data), pick actions (MrX and Police) using the GNN agents.  
+       - Build GNN input (create_graph_data), pick actions (MrX and Police) using the GNN agents.
+       - MAPPO train loop.
        - env.step(actions), compute rewards/terminations, update agents.  
    - Evaluate performance (num_eval_episodes), compute target difficulty, backpropagate loss in RewardWeightNet.  
    - Log metrics and proceed to the next epoch.  
