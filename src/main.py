@@ -347,7 +347,9 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
     reward_weight_net = RewardWeightNet().to(device)
     optimizer = optim.Adam(reward_weight_net.parameters(), lr=0.001)
     criterion = nn.MSELoss()
-
+    node_curriculum,edge_curriculum = create_curriculum(args.epochs,args.graph_nodes,args.graph_edges,0.5)
+    logger.log(f"Node curriculum: {node_curriculum}",level="info")
+    logger.log(f"Edge curriculum: {edge_curriculum}",level="info")
     # Training loop over epochs
     for epoch in range(args.epochs):
         selected_config = random.choice(args.agent_configurations)
@@ -375,8 +377,8 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
             reward_weights=reward_weights,
             logger=logger,
             epoch=epoch,
-            graph_nodes=args.graph_nodes,
-            graph_edges=args.graph_edges,
+            graph_nodes=int(node_curriculum[epoch]),
+            graph_edges=int(edge_curriculum[epoch]),
             vis_configs=visualization_configs
         )
 
