@@ -669,6 +669,7 @@ class CustomEnvironment(BaseEnvironment):
                 animation_fig = animation.FuncAnimation(f,update_gif,frames=len(self.run_images),interval=400,blit=True,repeat_delay=10,)
                 plt.show()
                 animation_fig.save(self.vis_config["save_dir"]+"/"+f"run_epoch_{self.epoch}-episode_{self.episode+1}.gif")
+                plt.close(f)
             if len(self.heatmap_images) > 0:
                 self.logger.log(f"Saving GIF as heatmap_epoch_{self.epoch}-episode_{self.episode+1}.gif")
                 f,a = plt.subplots()
@@ -679,6 +680,7 @@ class CustomEnvironment(BaseEnvironment):
                 animation_fig = animation.FuncAnimation(f,update_gif,frames=len(self.heatmap_images),interval=400,blit=True,repeat_delay=10,)
                 plt.show()
                 animation_fig.save(self.vis_config["save_dir"]+"/"+f"heatmap_epoch_{self.epoch}-episode_{self.episode+1}.gif")
+                plt.close(f)
     def render(self):
         """Renders the environment."""
         if self.fig is None or self.ax is None:
@@ -693,7 +695,7 @@ class CustomEnvironment(BaseEnvironment):
             self.node_collection.set_color(self.node_colors)
 
             # Update the title
-            self.ax.set_title(f"Episode: {self.episode}, Timestep: {self.timestep}", fontsize=16)
+            self.ax.set_title(f"Epoch: {self.epoch}, Episode: {self.episode}, Timestep: {self.timestep}", fontsize=16)
             # Redraw the plot
             self.fig.canvas.draw()
             self.fig.canvas.flush_events()
@@ -705,7 +707,7 @@ class CustomEnvironment(BaseEnvironment):
         if self.visualize_heatmap:
             self.node_collection.set_color(self.heatmap_colors)
             # Update the title
-            self.ax.set_title(f"Heatmap Episode: {self.episode}, Timestep: {self.timestep}", fontsize=16)
+            self.ax.set_title(f"Epoch: {self.epoch}, Episode: {self.episode}, Timestep: {self.timestep}", fontsize=16)
 
             # Redraw the plot
             self.fig.canvas.draw()

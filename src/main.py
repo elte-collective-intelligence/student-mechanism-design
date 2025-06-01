@@ -7,6 +7,7 @@ from logger import Logger  # Your custom Logger class
 from RLAgent.gnn_agent import GNNAgent
 from RLAgent.mappo_agent import MappoAgent
 from RLAgent.random_agent import RandomAgent
+from reward_net import RewardWeightNet
 from Enviroment.yard import CustomEnvironment
 from torch_geometric.data import Data
 
@@ -17,8 +18,6 @@ from torchrl.envs import step_mdp
 print(f"CUDA is available: {torch.cuda.is_available()}")
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 print(f"Using device: {device}")  # You may consider logging this instead
-
-
 class RewardWeightNet(nn.Module):
     def __init__(self, input_size=4, hidden_size=32, output_size=11):
         super(RewardWeightNet, self).__init__()
@@ -31,28 +30,17 @@ class RewardWeightNet(nn.Module):
         x = self.relu(x)
         x = self.fc2(x)
         return torch.sigmoid(x)
-
-
-def create_curriculum(num_epochs, base_graph_nodes, base_graph_edges, curriculum_range):
-    node_curriculum = np.arange(base_graph_nodes - curriculum_range * base_graph_nodes,
-                                base_graph_nodes + curriculum_range * base_graph_nodes + 1, (
-                                            (base_graph_nodes + curriculum_range * base_graph_nodes) - (
-                                                base_graph_nodes - curriculum_range * base_graph_nodes)) / max(
-            num_epochs - 1, 1))
-    edge_curriculum = np.arange(base_graph_edges - curriculum_range * base_graph_edges,
-                                base_graph_edges + curriculum_range * base_graph_edges + 1, (
-                                            (base_graph_edges + curriculum_range * base_graph_edges) - (
-                                                base_graph_edges - curriculum_range * base_graph_edges)) / max(
-            num_epochs - 1, 1))
-    return node_curriculum, edge_curriculum
-
-
-def modify_curriculum(win_ratio, node_curriculum, edge_curriculum, modification_rate):
+def create_curriculum(num_epochs, base_graph_nodes,base_graph_edges, base_money,curriculum_range):
+    if num_epochs <= 1:
+        return np.asarray([base_graph_nodes]),np.asarray([base_graph_edges])
+    node_curriculum = np.arange(base_graph_nodes - curriculum_range * base_graph_nodes,base_graph_nodes + curriculum_range * base_graph_nodes + 1,((base_graph_nodes + curriculum_range * base_graph_nodes) - (base_graph_nodes - curriculum_range * base_graph_nodes))/max(num_epochs-1,1))
+    edge_curriculum = np.arange(base_graph_edges - curriculum_range * base_graph_edges,base_graph_edges + curriculum_range * base_graph_edges + 1,((base_graph_edges + curriculum_range * base_graph_edges) - (base_graph_edges - curriculum_range * base_graph_edges))/max(num_epochs-1,1))
+    money_curriculum = np.arange(base_money + curriculum_range * base_money,base_money - curriculum_range * base_money - 1,-((base_money + curriculum_range * base_money) - (base_money - curriculum_range * base_money))/max(num_epochs-1,1))
+    return node_curriculum,edge_curriculum,money_curriculum
+def modify_curriculum(win_ratio,node_curriculum,edge_curriculum,money_curriculum,modification_rate):
     modification_percentage = 1.0 + (2.0 * modification_rate) * win_ratio - modification_rate
-    return node_curriculum * modification_percentage, edge_curriculum * modification_percentage
-
-
-def train(args, agent_configs, logger_configs, visualization_configs):
+    return node_curriculum * modification_percentage,edge_curriculum * modification_percentage,money_curriculum * modification_percentage
+def train(args,agent_configs,logger_configs,visualization_configs):
     """
     Main training function:
     - Initializes the logger, networks (including Meta RL net for reward weights), and optimizer.
@@ -84,34 +72,20 @@ def train(args, agent_configs, logger_configs, visualization_configs):
     logger.log("Loss function (MSELoss) initialized.", level="debug")
 
     logger.log(f"Starting training with variable agents and money settings.", level="debug")
-
-    if len(args.agent_configurations) > args.epochs:
-        logger.log(f"WARNING: more configs than epochs. Somme config won't be used.", level="info")
-        configs = random.sample(args.agent_configurations, k=args.epochs)
-    else:
-        configs = args.agent_configurations + \
-                  random.sample(args.agent_configurations, k=args.epochs - len(args.agent_configurations))
-        random.shuffle(configs)
-
     # Validate that the agent configurations list is provided and not empty
     if not hasattr(args, 'agent_configurations') or not args.agent_configurations:
         raise ValueError("args.agent_configurations must be a non-empty list of (num_agents, agent_money) tuples.")
-    node_curriculum, edge_curriculum = create_curriculum(args.epochs, args.graph_nodes, args.graph_edges, 0.5)
-    logger.log(f"Node curriculum: {node_curriculum}", level="info")
-    logger.log(f"Edge curriculum: {edge_curriculum}", level="info")
-    for epoch, selected_config in enumerate(configs):  # TODO: check this
-        # for epoch in range(args.epochs):
-        logger.log_scalar('epoch_step', epoch)
-
+    agent_money_values = np.asarray([v['agent_money'] for v in args.agent_configurations])
+    average_agent_money = np.sum(agent_money_values)/agent_money_values.shape[0]
+    logger.log(f"Average agent money: {average_agent_money}")
+    node_curriculum,edge_curriculum,money_curriculum = create_curriculum(args.epochs,args.graph_nodes,args.graph_edges,average_agent_money,0.5)
+    logger.log(f"Node curriculum: {node_curriculum}",level="info")
+    logger.log(f"Edge curriculum: {edge_curriculum}",level="info")
+    for epoch in range(args.epochs):
         logger.log(f"Starting epoch {epoch + 1}/{args.epochs}.", level="info")
-
         # Randomly select a (num_agents, agent_money) tuple from the predefined list
-
-        logger.log(args.agent_configurations, level='info')
-        # selected_config = random.choice(args.agent_configurations)  # Ensure args.agent_configurations is defined
-
-        num_agents, agent_money = selected_config["num_police_agents"] + 1, selected_config[
-            "agent_money"]  # Unpack the tuple
+        selected_config = random.choice(args.agent_configurations)
+        num_agents, agent_money = selected_config["num_police_agents"] + 1, selected_config["agent_money"]  # Unpack the tuple
         logger.log(f"Choosen configuration: {num_agents} agents, {agent_money} money.", level="info")
         logger.log_scalar('epoch/num_agents', num_agents)
         logger.log_scalar('epoch/agent_money', agent_money)
@@ -182,8 +156,6 @@ def train(args, agent_configs, logger_configs, visualization_configs):
                                     epsilon_min=agent_configs["epsilon_min"])
             if logger.model_exists(Police_model_name):
                 police_agent.load_state_dict(logger.load_model(Police_model_name), strict=False)
-        elif agent_configs["agent_type"] == "mappo":
-            pass
         else:
             police_agent = RandomAgent()
         logger.log("GNN agents for MrX and Police initialized.", level="debug")
@@ -354,8 +326,8 @@ def train(args, agent_configs, logger_configs, visualization_configs):
                         wins += 1
                         logger.log(f"MrX won the evaluation episode.", level="info")
                     else:
-                        logger.log(f"MrX lost the evaluation episode.", level="info")
-
+                        logger.log(f"MrX lost the evaluation episode.",level="info")
+            env.save_visualizations()
         win_ratio = wins / args.num_eval_episodes
 
         logger.log(f"Evaluation completed. Win Ratio: {win_ratio}")
@@ -363,10 +335,10 @@ def train(args, agent_configs, logger_configs, visualization_configs):
         logger.log(f"Epoch {epoch + 1}, Episode {episode + 1}, Total Reward: {total_reward}", level="debug")
 
         # win_ratio = evaluate_agent_balance(mrX_agent, police_agent, env, args.num_eval_episodes, device)
-        logger.log(f"Epoch {epoch + 1}: Win Ratio: {win_ratio}", level="info")
-        node_curriculum, edge_curriculum = modify_curriculum(win_ratio, node_curriculum, edge_curriculum, 0.1)
-        logger.log(f"Modified node curriculum: {node_curriculum}", level="info")
-        logger.log(f"Modified edge curriculum: {edge_curriculum}", level="info")
+        logger.log(f"Epoch {epoch + 1}: Win Ratio: {win_ratio}",level="info")
+        node_curriculum,edge_curriculum,money_curriculum = modify_curriculum(win_ratio,node_curriculum,edge_curriculum,money_curriculum,0.1)
+        logger.log(f"Modified node curriculum: {node_curriculum}",level="info")
+        logger.log(f"Modified edge curriculum: {edge_curriculum}",level="info")
         target_difficulty = compute_target_difficulty(win_ratio)
         logger.log(f"Epoch {epoch + 1}: Computed target difficulty: {target_difficulty}", level="info")
 
@@ -409,9 +381,11 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
     logger.log("DifficultyNet initialized and moved to device.")
     optimizer = optim.Adam(reward_weight_net.parameters(), lr=0.001)
     criterion = nn.MSELoss()
-    node_curriculum, edge_curriculum = create_curriculum(args.epochs, args.graph_nodes, args.graph_edges, 0.5)
-    logger.log(f"Node curriculum: {node_curriculum}", level="info")
-    logger.log(f"Edge curriculum: {edge_curriculum}", level="info")
+    agent_money_values = np.asarray([v['agent_money'] for v in args.agent_configurations])
+    average_agent_money = np.sum(agent_money_values)/agent_money_values.shape[0]
+    logger.log(f"Average agent money: {average_agent_money}")
+    node_curriculum,edge_curriculum,money_curriculum = create_curriculum(args.epochs,args.graph_nodes,args.graph_edges,average_agent_money,0.5)
+    logger.log(f"Money curriculum: {money_curriculum}",level="info")
     logger.log("Loss function (MSELoss) initialized.", level="debug")
     # Training loop over epochs
     for epoch in range(args.epochs):
@@ -442,7 +416,7 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
         # Create environment with predicted difficulty
         env_wrappable = CustomEnvironment(
             number_of_agents=num_agents,
-            agent_money=agent_money,
+            agent_money=int(money_curriculum[epoch]),
             reward_weights=reward_weights,
             logger=logger,
             epoch=epoch,
@@ -514,8 +488,8 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
 
                 # Get node features for MrX's current node
                 mrx_node_features = state[mrx_key]['observation']['MrX_pos']
-                mrx_obs = torch.tensor(mrx_node_features, dtype=torch.float32, device=device)
-
+                #mrx_obs = torch.tensor(mrx_node_features, dtype=torch.float32, device=device)
+                mrx_obs = mrx_node_features.detach().clone().to(dtype=torch.float32, device=device)
                 # Get valid moves for MrX
                 possible_moves = env.get_possible_moves(0)
 
@@ -544,8 +518,8 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                     # Get node features for police's current node
                     police_node_features = state[agent_key]['observation']['Polices_pos'].sum(dim=1)
 
-                    police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
-
+                    #police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
+                    police_obs = police_node_features.detach().clone().to(dtype=torch.float32, device=device)
                     # Get valid moves for this police agent
                     possible_moves = env.get_possible_moves(police_idx + 1)
 
@@ -639,8 +613,8 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                 actions = []
 
                 mrx_node_features = state[mrx_key]['observation']['MrX_pos']
-                mrx_obs = torch.tensor(mrx_node_features, dtype=torch.float32, device=device)
-
+                #mrx_obs = torch.tensor(mrx_node_features, dtype=torch.float32, device=device)
+                mrx_obs = mrx_node_features.detach().clone().to(dtype=torch.float32, device=device)
                 possible_moves = env.get_possible_moves(0)
                 action_mask = torch.zeros(max_action_dim, dtype=torch.float32, device=device)
                 for move in possible_moves:
@@ -654,8 +628,8 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                 for police_idx in range(num_agents):
                     agent_key = f'Police{police_idx}'
                     police_node_features = state[agent_key]['observation']['Polices_pos'].sum(dim=1)
-                    police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
-
+                    #police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
+                    police_obs = police_node_features.detach().clone().to(dtype=torch.float32, device=device)
                     possible_moves = env.get_possible_moves(police_idx + 1)
                     action_mask = torch.zeros(max_action_dim, dtype=torch.float32, device=device)
                     for move in possible_moves:
@@ -692,12 +666,10 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
 
                 if done and winner == 'MrX':
                     wins += 1
-
+            env.save_visualizations()
         # Calculate win ratio and update difficulty through meta-learning
         win_ratio = wins / args.num_eval_episodes
-        node_curriculum, edge_curriculum = modify_curriculum(win_ratio, node_curriculum, edge_curriculum, 0.1)
-        logger.log(f"Modified node curriculum: {node_curriculum}", level="info")
-        logger.log(f"Modified edge curriculum: {edge_curriculum}", level="info")
+        node_curriculum,edge_curriculum,money_curriculum= modify_curriculum(win_ratio,node_curriculum,edge_curriculum,money_curriculum,0.1)
         target_difficulty = compute_target_difficulty(win_ratio)
 
         win_tensor = torch.tensor(win_ratio, dtype=torch.float32, device=device)
@@ -791,7 +763,6 @@ def evaluate(args, agent_configs, logger_configs, visualization_configs):
         police_agent = RandomAgent()
     for config in args.agent_configurations:
         num_agents, agent_money = config["num_police_agents"] + 1, config["agent_money"]  # Unpack the tuple
-        agent_money = 20
         logger.log(f"Choosen configuration: {num_agents} agents, {agent_money} money.", level="info")
         # print(selected_config)
         logger.log_scalar('epoch/num_agents', num_agents)
