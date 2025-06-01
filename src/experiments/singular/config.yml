@@ -1,13 +1,13 @@
 # config.yaml
 
 agent_configurations:
-  - num_police_agents: 1
-    agent_money: 100
-graph_edges: 100
-graph_nodes: 50
+  - num_police_agents: 2
+    agent_money: 60
+graph_edges: 190
+graph_nodes: 100
 num_episodes: 1
-num_eval_episodes: 1
-epochs: 1
+num_eval_episodes: 4
+epochs: 5
 wandb_run_name: 'singular'
 wandb_resume: false
 random_seed: 42

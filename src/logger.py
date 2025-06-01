@@ -170,7 +170,7 @@ class Logger:
         """
         if self.use_wandb and wandb.run:
             if(model_num):
-                model_name_with_num = model_name + ":" + str(model_num)
+                model_name_with_num = model_name + ":" + str(model_num) #this functionality is not included, fyi
             else:
                 model_name_with_num = model_name + ":latest"
             #artifact = wandb.use_artifact(model_name_with_num, type='model')
@@ -188,3 +188,6 @@ class Logger:
         self.writer.close()
         if self.use_wandb and wandb.run:
             wandb.finish()
+
+    def model_exists(self, model_name):
+        return os.path.exists(f"{os.path.join(self.log_dir, model_name)}.pt")

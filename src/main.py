@@ -11,9 +11,9 @@ from Enviroment.yard import CustomEnvironment
 from torch_geometric.data import Data
 
 from torchrl.envs.libs.pettingzoo import PettingZooWrapper
+from torchrl.envs import step_mdp
 
 # Define the device at the beginning
-print(f"RUNNING TORCHRL VERSION")
 print(f"CUDA is available: {torch.cuda.is_available()}")
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 print(f"Using device: {device}")  # You may consider logging this instead
@@ -30,7 +30,13 @@ class RewardWeightNet(nn.Module):
         x = self.relu(x)
         x = self.fc2(x)
         return torch.sigmoid(x) 
-
+def create_curriculum(num_epochs, base_graph_nodes,base_graph_edges,curriculum_range):
+    node_curriculum = np.arange(base_graph_nodes - curriculum_range * base_graph_nodes,base_graph_nodes + curriculum_range * base_graph_nodes + 1,((base_graph_nodes + curriculum_range * base_graph_nodes) - (base_graph_nodes - curriculum_range * base_graph_nodes))/max(num_epochs-1,1))
+    edge_curriculum = np.arange(base_graph_edges - curriculum_range * base_graph_edges,base_graph_edges + curriculum_range * base_graph_edges + 1,((base_graph_edges + curriculum_range * base_graph_edges) - (base_graph_edges - curriculum_range * base_graph_edges))/max(num_epochs-1,1))
+    return node_curriculum,edge_curriculum
+def modify_curriculum(win_ratio,node_curriculum,edge_curriculum, modification_rate):
+    modification_percentage = 1.0 + (2.0 * modification_rate) * win_ratio - modification_rate
+    return node_curriculum * modification_percentage,edge_curriculum * modification_percentage
 def train(args,agent_configs,logger_configs,visualization_configs):
     """
     Main training function:
@@ -64,10 +70,22 @@ def train(args,agent_configs,logger_configs,visualization_configs):
 
     logger.log(f"Starting training with variable agents and money settings.", level="debug")
 
+    if len(args.agent_configurations) > args.epochs:
+        logger.log(f"WARNING: more configs than epochs. Somme config won't be used.", level="info")
+        configs = random.sample(args.agent_configurations, k=args.epochs) 
+    else:
+        configs = args.agent_configurations + \
+        random.sample(args.agent_configurations, k=args.epochs - len(args.agent_configurations))
+        random.shuffle(configs)
+
     # Validate that the agent configurations list is provided and not empty
     if not hasattr(args, 'agent_configurations') or not args.agent_configurations:
         raise ValueError("args.agent_configurations must be a non-empty list of (num_agents, agent_money) tuples.")
-    for epoch in range(args.epochs):
+    node_curriculum,edge_curriculum = create_curriculum(args.epochs,args.graph_nodes,args.graph_edges,0.5)
+    logger.log(f"Node curriculum: {node_curriculum}",level="info")
+    logger.log(f"Edge curriculum: {edge_curriculum}",level="info")
+    for epoch, selected_config in enumerate(configs): #TODO: check this
+    # for epoch in range(args.epochs):
         logger.log_scalar('epoch_step', epoch)
 
         logger.log(f"Starting epoch {epoch + 1}/{args.epochs}.", level="info")
@@ -75,8 +93,9 @@ def train(args,agent_configs,logger_configs,visualization_configs):
         # Randomly select a (num_agents, agent_money) tuple from the predefined list
         
         logger.log(args.agent_configurations,level='info')
-        selected_config = random.choice(args.agent_configurations)  # Ensure args.agent_configurations is defined
-        num_agents, agent_money = selected_config["num_police_agents"], selected_config["agent_money"]  # Unpack the tuple
+        # selected_config = random.choice(args.agent_configurations)  # Ensure args.agent_configurations is defined
+
+        num_agents, agent_money = selected_config["num_police_agents"] + 1, selected_config["agent_money"]  # Unpack the tuple
         logger.log(f"Choosen configuration: {num_agents} agents, {agent_money} money.", level="info")
         logger.log_scalar('epoch/num_agents', num_agents)
         logger.log_scalar('epoch/agent_money', agent_money)
@@ -103,8 +122,8 @@ def train(args,agent_configs,logger_configs,visualization_configs):
             reward_weights=reward_weights,
             logger=logger,
             epoch=epoch,
-            graph_nodes=args.graph_nodes,
-            graph_edges=args.graph_edges,
+            graph_nodes=int(node_curriculum[epoch]),
+            graph_edges=int(edge_curriculum[epoch]),
             vis_configs = visualization_configs
         )
 
@@ -118,15 +137,22 @@ def train(args,agent_configs,logger_configs,visualization_configs):
         police_action_size = env.action_space('Police0').n  # Assuming all police have the same action space
         logger.log(f"Node feature size: {node_feature_size}, MrX action size: {mrX_action_size}, Police action size: {police_action_size}",level="debug")
 
+        MrX_model_name = f'MrX_{node_feature_size}_agents'
+        Police_model_name = f'Police_{node_feature_size}_agents'
+
         # Initialize GNN agents with graph-specific parameters and move them to GPU
         if agent_configs["agent_type"] == "gnn":
             mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            if logger.model_exists(MrX_model_name):
+                mrX_agent.load_state_dict(logger.load_model(MrX_model_name), strict=False)
         elif agent_configs["agent_type"] == "mappo":
             pass
         else:
             mrX_agent = RandomAgent()
         if agent_configs["agent_type"] == "gnn":
             police_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
+            if logger.model_exists(Police_model_name):
+                police_agent.load_state_dict(logger.load_model(Police_model_name), strict=False)
         elif agent_configs["agent_type"] == "mappo":
             pass
         else:
@@ -179,7 +205,8 @@ def train(args,agent_configs,logger_configs,visualization_configs):
                     if act is not None:
                         state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
 
-                next_state =  env.step(state)['next']
+                state_stepped =  env.step(state)
+                next_state = step_mdp(state_stepped)
                 
                 rewards = {agent_id:next_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
                 terminations = {agent_id:next_state[agent_id]['terminated'].squeeze() for agent_id in env.possible_agents}
@@ -221,8 +248,8 @@ def train(args,agent_configs,logger_configs,visualization_configs):
 
         # Evaluate performance and calculate the target difficulty
         logger.log(f"Evaluating agent balance after epoch {epoch + 1}.",level="debug")
-        logger.log_model(mrX_agent, 'MrX')
-        logger.log_model(police_agent, 'Police')
+        logger.log_model(mrX_agent, f'MrX_{node_feature_size}_agents')
+        logger.log_model(police_agent, f'Police_{node_feature_size}_agents')
         logger.log_model(reward_weight_net, 'RewardWeightNet')
 
         wins = 0
@@ -272,7 +299,9 @@ def train(args,agent_configs,logger_configs,visualization_configs):
                     state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
 
                 # Execute actions for MrX and Police
-                next_state =  env.step(state)['next']
+                state_stepped =  env.step(state)
+                next_state = step_mdp(state_stepped)
+
                 rewards = {agent_id:next_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
                 terminations = {agent_id:next_state[agent_id]['terminated'].squeeze() for agent_id in env.possible_agents}
                 truncation = {agent_id:next_state[agent_id]['truncated'].squeeze() for agent_id in env.possible_agents}
@@ -293,13 +322,16 @@ def train(args,agent_configs,logger_configs,visualization_configs):
                         logger.log(f"MrX lost the evaluation episode.",level="info")
 
         win_ratio = wins / args.num_eval_episodes
+        
         logger.log(f"Evaluation completed. Win Ratio: {win_ratio}")
 
         logger.log(f"Epoch {epoch + 1}, Episode {episode + 1}, Total Reward: {total_reward}",level="debug")
 
         # win_ratio = evaluate_agent_balance(mrX_agent, police_agent, env, args.num_eval_episodes, device)
         logger.log(f"Epoch {epoch + 1}: Win Ratio: {win_ratio}",level="info")
-
+        node_curriculum,edge_curriculum = modify_curriculum(win_ratio,node_curriculum,edge_curriculum,0.1)
+        logger.log(f"Modified node curriculum: {node_curriculum}",level="info")
+        logger.log(f"Modified edge curriculum: {edge_curriculum}",level="info")
         target_difficulty = compute_target_difficulty(win_ratio)
         logger.log(f"Epoch {epoch + 1}: Computed target difficulty: {target_difficulty}",level="info")
 
@@ -342,9 +374,10 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
     logger.log("DifficultyNet initialized and moved to device.")
     optimizer = optim.Adam(reward_weight_net.parameters(), lr=0.001)
     criterion = nn.MSELoss()
+    node_curriculum,edge_curriculum = create_curriculum(args.epochs,args.graph_nodes,args.graph_edges,0.5)
+    logger.log(f"Node curriculum: {node_curriculum}",level="info")
+    logger.log(f"Edge curriculum: {edge_curriculum}",level="info")
     logger.log("Loss function (MSELoss) initialized.", level="debug")
-
-
     # Training loop over epochs
     for epoch in range(args.epochs):
         logger.log_scalar('epoch_step', epoch)
@@ -375,8 +408,8 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
             reward_weights=reward_weights,
             logger=logger,
             epoch=epoch,
-            graph_nodes=args.graph_nodes,
-            graph_edges=args.graph_edges,
+            graph_nodes=int(node_curriculum[epoch]),
+            graph_edges=int(edge_curriculum[epoch]),
             vis_configs=visualization_configs
         )
 
@@ -470,7 +503,8 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                     agent_key = f'Police{police_idx}'
 
                     # Get node features for police's current node
-                    police_node_features = state[agent_key]['observation']['Polices_pos']
+                    police_node_features = state[agent_key]['observation']['Polices_pos'].sum(dim=1)
+
                     police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
 
                     # Get valid moves for this police agent
@@ -579,7 +613,7 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                 # Process Police agents in evaluation mode
                 for police_idx in range(num_agents):
                     agent_key = f'Police{police_idx}'
-                    police_node_features = state[agent_key]['observation']['Polices_pos']
+                    police_node_features = state[agent_key]['observation']['Polices_pos'].sum(dim=1)
                     police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
 
                     possible_moves = env.get_possible_moves(police_idx + 1)
@@ -619,6 +653,9 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
 
         # Calculate win ratio and update difficulty through meta-learning
         win_ratio = wins / args.num_eval_episodes
+        node_curriculum,edge_curriculum = modify_curriculum(win_ratio,node_curriculum,edge_curriculum,0.1)
+        logger.log(f"Modified node curriculum: {node_curriculum}",level="info")
+        logger.log(f"Modified edge curriculum: {edge_curriculum}",level="info")
         target_difficulty = compute_target_difficulty(win_ratio)
 
         win_tensor = torch.tensor(win_ratio, dtype=torch.float32, device=device)
@@ -707,7 +744,7 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
     else:
         police_agent = RandomAgent()
     for config in args.agent_configurations:
-        num_agents, agent_money = config["num_police_agents"], config["agent_money"]  # Unpack the tuple
+        num_agents, agent_money = config["num_police_agents"] + 1, config["agent_money"]  # Unpack the tuple
         agent_money = 20
         logger.log(f"Choosen configuration: {num_agents} agents, {agent_money} money.", level="info")
         # print(selected_config)
@@ -748,6 +785,12 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
         logger.log(f"Node feature size: {node_feature_size}, MrX action size: {mrX_action_size}, Police action size: {police_action_size}",level="debug")
 
         # Initialize GNN agents with graph-specific parameters and move them to GPU
+
+        MrX_model_name = f'MrX_{node_feature_size}_agents'
+        Police_model_name = f'Police_{node_feature_size}_agents'
+        for name in [MrX_model_name, Police_model_name]:
+            if not logger.model_exists(name):
+                logger.log(f"WARNING: the weights for the {name} do not exist!",level="info")
         if agent_configs["agent_type"] == "gnn":
             mrX_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
             mrX_agent.load_state_dict(logger.load_model('MrX'), strict=False)
@@ -806,7 +849,8 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
                         state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
 
                 # Execute actions for MrX and Police
-                next_state =  env.step(state)['next']
+                state_stepped =  env.step(state)
+                next_state = step_mdp(state_stepped)
                 rewards = {agent_id:next_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
                 terminations = {agent_id:next_state[agent_id]['terminated'].squeeze() for agent_id in env.possible_agents}
                 truncation = {agent_id:next_state[agent_id]['truncated'].squeeze() for agent_id in env.possible_agents}
@@ -825,6 +869,7 @@ def evaluate(args,agent_configs,logger_configs,visualization_configs):
                         logger.log(f"MrX won the evaluation episode.",level="info")
                     else:
                         logger.log(f"MrX lost the evaluation episode.",level="info")
+            env.save_visualizations()
         win_ratio = wins / args.num_eval_episodes
         logger.log(f"Evaluation completed. Win Ratio: {win_ratio}")     
         return
@@ -1044,7 +1089,9 @@ if __name__ == "__main__":
     with open("./src/configs/visualization/"+args_dict["vis_configs"]+".yaml", 'r') as f:
         visualization_configs = yaml.load(f,Loader=yaml_loader)
     logger_configs["log_dir"] = os.path.join(args_dict["exp_dir"],logger_configs["log_dir"])
+    os.makedirs(logger_configs["log_dir"],exist_ok=True)
     visualization_configs["save_dir"] = os.path.join(args_dict["exp_dir"],visualization_configs["save_dir"])
+    os.makedirs(visualization_configs["save_dir"],exist_ok=True)
     # Handle agent_configurations from command-line if provided
     if 'agent_configurations' in args_dict:
         # Parse the string into a list of tuples or dictionaries
