@@ -62,14 +62,13 @@ class MappoAgent:
     def select_action(self, agent_id, obs, action_mask=None):
         # Ensure obs is shaped properly for batch input to policy
         obs_tensor = obs.float().to(self.device)
-
-        if obs_tensor.ndim == 1:
-            obs_tensor = obs_tensor.unsqueeze(0)
-        elif obs_tensor.ndim == 2 and obs_tensor.shape[0] != 1:
-            print(f"WARNING: obs_tensor has batch dimension {obs_tensor.shape[0]}")
+        if obs_tensor.ndim < 2:
+            while obs_tensor.ndim < 2:
+                obs_tensor = obs_tensor.unsqueeze(0)
+        elif obs_tensor.ndim > 2:
+            obs_tensor = obs_tensor.view(1, -1)
+        elif obs_tensor.shape[0] != 1:
             obs_tensor = obs_tensor[0].unsqueeze(0)
-        elif obs_tensor.ndim != 2:
-            raise ValueError(f"obs_tensor has unexpected ndim {obs_tensor.ndim}")
 
         policy_output_raw = self.policies[agent_id](obs_tensor)
 

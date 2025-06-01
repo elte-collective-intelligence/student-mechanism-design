@@ -348,16 +348,19 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
         wandb_resume=args.wandb_resume,
         configs=logger_configs
     )
-
+    logger.log("Logger initialized.", level="debug")
     # Set up meta-learning components
     reward_weight_net = RewardWeightNet().to(device)
+    logger.log("DifficultyNet initialized and moved to device.")
     optimizer = optim.Adam(reward_weight_net.parameters(), lr=0.001)
     criterion = nn.MSELoss()
     node_curriculum,edge_curriculum = create_curriculum(args.epochs,args.graph_nodes,args.graph_edges,0.5)
     logger.log(f"Node curriculum: {node_curriculum}",level="info")
     logger.log(f"Edge curriculum: {edge_curriculum}",level="info")
+    logger.log("Loss function (MSELoss) initialized.", level="debug")
     # Training loop over epochs
     for epoch in range(args.epochs):
+        logger.log_scalar('epoch_step', epoch)
         selected_config = random.choice(args.agent_configurations)
         num_agents = selected_config["num_police_agents"]
         agent_money = selected_config["agent_money"]
@@ -375,9 +378,11 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
             "Mrx_position": predicted_weight[0, 6],
             "Mrx_time": predicted_weight[0, 7]
         }
+        logger.log(f"Epoch {epoch + 1}: Predicted weights: {reward_weights}", level="debug")
+        logger.log_weights(reward_weights)
 
-        # Initialize environment
-        env = CustomEnvironment(
+        # Create environment with predicted difficulty
+        env_wrappable = CustomEnvironment(
             number_of_agents=num_agents,
             agent_money=agent_money,
             reward_weights=reward_weights,
@@ -388,9 +393,13 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
             vis_configs=visualization_configs
         )
 
+        env = PettingZooWrapper(env=env_wrappable)
+        logger.log(f"Environment created with weights {reward_weights}.", level="debug")
+
         # Reset environment
-        initial_state, _ = env.reset(episode=0)
-        mrx_features = initial_state['MrX']['node_features']
+        mrx_key = 'MrX'
+        initial_state = env.reset(episode=0)
+        mrx_features = initial_state[mrx_key]['observation']['node_features']
 
         # Extract dimensions
         feature_dim = mrx_features.shape[1]
@@ -433,7 +442,8 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
         )
         # Training episodes
         for episode in range(args.num_episodes):
-            state, _ = env.reset(episode=episode)
+            logger.log(f"Epoch {epoch + 1}, Episode {episode + 1} started.", level="info")
+            state = env.reset(episode=episode)
             done = False
             total_reward = 0
 
@@ -443,12 +453,8 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                 actions = []
                 log_probs = []
 
-                # Process MrX
-                mrx_key = 'MrX'
-                mrx_pos = env.MrX_pos
-
                 # Get node features for MrX's current node
-                mrx_node_features = state[mrx_key]['node_features'][mrx_pos]
+                mrx_node_features = state[mrx_key]['observation']['MrX_pos']
                 mrx_obs = torch.tensor(mrx_node_features, dtype=torch.float32, device=device)
 
                 # Get valid moves for MrX
@@ -476,11 +482,8 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                 for police_idx in range(num_agents):
                     agent_key = f'Police{police_idx}'
 
-                    # Get police position
-                    police_pos = env.police_positions[police_idx]
-
                     # Get node features for police's current node
-                    police_node_features = state[agent_key]['node_features'][police_pos]
+                    police_node_features = state[agent_key]['observation']['Polices_pos']
                     police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
 
                     # Get valid moves for this police agent
@@ -509,26 +512,37 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                     'MrX': actions[0],
                     **{f'Police{i}': actions[i + 1] for i in range(num_agents)}
                 }
-
+                for obj_id, act in agent_actions.items():
+                    if act is not None:
+                        state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
 
                 # Take environment step
-                next_state, reward_dict, term_dict, trunc_dict, _, _ = env.step(agent_actions)
-                done = term_dict.get('Police0', False) or all(trunc_dict.values())
+                next_state = env.step(state)['next']
+
+                rewards = {agent_id: next_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
+                terminations = {agent_id: next_state[agent_id]['terminated'].squeeze() for agent_id in
+                                env.possible_agents}
+                truncation = {agent_id: next_state[agent_id]['truncated'].squeeze() for agent_id in env.possible_agents}
+                logger.log(
+                    f"Executed actions. Rewards: {rewards}, Terminations: {terminations}, Truncations: {truncation}",
+                    level="debug")
+
+                done = terminations.get('Police0', False) or all(truncation.values())
+                logger.log(f"Episode done: {done}", level="debug")
 
                 # Extract rewards and dones for all agents
-                rewards = [reward_dict.get('MrX', 0.0)] + [reward_dict.get(f'Police{i}', 0.0) for i in
+                rewards = [rewards.get('MrX', 0.0)] + [rewards.get(f'Police{i}', 0.0) for i in
                                                            range(num_agents)]
-                dones = [term_dict.get('MrX', False) or trunc_dict.get('MrX', False)] + \
-                        [term_dict.get(f'Police{i}', False) or trunc_dict.get(f'Police{i}', False) for i in
+                dones = [terminations.get('MrX', False) or truncation.get('MrX', False)] + \
+                        [terminations.get(f'Police{i}', False) or truncation.get(f'Police{i}', False) for i in
                          range(num_agents)]
 
                 # Create global observation
                 processed_obs_list = []
                 for obs in obs_list:
-                    if obs.ndim == 1:
-                        processed_obs_list.append(obs.unsqueeze(0))
-                    else:
-                        processed_obs_list.append(obs)
+                    obs = obs.squeeze()
+                    obs = obs.unsqueeze(0)
+                    processed_obs_list.append(obs)
 
                 global_obs = torch.cat(processed_obs_list)
 
@@ -553,16 +567,13 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
         # Evaluation loop
         wins = 0
         for eval_ep in range(args.num_eval_episodes):
-            state, _ = env.reset(episode=eval_ep)
+            state = env.reset(episode=eval_ep)
             done = False
 
             while not done:
                 actions = []
 
-                # Process MrX in evaluation mode
-                mrx_key = 'MrX'
-                mrx_pos = env.MrX_pos
-                mrx_node_features = state[mrx_key]['node_features'][mrx_pos]
+                mrx_node_features = state[mrx_key]['observation']['MrX_pos']
                 mrx_obs = torch.tensor(mrx_node_features, dtype=torch.float32, device=device)
 
                 possible_moves = env.get_possible_moves(0)
@@ -577,8 +588,7 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                 # Process Police agents in evaluation mode
                 for police_idx in range(num_agents):
                     agent_key = f'Police{police_idx}'
-                    police_pos = env.police_positions[police_idx]
-                    police_node_features = state[agent_key]['node_features'][police_pos]
+                    police_node_features = state[agent_key]['observation']['Polices_pos']
                     police_obs = torch.tensor(police_node_features, dtype=torch.float32, device=device)
 
                     possible_moves = env.get_possible_moves(police_idx + 1)
@@ -595,8 +605,22 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
                     **{f'Police{i}': actions[i + 1] for i in range(num_agents)}
                 }
 
-                next_state, reward_dict, term_dict, trunc_dict, winner, _ = env.step(agent_actions)
-                done = term_dict.get('Police0', False) or all(trunc_dict.values())
+                for obj_id, act in agent_actions.items():
+                    if act is not None:
+                        state[obj_id]["action"] = torch.tensor([act], dtype=torch.int64)
+
+                # Take environment step
+                next_state = env.step(state)['next']
+
+                rewards = {agent_id: next_state[agent_id]['reward'].squeeze() for agent_id in env.possible_agents}
+                terminations = {agent_id: next_state[agent_id]['terminated'].squeeze() for agent_id in
+                                env.possible_agents}
+                truncation = {agent_id: next_state[agent_id]['truncated'].squeeze() for agent_id in env.possible_agents}
+                winner = env.current_winner
+                logger.log(f"Executed actions. Rewards: {rewards}, Terminations: {terminations}, Truncations: {truncation}",level="debug")
+
+                done = terminations.get('Police0', False) or all(truncation.values())
+                logger.log(f"Episode done: {done}", level="debug")
                 state = next_state
 
                 if done and winner == 'MrX':
