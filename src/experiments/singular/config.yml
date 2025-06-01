@@ -11,4 +11,4 @@ epochs: 5
 wandb_run_name: 'singular'
 wandb_resume: false
 random_seed: 42
-evaluate: True
+evaluate: False
