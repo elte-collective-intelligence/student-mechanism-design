@@ -5,4 +5,5 @@ RUN gcc --version
 RUN dos2unix /app/run_main.sh
 RUN chmod a+x /app/run_main.sh
 RUN chmod a+x ./run_main.sh
+ENV PYTHONPATH=/app/src
 ENTRYPOINT ["/app/run_main.sh"]
