@@ -95,8 +95,8 @@ GNNs enhance the system by:
 Clone the repository and install the required dependencies using [Docker](https://www.docker.com/):
 
 ```bash
-git clone https://github.com/elte-collective-intelligence/Mechanism-Design.git
-cd Mechanism-Design
+git clone https://github.com/elte-collective-intelligence/student-mechanism-design.git
+cd student-mechanism-design
 ```
 Build base image:
 ```bash
@@ -139,9 +139,9 @@ If you want to use wandb to log your experiments, dont forget to set the credent
 
 ### Config flags
 
-1. --agent_configs
-2. --log_configs
-3. --vis_configs
+1. --agent_configs=mappo
+2. --log_configs=verbose
+3. --vis_configs=default
 
 ## Contributing
 
