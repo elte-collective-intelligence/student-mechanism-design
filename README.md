@@ -92,20 +92,12 @@ GNNs enhance the system by:
 
 ## Installation
 
-Clone the repository and install the required dependencies using [apptainer](https://apptainer.org/):
+Clone the repository and install the required dependencies using [Docker](https://www.docker.com/):
 
 ```bash
 git clone https://github.com/elte-collective-intelligence/Mechanism-Design.git
 cd Mechanism-Design
-./build.sh
 ```
-
-This should build the apptainer image. 
-
-## Usage
-
-### Docker support
-
 Build base image:
 ```bash
 docker build --progress plain -f ./docker/BaseDockerfile -t student_mechanism_design_base .
@@ -114,43 +106,42 @@ Build main image:
 ```bash
 docker build --progress plain -f ./docker/Dockerfile -t student_mechanism_design .
 ```
-Run image (-rm deletes the container after its execution):
+This should build the Docker images. 
+
+## Usage
+
+### Docker support
+
+Run experiment:
 ```bash
-docker run --rm --gpus=all --mount type=bind,src=$PWD/src/,dst=/app/src student_mechanism_design "<experiment-name>"
+docker run --rm --gpus=all --mount type=bind,src=$PWD/src/,dst=/app/src student_mechanism_design <experiment> <flags>
+```
+
+Run unit tests:
+```bash
+docker run --rm --gpus=all --mount type=bind,src=$PWD,dst=/app student_mechanism_design --unit_test
 ```
 
 ### Wandb config
 
-If you want to use wandb to log your experiments, dont forget to set the enviromental variables:
-1. WANDB_PROJECT
-2. WANDB_ENTITY
-3. WANDB_API_KEY
-
+If you want to use wandb to log your experiments, dont forget to set the credentials in wandb_data.json, leave them as "null" to disable Wandb logging:
+```json
+{
+    "wandb_api_key":"<api-key>",
+    "wandb_project":"<project-name>",
+    "wandb_entity":"<entity-name>"
+}
+```
 ### Experiment config
 
 1. In the experiment folder, create a folder with the name of you experiment.
 2. Add a config.yml file to it, with the required configurations (there are examples)
 
-### Run one experiment
-Start the training with one experiment:
+### Config flags
 
-```bash
-./run.sh name-of-experiment
-```
-
-### Run all experiment
-Start the training with every experiments defined in the experiment folder:
-
-```bash
-./run_all_experiments.sh
-```
-
-### Visualization
-If you want to evaluate the policies, with visualized graphs add the 
-
-```yml
-evaluate=True
-```
+1. --agent_configs
+2. --log_configs
+3. --vis_configs
 
 ## Contributing
 
