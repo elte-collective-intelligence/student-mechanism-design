@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This repository presents a meta-learning approach for reinforcement learning (RL) environments, leveraging Multi Agent Proximal Policy Optimization (MAPPO) (and Graph Neural Networks (GNNs)) to enable dynamic adaptability. The project emphasizes multi-agent setups where agents collaboratively learn optimal policies, focusing on flexibility, shared information, and environment-aware strategies.
+This repository presents a meta-learning approach for reinforcement learning (RL) environments, leveraging Multi-Agent Proximal Policy Optimization (MAPPO) (and Graph Neural Networks (GNNs)) to enable dynamic adaptability. The project emphasizes multi-agent setups where agents collaboratively learn optimal policies, focusing on flexibility, shared information, and environment-aware strategies.
 
 ## Overview
 
@@ -126,7 +126,7 @@ This should build the Docker images.
 
 Run experiment:
 ```bash
-docker run --rm --gpus=all --mount type=bind,src=$PWD/src/,dst=/app/src student_mechanism_design <experiment> <flags>
+docker run --rm --gpus=all --mount type=bind,src=$PWD,dst=/app student_mechanism_design <experiment> <flags>
 ```
 
 Run unit tests:
