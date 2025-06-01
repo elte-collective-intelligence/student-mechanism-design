@@ -12,7 +12,7 @@ The project aims to equip RL agents with the ability to adapt to varying task di
 
 - **Meta-Learning**: Dynamically balances success and failure rates to achieve a 50/50 outcome.
 - **Graph Neural Networks**: Models agent relationships, enabling enhanced real-time adaptability.
-- **MAPPO**:
+- **MAPPO**: Implements centralized training with decentralized execution, combining per-agent policies with a shared global critic for stable multi-agent learning.
 - **Multi-Agent Policies**: Develops specialized strategies for distinct roles.
 - **Dynamic Environment**: Adjusts parameters like agent count and resources to ensure evolving difficulty.
 - **Shared Policemen Policy**: Unifies strategies across agents for improved coordination.
@@ -45,6 +45,9 @@ GNNs enhance the system by:
 
 ### MAPPO Integration
 
+- **Centralized Critic:** A shared CentralCritic evaluates the joint state across all agents, providing consistent advantage estimates.
+- **Decentralized Actors:** Each agent is equipped with an individual AgentPolicy, enabling independent action selection during execution.
+- **Clipped PPO Updates:** Stability is ensured via clipped surrogate loss functions that constrain policy updates within trust regions.
 
 
 ### Policies
@@ -55,7 +58,7 @@ GNNs enhance the system by:
 ## Code Structure Overview
 
 - **main.py**  
-  - Contains the main entry point (train and evaluate functions) and the central training loop.  
+  - Contains the main entry point (train and evaluate functions) and the respective training loops.  
   - Sets up the command-line arguments, loads configurations, initializes the logger, environment, and agents.  
   - Implements the logic for either training or evaluating the RL agents based on arguments.  
 
@@ -81,6 +84,8 @@ GNNs enhance the system by:
   - Defines GNNAgent, a DQN-like agent using a GNN (GNNModel) to compute Q-values for graph nodes.  
   - Handles experience replay, epsilon-greedy action selection, and network updates.  
 - **RLAgent/mappo_agent.py**
+  -Implements MappoAgent, a multi-agent PPO-based learner with decentralized policies and a centralized critic.
+  -Includes experience collection, PPO updates with clipping, and multi-agent coordination.
   
 ### Main Training Loop (in main.py, train function)
 
@@ -92,7 +97,7 @@ GNNs enhance the system by:
      - Reset environment, get initial state.  
      - While not done:  
        - Build GNN input (create_graph_data), pick actions (MrX and Police) using the GNN agents.
-       - MAPPO train loop.
+       - Build MAPPO agents, pick actions, update the policies based on the centralized critic.
        - env.step(actions), compute rewards/terminations, update agents.  
    - Evaluate performance (num_eval_episodes), compute target difficulty, backpropagate loss in RewardWeightNet.  
    - Log metrics and proceed to the next epoch.  
