@@ -153,8 +153,6 @@ def train(args,agent_configs,logger_configs,visualization_configs):
             police_agent = GNNAgent(node_feature_size=node_feature_size, device=device, gamma=agent_configs["gamma"], lr=agent_configs["lr"], batch_size=agent_configs["batch_size"],buffer_size=agent_configs["buffer_size"],epsilon=agent_configs["epsilon"],epsilon_decay=agent_configs["epsilon_decay"],epsilon_min=agent_configs["epsilon_min"])
             if logger.model_exists(Police_model_name):
                 police_agent.load_state_dict(logger.load_model(Police_model_name), strict=False)
-        elif agent_configs["agent_type"] == "mappo":
-            pass
         else:
             police_agent = RandomAgent()
         logger.log("GNN agents for MrX and Police initialized.",level="debug")
