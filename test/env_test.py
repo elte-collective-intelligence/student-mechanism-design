@@ -4,6 +4,7 @@ import torch, sys, os
 from dataclasses import dataclass
 
 from torchrl.envs.libs.pettingzoo import PettingZooWrapper
+from tensordict import TensorDict
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
@@ -12,9 +13,10 @@ from logger import Logger
 from reward_net import RewardWeightNet
 
 
+
 @dataclass
 class DummyArgs:
-    num_agents: int = 5
+    num_agents: int = 2
     agent_money: int = 10
     graph_nodes: int = 15
     graph_edges: int = 20
@@ -40,26 +42,31 @@ def test_env_reset_does_not_throw():
     except Exception as e:
         assert False, f"env.reset() raised an exception: {e}"
 
-# def test_env_step_does_not_throw():
-#     args = DummyArgs()
-#     env_wrappable = CustomEnvironment(
-#         number_of_agents=args.num_agents,
-#         agent_money=args.agent_money,
-#         reward_weights=reward_weights(args),
-#         logger=logger,
-#         epoch=0,
-#         graph_nodes=args.graph_nodes,
-#         graph_edges=args.graph_edges,
-#         vis_configs=vis_conf
-#     )
-#     env = PettingZooWrapper(env=env_wrappable)
-#     env.reset()
-#     agent = next(iter(env.agent_iter()))
-#     action = env.action_space(agent).sample()
-#     try:
-#         env.step(action)
-#     except Exception as e:
-#         assert False, f"env.step() raised an exception: {e}"
+def test_env_step_does_not_throw():
+    args = DummyArgs()
+    env_wrappable = CustomEnvironment(
+        number_of_agents=args.num_agents,
+        agent_money=args.agent_money,
+        reward_weights=reward_weights(args),
+        logger=logger,
+        epoch=0,
+        graph_nodes=args.graph_nodes,
+        graph_edges=args.graph_edges,
+        vis_configs=vis_conf
+    )
+    env = PettingZooWrapper(env=env_wrappable)
+    action = env.reset()
+    # agent = next(iter(env.agent_iter()))
+    # action_value = env.action_space('MrX').sample()
+    agent_ids = ['MrX', 'Police0', 'Police1']
+
+    for id in agent_ids:
+        action[id]["action"] = torch.tensor([-1], dtype=torch.int64)
+
+    try:
+        env.step(action)
+    except Exception as e:
+        assert False, f"env.step() raised an exception: {e}"
 
 def reward_weights(args):
     reward_weight_net = RewardWeightNet()
