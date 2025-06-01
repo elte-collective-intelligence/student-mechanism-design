@@ -136,6 +136,7 @@ class CustomEnvironment(BaseEnvironment):
                 if police_action is None or int(self.agents_money[police_index+1]) == 0 or police_action == self.DEFAULT_ACTION:
                     continue
                 is_no_money = False
+                #TODO: all police blocked
                 if police_action in possible_positions:
                     pos_to_go = police_action
                     self.logger.log(f"{police} moves to position {pos_to_go}", level="debug")
