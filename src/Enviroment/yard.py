@@ -8,6 +8,7 @@ import networkx as nx
 from gymnasium.spaces import Discrete, MultiDiscrete, Graph, Box, Dict, MultiBinary
 from Enviroment.base_env import BaseEnvironment
 from Enviroment.graph_layout import ConnectedGraph
+from collections import defaultdict
 from tensordict import TensorDict
 import time
 import cv2 as cv
@@ -54,6 +55,7 @@ class CustomEnvironment(BaseEnvironment):
         self.avg_distance = 0
         self.run_images = []
         self.heatmap_images = []
+        self.node_visit_counts = defaultdict(int)
         self.reset()
         self.epoch = epoch
         self.episode = 0
@@ -64,6 +66,7 @@ class CustomEnvironment(BaseEnvironment):
         Reset the environment to its initial state.
         """
         self.episode = episode
+        self.node_visit_counts.clear()
         self.board = self.observation_graph.sample(num_nodes=self.graph_nodes, num_edges=self.graph_edges)
         self.heatmap = self.board
         self.logger.log("Resetting the environment.", level="debug")
@@ -153,7 +156,8 @@ class CustomEnvironment(BaseEnvironment):
                     self.logger.log(log_msg, level="debug")
                 else:
                     self.logger.log(f"{police} move blocked by another police at position {pos_to_go}, ",level="debug")
-
+        for pos in self.police_positions:
+            self.node_visit_counts[pos] += 1
         # Compute rewards and check termination/truncation
         rewards, terminations, truncations, winner = self._calculate_rewards_terminations(is_no_money)
         self.current_winner = winner
@@ -290,13 +294,34 @@ class CustomEnvironment(BaseEnvironment):
                 if i != j
             )
             position_penalty = len(self._get_possible_moves(police_pos,i)[0])
-            self.logger.log(f"{police} distance to MrX: {distance_to_mrX}, group penalty: {group_penalty}, position penalty: {position_penalty}, ", level="debug")
+            time_penalty = 0.05 * self.timestep
+
+            overlap_penalty = sum(
+                1.0 for j, other_police_pos in enumerate(self.police_positions)
+                if i != j and self.get_distance(police_pos, other_police_pos) <= 1
+            )
+
+            proximity_score = sum(
+                np.exp(-self.get_distance(police_pos, other_police_pos))
+                for j, other_police_pos in enumerate(self.police_positions)
+                if i != j and self.get_distance(police_pos, other_police_pos) > 1
+            )
+
+            visit_count = self.node_visit_counts[police_pos]
+            coverage_reward = np.exp(-np.log1p(visit_count))
+
+            self.logger.log(f"{police} distance to MrX: {distance_to_mrX}, group penalty: {group_penalty}, position penalty: {position_penalty}, overlap penalty: {overlap_penalty}, proximity score: {proximity_score}, ",level="debug")
+
+
 
             police_reward = (
                 self.reward_weights["Police_distance"] * (np.exp(-distance_to_mrX))  # Distance reward
                 + self.reward_weights["Police_group"] * (group_penalty)  # Grouping penalty
                 + self.reward_weights["Police_position"] * (position_penalty)  # Position reward
                 + (1 - self.reward_weights["Police_time"]) * (0.05 * self.timestep)  # Time penalty
+                + self.reward_weights["Police_proximity"] * proximity_score  # Proximity reward
+                - self.reward_weights["Police_overlap_penalty"] * overlap_penalty  # Overlap penalty
+                + self.reward_weights["Police_coverage"] * coverage_reward  # Coverage reward
             )
             rewards[police] = police_reward
             self.logger.log(f"{police} reward: {police_reward}, ", level="debug")
@@ -312,6 +337,9 @@ class CustomEnvironment(BaseEnvironment):
             self.logger.log_scalar(f'episode/epoch_{self.epoch}/{police}_position_reward', position_reward_police)
             self.logger.log_scalar(f'episode/epoch_{self.epoch}/{police}_time_penalty', time_penalty_police)
             self.logger.log_scalar(f'episode/epoch_{self.epoch}/{police}_total_reward', police_reward)
+            self.logger.log_scalar(f'episode/epoch_{self.epoch}/{police}_coverage_reward', coverage_reward)
+            self.logger.log_scalar(f'episode/epoch_{self.epoch}/{police}_proximity_score', proximity_score)
+            self.logger.log_scalar(f'episode/epoch_{self.epoch}/{police}_overlap_penalty', overlap_penalty)
 
         self.logger.log(f"All rewards calculated: {rewards}, ", level="debug")
         return rewards
