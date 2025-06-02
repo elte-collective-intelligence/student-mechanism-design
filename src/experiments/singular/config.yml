@@ -5,10 +5,10 @@ agent_configurations:
     agent_money: 60
 graph_edges: 190
 graph_nodes: 100
-num_episodes: 1
-num_eval_episodes: 2
-epochs: 2
+num_episodes: 10
+num_eval_episodes: 4
+epochs: 20
 wandb_run_name: 'singular'
 wandb_resume: false
 random_seed: 42
-evaluate: True
+evaluate: false
