@@ -1,6 +1,57 @@
-*.sif
+# Python bytecode files
 __pycache__/
+*.py[cod]
+
+# Virtual environment
+.venv/
+env/
+venv/
+
+# Nox-related files
+.nox/
+
+# Pytest cache
+.cache/
+
+# Mypy cache
+.mypy_cache/
+
+# IDE/editor config files
+.idea/
+.vscode/
+
+# OS-specific files (macOS)
+.DS_Store
+
+# OS-specific files (Windows)
+Thumbs.db
+*.bak
+*.swp
+
+# Egg info and distribution files
+*.egg-info/
+*.dist-info/
+build/
+dist/
+
+# Log files
+*.log
+
+# Coverage reports
+*.coverage
+.coverage.*
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# pytest results
+*.xml
+
+# pycache
+__pycache__/
+*.py[cod]
+
+# logs/outputs
 logs/
-.env
-ci/
-*.json
+outputs/
+wandb/
