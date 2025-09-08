@@ -1,1 +1,0 @@
-apptainer build scyard.sif Singularity.def
