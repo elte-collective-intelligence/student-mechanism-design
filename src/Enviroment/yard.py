@@ -229,9 +229,8 @@ class CustomEnvironment(BaseEnvironment):
                 "Polices_pos": self.police_positions[:],  # All police positions
                 "Currency": self.agents_money[1:],  # All police money
                 "action_mask": mask_result.mask,  # Boolean mask over nodes
-                "valid_actions": mask_result.valid_actions,  # List of valid node indices
                 "agent_position": agent_pos,
-                "agent_budget": agent_budget,
+                "agent_budget": np.array([agent_budget], dtype=np.float32),  # As array for Box space
             }
         
         self.logger.log("Graph observations generated., ",level="debug")
@@ -564,24 +563,20 @@ class CustomEnvironment(BaseEnvironment):
     @functools.lru_cache(maxsize=None)
     def action_space(self, agent):
         """
-        Define the action space for a given agent based on the number of neighboring nodes
-        that the agent can afford to move to.
+        Define the action space for a given agent.
+        
+        The action space is Discrete(num_nodes) where action i corresponds to moving
+        to node i. Invalid actions are masked via the action_mask in observations.
+        This ensures a FIXED index→node mapping as required by the assignment.
         
         Args:
             agent (str): Name of the agent.
             
         Returns:
-            gymnasium.spaces.Discrete: The action space representing the number of possible moves.
+            gymnasium.spaces.Discrete: The action space representing all nodes.
         """
-        agent_idx = self.agents.index(agent)
-        possible_moves = self.get_possible_moves(agent_idx)
-        num_actions = len(possible_moves)
-        
-        # If there are no possible moves, define a single action (e.g., stay in place)
-        if num_actions == 0:
-            return Discrete(1)
-        else:
-            return Discrete(num_actions)
+        num_nodes = self.board.nodes.shape[0]
+        return Discrete(num_nodes)
 
 
 
@@ -592,23 +587,28 @@ class CustomEnvironment(BaseEnvironment):
         """
         self.logger.log(f"Defining observation space for agent {agent}., ",level="debug")
         node_features_dim = self.number_of_agents + 1  # MrX + police agents
-        adjacency_matrix_shape = (self.board.nodes.shape[0], self.board.nodes.shape[0])
+        num_nodes = self.board.nodes.shape[0]
+        adjacency_matrix_shape = (num_nodes, num_nodes)
         space = Dict({
             "adjacency_matrix": Box(
                 low=0.0, high=1.0, shape= adjacency_matrix_shape, dtype=np.int64
             ),
             "node_features": Box(
-                low=0.0, high=1.0, shape=(self.board.nodes.shape[0], node_features_dim), dtype=np.int64
+                low=0.0, high=1.0, shape=(num_nodes, node_features_dim), dtype=np.int64
             ),
             "edge_index": Box(
-                low=0, high=self.board.nodes.shape[0], shape=(2, self.board.edge_links.shape[0]), dtype=np.int32  
+                low=0, high=num_nodes, shape=(2, self.board.edge_links.shape[0]), dtype=np.int32  
             ),
             "edge_features": Box(
                 low=0, high=ConnectedGraph.MAX_WEIGHT, shape=(self.board.edges.shape[0],), dtype=np.int32  
             ),
-            "MrX_pos": Discrete(self.board.nodes.shape[0]), 
-            "Polices_pos": MultiDiscrete([self.board.nodes.shape[0]] * (self.number_of_agents-1)), 
-            "Currency": MultiDiscrete([self.agent_money+1] * (self.number_of_agents-0))  
+            "MrX_pos": Discrete(num_nodes), 
+            "Polices_pos": MultiDiscrete([num_nodes] * self.number_of_agents),  # number of police agents
+            "Currency": MultiDiscrete([self.agent_money+1] * self.number_of_agents),  # number of police agents
+            # Action mask fields - fixed index→node mapping
+            "action_mask": MultiBinary(num_nodes),  # Boolean mask over nodes
+            "agent_position": Discrete(num_nodes),
+            "agent_budget": Box(low=0.0, high=MAX_MONEY_LIMIT, shape=(1,), dtype=np.float32),
         })
         self.logger.log(f"Observation space for agent {agent}: {space}, ",level="debug")
         return space

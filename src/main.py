@@ -32,7 +32,7 @@ class RewardWeightNet(nn.Module):
         return torch.sigmoid(x)
 def create_curriculum(num_epochs, base_graph_nodes,base_graph_edges, base_money,curriculum_range):
     if num_epochs <= 1:
-        return np.asarray([base_graph_nodes]),np.asarray([base_graph_edges])
+        return np.asarray([base_graph_nodes]),np.asarray([base_graph_edges]),np.asarray([base_money])
     node_curriculum = np.arange(base_graph_nodes - curriculum_range * base_graph_nodes,base_graph_nodes + curriculum_range * base_graph_nodes + 1,((base_graph_nodes + curriculum_range * base_graph_nodes) - (base_graph_nodes - curriculum_range * base_graph_nodes))/max(num_epochs-1,1))
     edge_curriculum = np.arange(base_graph_edges - curriculum_range * base_graph_edges,base_graph_edges + curriculum_range * base_graph_edges + 1,((base_graph_edges + curriculum_range * base_graph_edges) - (base_graph_edges - curriculum_range * base_graph_edges))/max(num_epochs-1,1))
     money_curriculum = np.arange(base_money + curriculum_range * base_money,base_money - curriculum_range * base_money - 1,-((base_money + curriculum_range * base_money) - (base_money - curriculum_range * base_money))/max(num_epochs-1,1))

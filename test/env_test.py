@@ -81,6 +81,10 @@ def reward_weights(args):
         "Mrx_closest": predicted_weight[0, 4],
         "Mrx_average": predicted_weight[0, 5],
         "Mrx_position": predicted_weight[0, 6],
-        "Mrx_time": predicted_weight[0, 7]
+        "Mrx_time": predicted_weight[0, 7],
+        # Additional reward weights needed by the environment
+        "Police_proximity": 0.0,
+        "Police_overlap_penalty": 0.0,
+        "Police_coverage": 0.0,
     }
     return reward_weights
