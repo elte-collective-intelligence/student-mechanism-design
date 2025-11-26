@@ -1,0 +1,6 @@
+police_budget: 10
+reveal_interval: 5
+reveal_probability: 0.0
+ticket_price: 1.0
+target_win_rate: 0.5
+secondary_weight: 0.1

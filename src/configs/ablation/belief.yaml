@@ -1,0 +1,10 @@
+variants:
+  - name: no_belief
+    use_learned_belief: false
+    reveal_interval: 0
+  - name: particle_filter
+    use_learned_belief: false
+    reveal_interval: 5
+  - name: learned_encoder
+    use_learned_belief: true
+    reveal_interval: 5
