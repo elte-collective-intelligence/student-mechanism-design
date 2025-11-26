@@ -181,10 +181,11 @@ class CustomEnvironment(BaseEnvironment):
     def _get_graph_observations(self):
         """
         Create graph-based observations for all agents.
-        Includes adjacency matrix, node features, and edge features.
+        Includes adjacency matrix, node features, edge features, and action masks.
         """
         self.logger.log("Generating graph observations., ",level="debug")
         adjacency_matrix = self._get_adjacency_matrix()
+        edge_weight_matrix = self._get_edge_weight_matrix()
         node_features = np.zeros((self.board.nodes.shape[0], self.number_of_agents + 1))
 
         # Encode agent positions as node features
@@ -197,18 +198,42 @@ class CustomEnvironment(BaseEnvironment):
         edge_index = self.board.edge_links.T  # Edge index for GNN (source, target pairs)
         edge_features = self.board.edges  # Edge weights
 
-        observations = {
-            agent: {
+        # Compute action masks for all agents
+        from Enviroment.action_mask import compute_action_mask
+        
+        observations = {}
+        for agent in self.agents:
+            agent_idx = self.agents.index(agent)
+            if agent == "MrX":
+                agent_pos = self.MrX_pos[0]
+                agent_budget = self.agents_money[0]
+            else:
+                police_idx = agent_idx - 1
+                agent_pos = self.police_positions[police_idx]
+                agent_budget = self.agents_money[agent_idx]
+            
+            # Compute action mask with fixed index→node mapping
+            mask_result = compute_action_mask(
+                adjacency=adjacency_matrix,
+                current_node=agent_pos,
+                budget=agent_budget,
+                edge_weights=edge_weight_matrix
+            )
+            
+            observations[agent] = {
                 "adjacency_matrix": adjacency_matrix,
                 "node_features": node_features,
                 "edge_index": edge_index,
                 "edge_features": edge_features,
                 "MrX_pos": self.MrX_pos[0],
-                "Polices_pos" : self.police_positions[1:], # this includes ALL polics pos BOT ONESELF
-                "Currency": self.agents_money[1:] # TODO: this includes ALL police money
+                "Polices_pos": self.police_positions[:],  # All police positions
+                "Currency": self.agents_money[1:],  # All police money
+                "action_mask": mask_result.mask,  # Boolean mask over nodes
+                "valid_actions": mask_result.valid_actions,  # List of valid node indices
+                "agent_position": agent_pos,
+                "agent_budget": agent_budget,
             }
-            for agent in self.agents
-        }
+        
         self.logger.log("Graph observations generated., ",level="debug")
         return observations
 
@@ -458,6 +483,22 @@ class CustomEnvironment(BaseEnvironment):
             adjacency_matrix[edge[1], edge[0]] = 1  # Undirected graph
         self.logger.log("Adjacency matrix generated., ",level="debug")
         return adjacency_matrix
+
+    def _get_edge_weight_matrix(self):
+        """
+        Generate the edge weight matrix of the graph.
+        Returns a matrix where weight_matrix[i,j] is the cost to traverse from node i to j.
+        """
+        num_nodes = self.board.nodes.shape[0]
+        weight_matrix = np.full((num_nodes, num_nodes), np.inf)
+        np.fill_diagonal(weight_matrix, 0)
+        
+        for idx, edge in enumerate(self.board.edge_links):
+            weight = self.board.edges[idx]
+            weight_matrix[edge[0], edge[1]] = weight
+            weight_matrix[edge[1], edge[0]] = weight  # Undirected graph
+        
+        return weight_matrix
 
     def _get_possible_moves(self, pos, agent_idx):
         """
