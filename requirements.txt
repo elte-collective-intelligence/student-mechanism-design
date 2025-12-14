@@ -2,17 +2,13 @@ opencv-python
 numpy
 pillow
 tensorboard
-gym
 gymnasium
 pettingzoo
 scipy
 torch
 torchrl
-torchaudio
-torchvision
 wandb
 matplotlib
 networkx
-torch-geometric
 tensordict
 pytest

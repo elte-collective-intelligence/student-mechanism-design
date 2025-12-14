@@ -1,0 +1,26 @@
+variants:
+  - name: no_mechanism
+    description: "Baseline without any mechanism design"
+    tolls: 0.0
+    police_budget: 1000  # Effectively unlimited
+    reveal_interval: 0  # No reveals
+    reveal_probability: 0.0
+    ticket_price: 0.0
+    
+  - name: fixed_mechanism
+    description: "Fixed mechanism parameters (hand-tuned)"
+    tolls: 1.0
+    police_budget: 15
+    reveal_interval: 5
+    reveal_probability: 0.0
+    ticket_price: 1.0
+    
+  - name: meta_learned
+    description: "Meta-learned mechanism parameters"
+    tolls: null  # Learned
+    police_budget: null  # Learned
+    reveal_interval: null  # Learned
+    reveal_probability: null  # Learned
+    ticket_price: null  # Learned
+    use_meta_learning: true
+    target_win_rate: 0.5
