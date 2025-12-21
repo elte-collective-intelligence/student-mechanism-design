@@ -11,7 +11,9 @@ from mechanism.mechanism_config import MechanismConfig
 def apply_mechanism_to_env(env, mechanism: MechanismConfig):
     """Attach mechanism parameters to an existing environment instance."""
     if hasattr(env, "agents_money"):
-        env.agents_money = [env.agents_money[0]] + [mechanism.police_budget for _ in env.police_positions]
+        env.agents_money = [env.agents_money[0]] + [
+            mechanism.police_budget for _ in env.police_positions
+        ]
     env.mechanism_config = mechanism
     return env
 

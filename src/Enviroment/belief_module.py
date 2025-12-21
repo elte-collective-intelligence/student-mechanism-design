@@ -30,7 +30,9 @@ class BeliefState:
             particle_weights = np.ones_like(self.weights) / len(self.weights)
         else:
             particle_weights = self.weights / self.weights.sum()
-        node_probs = np.bincount(self.particles, weights=particle_weights, minlength=self.num_nodes)
+        node_probs = np.bincount(
+            self.particles, weights=particle_weights, minlength=self.num_nodes
+        )
         if node_probs.sum() == 0:
             return np.ones(self.num_nodes) / self.num_nodes
         return node_probs / node_probs.sum()
@@ -39,21 +41,37 @@ class BeliefState:
 class ParticleBeliefTracker:
     """Minimal particle filter for tracking MrX over a graph."""
 
-    def __init__(self, num_nodes: int, num_particles: int = 128, rng: np.random.Generator | None = None):
+    def __init__(
+        self,
+        num_nodes: int,
+        num_particles: int = 128,
+        rng: np.random.Generator | None = None,
+    ):
         self.num_nodes = num_nodes
         self.num_particles = num_particles
         self.rng = rng or np.random.default_rng()
         particles = self.rng.integers(0, num_nodes, size=num_particles)
         weights = np.ones(num_particles) / num_particles
-        self.state = BeliefState(particles=particles, weights=weights, num_nodes=num_nodes)
+        self.state = BeliefState(
+            particles=particles, weights=weights, num_nodes=num_nodes
+        )
 
     def reset(self, mr_x_position: int | None = None):
         particles = self.rng.integers(0, self.num_nodes, size=self.num_particles)
         if mr_x_position is not None:
             particles[:] = mr_x_position
-        self.state = BeliefState(particles=particles, weights=np.ones(self.num_particles) / self.num_particles, num_nodes=self.num_nodes)
+        self.state = BeliefState(
+            particles=particles,
+            weights=np.ones(self.num_particles) / self.num_particles,
+            num_nodes=self.num_nodes,
+        )
 
-    def update(self, adjacency: np.ndarray, observation_hint: List[int] | None = None, reveal: int | None = None) -> np.ndarray:
+    def update(
+        self,
+        adjacency: np.ndarray,
+        observation_hint: List[int] | None = None,
+        reveal: int | None = None,
+    ) -> np.ndarray:
         """Advance the belief one step.
 
         Args:
@@ -87,7 +105,9 @@ class ParticleBeliefTracker:
             likelihoods = 0.1 + 0.9 * hint_mask[particles]
             weights *= likelihoods
 
-        self.state = BeliefState(particles=particles, weights=weights, num_nodes=self.num_nodes)
+        self.state = BeliefState(
+            particles=particles, weights=weights, num_nodes=self.num_nodes
+        )
         return self.state.distribution()
 
 

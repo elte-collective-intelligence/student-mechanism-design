@@ -6,8 +6,21 @@ import numpy as np
 from collections import deque
 from RLAgent.base_agent import BaseAgent
 
+
 class DQNAgent(BaseAgent):
-    def __init__(self, state_size, action_size, hidden_size=64, gamma=0.99, lr=1e-3, batch_size=64, buffer_size=10000, epsilon=1.0, epsilon_decay=0.995, epsilon_min=0.01):
+    def __init__(
+        self,
+        state_size,
+        action_size,
+        hidden_size=64,
+        gamma=0.99,
+        lr=1e-3,
+        batch_size=64,
+        buffer_size=10000,
+        epsilon=1.0,
+        epsilon_decay=0.995,
+        epsilon_min=0.01,
+    ):
         """
         Deep Q-Network Agent with Experience Replay and Epsilon-Greedy policy.
         Args:
@@ -32,16 +45,16 @@ class DQNAgent(BaseAgent):
 
         # Experience replay buffer
         self.memory = deque(maxlen=buffer_size)
-        
+
         # Q-Network
         self.model = nn.Sequential(
             nn.Linear(state_size, hidden_size),
             nn.ReLU(),
             nn.Linear(hidden_size, hidden_size),
             nn.ReLU(),
-            nn.Linear(hidden_size, action_size)
+            nn.Linear(hidden_size, action_size),
         )
-        
+
         # Optimizer
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         self.criterion = nn.MSELoss()
@@ -55,8 +68,8 @@ class DQNAgent(BaseAgent):
             valid_actions = np.where(action_mask)[0]
             return random.choice(valid_actions)
         else:
-            observation = torch.FloatTensor([observation]).view(1, 1) 
-            q_values = self.model(observation).detach().numpy().flatten()  
+            observation = torch.FloatTensor([observation]).view(1, 1)
+            q_values = self.model(observation).detach().numpy().flatten()
             valid_actions = np.where(action_mask == 1)[0]
             if len(valid_actions) == 0:
                 raise ValueError("No valid actions available.")
@@ -65,14 +78,13 @@ class DQNAgent(BaseAgent):
             selected_action = valid_actions[max_idx]
             return selected_action
 
-
     def update(self, state, action, reward, next_state, done):
         """
         Stores experience in replay memory and updates Q-network.
         """
         # Add experience to memory
         self.memory.append((state, action, reward, next_state, done))
-        
+
         # Start learning if memory has enough samples
         if len(self.memory) < self.batch_size:
             return
@@ -85,16 +97,18 @@ class DQNAgent(BaseAgent):
         states = torch.FloatTensor(states).view(self.batch_size, self.state_size)
         actions = torch.LongTensor(actions)
         rewards = torch.FloatTensor(rewards)
-        next_states = torch.FloatTensor(next_states).view(self.batch_size, self.state_size)
+        next_states = torch.FloatTensor(next_states).view(
+            self.batch_size, self.state_size
+        )
         dones = torch.FloatTensor(dones)
 
         # Q values for current states
         q_values = self.model(states).gather(1, actions.unsqueeze(1)).squeeze(1)
-        
+
         # Target Q values
         next_q_values = self.model(next_states).max(1)[0]
         target_q_values = rewards + (self.gamma * next_q_values * (1 - dones))
-        
+
         # Compute loss
         loss = self.criterion(q_values, target_q_values.detach())
 

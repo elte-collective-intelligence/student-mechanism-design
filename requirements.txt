@@ -9,6 +9,9 @@ torch
 torchrl
 wandb
 matplotlib
+seaborn
 networkx
 tensordict
 pytest
+torch_geometric
+pyyaml

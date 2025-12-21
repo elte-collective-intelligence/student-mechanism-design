@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class RewardWeightNet(nn.Module):
     def __init__(self, input_size=4, hidden_size=32, output_size=8):
         super(RewardWeightNet, self).__init__()
@@ -12,4 +13,4 @@ class RewardWeightNet(nn.Module):
         x = self.fc1(x)
         x = self.relu(x)
         x = self.fc2(x)
-        return torch.sigmoid(x) 
+        return torch.sigmoid(x)

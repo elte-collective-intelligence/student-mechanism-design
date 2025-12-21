@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from pettingzoo import ParallelEnv
 
+
 class BaseEnvironment(ParallelEnv, ABC):
     """Abstract base class for custom environments."""
 

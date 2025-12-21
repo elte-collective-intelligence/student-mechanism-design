@@ -3,8 +3,10 @@ from gymnasium.spaces import Graph, Box, Discrete
 import numpy as np
 import networkx as nx
 
+
 class ConnectedGraph(Graph):
     MAX_WEIGHT = 5
+
     def sample(self, mask=None, num_nodes=10, num_edges=None, max_edges_per_node=4):
         # Remove all initial edges
         graph_json = {"nodes": list(range(num_nodes)), "edge_links": [], "edges": []}
@@ -31,22 +33,26 @@ class ConnectedGraph(Graph):
 
             cnt = 1
             for edge in possible_edges:
-                cnt+=1
+                cnt += 1
                 if extra_edges <= 0:
                     break
 
                 # Check the max_edges_per_node constraint
                 if (
-                    sum([1 for e in graph_json["edge_links"] if edge[0] in e]) < max_edges_per_node
-                    and sum([1 for e in graph_json["edge_links"] if edge[1] in e]) < max_edges_per_node
+                    sum([1 for e in graph_json["edge_links"] if edge[0] in e])
+                    < max_edges_per_node
+                    and sum([1 for e in graph_json["edge_links"] if edge[1] in e])
+                    < max_edges_per_node
                 ):
                     graph_json["edge_links"].append(edge)
                     graph_json["edges"].append(np.random.randint(1, self.MAX_WEIGHT))
                     extra_edges -= 1
 
         if num_edges is not None:
-            assert(len(graph_json["edge_links"]) == num_edges), f"The graph generated has a wrong number of edges: {len(graph_json['edge_links'])}, not {num_edges}"
-        
+            assert (
+                len(graph_json["edge_links"]) == num_edges
+            ), f"The graph generated has a wrong number of edges: {len(graph_json['edge_links'])}, not {num_edges}"
+
         return self.from_jsonable([graph_json])[0]
 
     def _create_tree(self, num_nodes):
@@ -65,9 +71,7 @@ class ConnectedGraph(Graph):
         while unvisited:
             # Find all potential edges from visited to unvisited nodes
             possible_edges = [
-                (node, neighbor)
-                for node in visited
-                for neighbor in unvisited
+                (node, neighbor) for node in visited for neighbor in unvisited
             ]
             # Randomly select an edge
             edge = random.choice(possible_edges)

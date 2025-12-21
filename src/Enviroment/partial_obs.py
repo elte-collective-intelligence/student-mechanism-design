@@ -41,7 +41,9 @@ class PartialObservationWrapper(BaseEnvironment):
         observations, infos = self.env.reset(seed=seed, options=options)
         num_nodes = observations["MrX"]["adjacency_matrix"].shape[0]
         self.belief_tracker = ParticleBeliefTracker(num_nodes=num_nodes)
-        self.belief_encoder = LearnedBeliefEncoder(observations["MrX"]["node_features"].shape[1])
+        self.belief_encoder = LearnedBeliefEncoder(
+            observations["MrX"]["node_features"].shape[1]
+        )
         self.step_count = 0
         wrapped_obs = self._wrap_observations(observations)
         return wrapped_obs, infos
@@ -62,13 +64,17 @@ class PartialObservationWrapper(BaseEnvironment):
         reveal = self._should_reveal()
         mrx_pos = observations["MrX"].get("MrX_pos")
         adjacency = observations["MrX"].get("adjacency_matrix")
-        hint = self._generate_hint(adjacency, mrx_pos) if adjacency is not None else None
+        hint = (
+            self._generate_hint(adjacency, mrx_pos) if adjacency is not None else None
+        )
 
         if self.belief_tracker is None and adjacency is not None:
             self.belief_tracker = ParticleBeliefTracker(num_nodes=adjacency.shape[0])
         belief_map = None
         if self.belief_tracker is not None and adjacency is not None:
-            belief_map = self.belief_tracker.update(adjacency, hint, reveal if reveal else None)
+            belief_map = self.belief_tracker.update(
+                adjacency, hint, reveal if reveal else None
+            )
 
         for agent, obs in observations.items():
             if agent.startswith("Police"):
@@ -89,7 +95,9 @@ class PartialObservationWrapper(BaseEnvironment):
     def _should_reveal(self) -> bool:
         if self.reveal_interval <= 0:
             return False
-        deterministic = self.step_count % self.reveal_interval == 0 and self.step_count > 0
+        deterministic = (
+            self.step_count % self.reveal_interval == 0 and self.step_count > 0
+        )
         stochastic = np.random.random() < self.reveal_probability
         return deterministic or stochastic
 

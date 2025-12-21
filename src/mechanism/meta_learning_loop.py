@@ -34,17 +34,34 @@ class MetaLearner:
         error = win_rate - target
         # Update reveal probability and ticket price as proxy parameters.
         self.state.mechanism.reveal_probability = float(
-            np.clip(self.state.mechanism.reveal_probability - self.learning_rate * error, 0.0, 1.0)
+            np.clip(
+                self.state.mechanism.reveal_probability - self.learning_rate * error,
+                0.0,
+                1.0,
+            )
         )
-        self.state.mechanism.ticket_price = float(max(0.0, self.state.mechanism.ticket_price + self.learning_rate * cost))
-        self.state.history.append({"win_rate": win_rate, "cost": cost, "reveal_probability": self.state.mechanism.reveal_probability})
+        self.state.mechanism.ticket_price = float(
+            max(0.0, self.state.mechanism.ticket_price + self.learning_rate * cost)
+        )
+        self.state.history.append(
+            {
+                "win_rate": win_rate,
+                "cost": cost,
+                "reveal_probability": self.state.mechanism.reveal_probability,
+            }
+        )
         return self.state.mechanism
 
     def reset_history(self):
         self.state.history.clear()
 
 
-def run_meta_loop(initial_mechanism: MechanismConfig, eval_fn: Callable[[MechanismConfig], Dict[str, float]], iterations: int = 5, lr: float = 0.1) -> MechanismConfig:
+def run_meta_loop(
+    initial_mechanism: MechanismConfig,
+    eval_fn: Callable[[MechanismConfig], Dict[str, float]],
+    iterations: int = 5,
+    lr: float = 0.1,
+) -> MechanismConfig:
     learner = MetaLearner(initial_mechanism, learning_rate=lr)
     mech = initial_mechanism
     for _ in range(iterations):

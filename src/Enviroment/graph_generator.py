@@ -33,7 +33,7 @@ class GraphGenerationConfig:
     max_edges_per_node: int = 4
     max_edge_weight: int = 5
     seed: Optional[int] = None
-    
+
     def to_dict(self) -> dict:
         return {
             "num_nodes": self.num_nodes,
@@ -42,7 +42,7 @@ class GraphGenerationConfig:
             "max_edge_weight": self.max_edge_weight,
             "seed": self.seed,
         }
-    
+
     @classmethod
     def from_dict(cls, d: dict) -> "GraphGenerationConfig":
         return cls(**d)
@@ -51,11 +51,12 @@ class GraphGenerationConfig:
 @dataclass
 class GraphSample:
     """A sampled graph with its generation config and seed for reproducibility."""
+
     graph: object
     config: GraphGenerationConfig
     seed: int
     stats: dict = field(default_factory=dict)
-    
+
     def to_dict(self) -> dict:
         return {
             "config": self.config.to_dict(),
@@ -79,18 +80,20 @@ class GraphGenerator:
         self.space.MAX_WEIGHT = self.config.max_edge_weight
         self._generated_seeds: List[int] = []
 
-    def sample(self, overrides: GraphGenerationConfig | None = None, seed: int | None = None):
+    def sample(
+        self, overrides: GraphGenerationConfig | None = None, seed: int | None = None
+    ):
         """Sample a graph with optional seed for reproducibility.
-        
+
         Args:
             overrides: Optional config overrides.
             seed: Random seed. If None, uses config seed or generates one.
-            
+
         Returns:
             The sampled graph object.
         """
         cfg = overrides or self.config
-        
+
         # Determine seed
         if seed is not None:
             actual_seed = seed
@@ -98,32 +101,34 @@ class GraphGenerator:
             actual_seed = cfg.seed
         else:
             actual_seed = np.random.randint(0, 2**31)
-        
+
         # Set seeds for reproducibility
         np.random.seed(actual_seed)
         random.seed(actual_seed)
         self._generated_seeds.append(actual_seed)
-        
+
         return self.space.sample(
             num_nodes=cfg.num_nodes,
             num_edges=cfg.num_edges,
             max_edges_per_node=cfg.max_edges_per_node,
         )
 
-    def sample_with_statistics(self, overrides: GraphGenerationConfig | None = None, seed: int | None = None) -> Tuple[object, dict]:
+    def sample_with_statistics(
+        self, overrides: GraphGenerationConfig | None = None, seed: int | None = None
+    ) -> Tuple[object, dict]:
         """Return a graph and lightweight statistics for logging.
 
         Statistics are designed for meta-learning and OOD evaluation scripts.
-        
+
         Args:
             overrides: Optional config overrides.
             seed: Random seed for reproducibility.
-            
+
         Returns:
             Tuple of (graph, statistics dict including seed).
         """
         cfg = overrides or self.config
-        
+
         # Determine seed
         if seed is not None:
             actual_seed = seed
@@ -137,20 +142,24 @@ class GraphGenerator:
         stats = {
             "num_nodes": graph.nodes.shape[0],
             "num_edges": graph.edge_links.shape[0],
-            "edge_weight_mean": float(edge_weights.mean()) if edge_weights.size else 0.0,
+            "edge_weight_mean": (
+                float(edge_weights.mean()) if edge_weights.size else 0.0
+            ),
             "edge_weight_std": float(edge_weights.std()) if edge_weights.size else 0.0,
             "seed": actual_seed,
             "config": cfg.to_dict(),
         }
         return graph, stats
 
-    def sample_with_record(self, overrides: GraphGenerationConfig | None = None, seed: int | None = None) -> GraphSample:
+    def sample_with_record(
+        self, overrides: GraphGenerationConfig | None = None, seed: int | None = None
+    ) -> GraphSample:
         """Sample a graph and return a full record for reproducibility.
-        
+
         Args:
             overrides: Optional config overrides.
             seed: Random seed.
-            
+
         Returns:
             GraphSample object containing graph, config, seed, and stats.
         """
@@ -165,23 +174,30 @@ class GraphGenerator:
 
     def save_seeds(self, filepath: str):
         """Save all generated seeds to a JSON file for reproducibility.
-        
+
         Args:
             filepath: Path to save the seeds file.
         """
-        os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else ".", exist_ok=True)
+        os.makedirs(
+            os.path.dirname(filepath) if os.path.dirname(filepath) else ".",
+            exist_ok=True,
+        )
         with open(filepath, "w") as f:
-            json.dump({
-                "seeds": self._generated_seeds,
-                "config": self.config.to_dict(),
-            }, f, indent=2)
+            json.dump(
+                {
+                    "seeds": self._generated_seeds,
+                    "config": self.config.to_dict(),
+                },
+                f,
+                indent=2,
+            )
 
     def load_seeds(self, filepath: str) -> List[int]:
         """Load seeds from a JSON file.
-        
+
         Args:
             filepath: Path to the seeds file.
-            
+
         Returns:
             List of seeds.
         """

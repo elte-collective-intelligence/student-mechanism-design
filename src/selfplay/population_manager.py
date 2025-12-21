@@ -13,6 +13,7 @@ import torch
 @dataclass
 class PolicyEntry:
     """A single policy in the population pool."""
+
     name: str
     policy: object
     score: float = 0.0
@@ -20,20 +21,20 @@ class PolicyEntry:
     losses: int = 0
     games_played: int = 0
     generation: int = 0
-    
+
     @property
     def win_rate(self) -> float:
         if self.games_played == 0:
             return 0.5
         return self.wins / self.games_played
-    
+
     def record_game(self, won: bool):
         self.games_played += 1
         if won:
             self.wins += 1
         else:
             self.losses += 1
-    
+
     def to_dict(self) -> dict:
         return {
             "name": self.name,
@@ -49,9 +50,12 @@ class PolicyEntry:
 @dataclass
 class Population:
     """Population pool containing MrX and Police policies."""
-    agents: Dict[str, List[PolicyEntry]] = field(default_factory=lambda: {"MrX": [], "Police": []})
+
+    agents: Dict[str, List[PolicyEntry]] = field(
+        default_factory=lambda: {"MrX": [], "Police": []}
+    )
     max_size: int = 10
-    
+
     def get_pool_stats(self) -> dict:
         stats = {}
         for role, entries in self.agents.items():
@@ -63,22 +67,27 @@ class Population:
                     "best_score": max(e.score for e in entries),
                 }
             else:
-                stats[role] = {"size": 0, "avg_score": 0, "avg_win_rate": 0, "best_score": 0}
+                stats[role] = {
+                    "size": 0,
+                    "avg_score": 0,
+                    "avg_win_rate": 0,
+                    "best_score": 0,
+                }
         return stats
 
 
 class PopulationManager:
     """Manages population-based self-play training.
-    
+
     Implements:
     - Policy pool management for MrX and Police
     - Best response computation
     - Periodic refresh of populations
     - ELO-style scoring
     """
-    
+
     def __init__(
-        self, 
+        self,
         population: Population | None = None,
         max_population_size: int = 10,
         refresh_interval: int = 5,
@@ -92,7 +101,7 @@ class PopulationManager:
 
     def add_policy(self, role: str, name: str, policy: object, score: float = 1000.0):
         """Add a new policy to the population pool.
-        
+
         Args:
             role: "MrX" or "Police"
             name: Unique identifier for the policy
@@ -100,43 +109,42 @@ class PopulationManager:
             score: Initial ELO score
         """
         entry = PolicyEntry(
-            name=name, 
-            policy=policy, 
-            score=score,
-            generation=self.generation
+            name=name, policy=policy, score=score, generation=self.generation
         )
-        
+
         pool = self.population.agents[role]
-        
+
         # Check if policy with same name exists
         existing_idx = next((i for i, e in enumerate(pool) if e.name == name), None)
         if existing_idx is not None:
             pool[existing_idx] = entry
         else:
             pool.append(entry)
-        
+
         # Prune if over max size (remove lowest scoring)
         if len(pool) > self.population.max_size:
             pool.sort(key=lambda e: e.score, reverse=True)
-            self.population.agents[role] = pool[:self.population.max_size]
+            self.population.agents[role] = pool[: self.population.max_size]
 
-    def sample_opponents(self, role: str, k: int = 1, strategy: str = "weighted") -> List[PolicyEntry]:
+    def sample_opponents(
+        self, role: str, k: int = 1, strategy: str = "weighted"
+    ) -> List[PolicyEntry]:
         """Sample opponents from the population pool.
-        
+
         Args:
             role: Role to sample from ("MrX" or "Police")
             k: Number of opponents to sample
             strategy: Sampling strategy ("uniform", "weighted", "best")
-            
+
         Returns:
             List of sampled PolicyEntry objects
         """
         pool = self.population.agents.get(role, [])
         if not pool:
             return []
-        
+
         k = min(k, len(pool))
-        
+
         if strategy == "uniform":
             return random.sample(pool, k)
         elif strategy == "best":
@@ -155,10 +163,10 @@ class PopulationManager:
 
     def best_response_target(self, role: str) -> PolicyEntry | None:
         """Get the best policy to compute best response against.
-        
+
         Args:
             role: Role to find best response target for
-            
+
         Returns:
             The highest scoring PolicyEntry or None
         """
@@ -167,9 +175,11 @@ class PopulationManager:
             return None
         return max(pool, key=lambda p: p.score)
 
-    def update_elo(self, winner_role: str, winner_name: str, loser_role: str, loser_name: str):
+    def update_elo(
+        self, winner_role: str, winner_name: str, loser_role: str, loser_name: str
+    ):
         """Update ELO scores after a match.
-        
+
         Args:
             winner_role: Role of the winner
             winner_name: Name of the winning policy
@@ -178,27 +188,31 @@ class PopulationManager:
         """
         winner_entry = self._find_entry(winner_role, winner_name)
         loser_entry = self._find_entry(loser_role, loser_name)
-        
+
         if winner_entry and loser_entry:
             # ELO calculation
-            expected_winner = 1 / (1 + 10 ** ((loser_entry.score - winner_entry.score) / 400))
+            expected_winner = 1 / (
+                1 + 10 ** ((loser_entry.score - winner_entry.score) / 400)
+            )
             expected_loser = 1 - expected_winner
-            
+
             winner_entry.score += self.elo_k * (1 - expected_winner)
             loser_entry.score += self.elo_k * (0 - expected_loser)
-            
+
             winner_entry.record_game(won=True)
             loser_entry.record_game(won=False)
-            
-            self._match_history.append({
-                "winner": {"role": winner_role, "name": winner_name},
-                "loser": {"role": loser_role, "name": loser_name},
-                "generation": self.generation,
-            })
+
+            self._match_history.append(
+                {
+                    "winner": {"role": winner_role, "name": winner_name},
+                    "loser": {"role": loser_role, "name": loser_name},
+                    "generation": self.generation,
+                }
+            )
 
     def update_score(self, role: str, name: str, delta: float):
         """Update score for a policy.
-        
+
         Args:
             role: Policy role
             name: Policy name
@@ -232,7 +246,10 @@ class PopulationManager:
 
     def save_population(self, filepath: str):
         """Save population state to file."""
-        os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else ".", exist_ok=True)
+        os.makedirs(
+            os.path.dirname(filepath) if os.path.dirname(filepath) else ".",
+            exist_ok=True,
+        )
         data = {
             "generation": self.generation,
             "agents": {
@@ -259,7 +276,7 @@ def run_population_self_play(
     logger: Any = None,
 ) -> PopulationManager:
     """Run population-based self-play training loop.
-    
+
     Args:
         population_manager: The PopulationManager instance
         train_fn: Function to train a policy against opponents
@@ -267,7 +284,7 @@ def run_population_self_play(
         num_epochs: Number of training epochs
         games_per_epoch: Number of games per epoch
         logger: Optional logger
-        
+
     Returns:
         Updated PopulationManager
     """
@@ -275,34 +292,42 @@ def run_population_self_play(
         # Sample opponents for training
         mrx_opponents = population_manager.sample_opponents("MrX", k=3)
         police_opponents = population_manager.sample_opponents("Police", k=3)
-        
+
         # Train new policies (best response)
         if mrx_opponents:
             new_mrx = train_fn("MrX", police_opponents)
             population_manager.add_policy("MrX", f"MrX_gen{epoch}", new_mrx)
-        
+
         if police_opponents:
             new_police = train_fn("Police", mrx_opponents)
             population_manager.add_policy("Police", f"Police_gen{epoch}", new_police)
-        
+
         # Run evaluation games
         for _ in range(games_per_epoch):
-            mrx_entry = population_manager.sample_opponents("MrX", k=1, strategy="weighted")
-            police_entry = population_manager.sample_opponents("Police", k=1, strategy="weighted")
-            
+            mrx_entry = population_manager.sample_opponents(
+                "MrX", k=1, strategy="weighted"
+            )
+            police_entry = population_manager.sample_opponents(
+                "Police", k=1, strategy="weighted"
+            )
+
             if mrx_entry and police_entry:
                 winner = eval_fn(mrx_entry[0].policy, police_entry[0].policy)
                 if winner == "MrX":
-                    population_manager.update_elo("MrX", mrx_entry[0].name, "Police", police_entry[0].name)
+                    population_manager.update_elo(
+                        "MrX", mrx_entry[0].name, "Police", police_entry[0].name
+                    )
                 else:
-                    population_manager.update_elo("Police", police_entry[0].name, "MrX", mrx_entry[0].name)
-        
+                    population_manager.update_elo(
+                        "Police", police_entry[0].name, "MrX", mrx_entry[0].name
+                    )
+
         # Step generation
         if population_manager.should_refresh(epoch):
             population_manager.step_generation()
-        
+
         if logger:
             stats = population_manager.get_stats()
             logger.log(f"Epoch {epoch}: {stats}", level="info")
-    
+
     return population_manager

@@ -16,7 +16,11 @@ class OpponentModel:
         self.transition_counts[key] += 1
 
     def predict(self, previous_action: int) -> List[int]:
-        candidates = {k[1]: v for k, v in self.transition_counts.items() if k[0] == previous_action}
+        candidates = {
+            k[1]: v
+            for k, v in self.transition_counts.items()
+            if k[0] == previous_action
+        }
         if not candidates:
             return []
         sorted_actions = sorted(candidates.items(), key=lambda kv: kv[1], reverse=True)
