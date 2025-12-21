@@ -48,14 +48,14 @@ class CustomEnvironment(BaseEnvironment):
         self.node_collection = None
         self.edge_collection = None
         self.label_collection = None  # To store node labels
-        #### Heatmap
+        # Heatmap
         self.heatmap = None
         self.heatmap_colors = None
         self.node_visits = None
         self.hm_node_collection = None
         self.hm_edge_collection = None
         self.hm_label_collection = None
-        ####
+
         self.vis_config = vis_configs
         self.visualize = vis_configs["visualize_game"]
         self.visualize_heatmap = vis_configs["visualize_heatmap"]
@@ -427,7 +427,7 @@ class CustomEnvironment(BaseEnvironment):
                 if i != j
             )
             position_penalty = len(self._get_possible_moves(police_pos, i)[0])
-            time_penalty = 0.05 * self.timestep
+            # time_penalty = 0.05 * self.timestep
 
             overlap_penalty = sum(
                 1.0

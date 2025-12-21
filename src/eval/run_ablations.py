@@ -19,8 +19,7 @@ import numpy as np
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-from eval.metrics import MetricsTracker
+from eval.metrics import MetricsTracker  # noqa: E402
 
 
 @dataclass
@@ -111,7 +110,7 @@ def run_belief_ablation(
             np.random.seed(seed)
 
             # Configure belief settings
-            use_learned_belief = config.params.get("use_learned_belief", False)
+            # use_learned_belief = config.params.get("use_learned_belief", False)
             reveal_interval = config.params.get("reveal_interval", 5)
 
             # Run episodes (simplified - actual implementation would use real env)

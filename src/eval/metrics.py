@@ -423,7 +423,7 @@ def generate_metrics_report(
     Returns:
         Formatted report string.
     """
-    agg = tracker.get_aggregated_metrics()
+    # agg = tracker.get_aggregated_metrics()
     win_rate = compute_win_rate(tracker.episodes)
     belief = compute_belief_quality(tracker.episodes)
     time_metrics = compute_time_metrics(tracker.episodes)

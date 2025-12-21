@@ -169,12 +169,12 @@ def plot_mechanism_ablation(results: dict, output_dir: str):
     win_rate_stds = [variants[v]["metrics"]["win_rate_std"] for v in variant_names]
     budget_spent = [variants[v]["metrics"]["mean_budget_spent"] for v in variant_names]
     tolls_paid = [variants[v]["metrics"]["mean_tolls_paid"] for v in variant_names]
-    time_to_catch = [
-        variants[v]["metrics"]["mean_time_to_catch"] for v in variant_names
-    ]
-    survival_time = [
-        variants[v]["metrics"]["mean_survival_time"] for v in variant_names
-    ]
+    # time_to_catch = [
+    #     variants[v]["metrics"]["mean_time_to_catch"] for v in variant_names
+    # ]
+    # survival_time = [
+    #     variants[v]["metrics"]["mean_survival_time"] for v in variant_names
+    # ]
 
     # Create figure with subplots
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
@@ -260,24 +260,24 @@ def plot_mechanism_ablation(results: dict, output_dir: str):
 
     # Plot 4: Time Comparison
     ax4 = axes[1, 1]
-    width = 0.35
-    x_pos_offset = x_pos - width / 2
-    bars4a = ax4.bar(
-        x_pos_offset,
-        time_to_catch,
-        width,
-        label="Time to Catch (Police wins)",
-        alpha=0.7,
-        color="blue",
-    )
-    bars4b = ax4.bar(
-        x_pos_offset + width,
-        survival_time,
-        width,
-        label="Survival Time (MrX wins)",
-        alpha=0.7,
-        color="red",
-    )
+    # width = 0.35
+    # x_pos_offset = x_pos - width / 2
+    # bars4a = ax4.bar(
+    #     x_pos_offset,
+    #     time_to_catch,
+    #     width,
+    #     label="Time to Catch (Police wins)",
+    #     alpha=0.7,
+    #     color="blue",
+    # )
+    # bars4b = ax4.bar(
+    #     x_pos_offset + width,
+    #     survival_time,
+    #     width,
+    #     label="Survival Time (MrX wins)",
+    #     alpha=0.7,
+    #     color="red",
+    # )
     ax4.set_xlabel("Mechanism Variant", fontsize=12, fontweight="bold")
     ax4.set_ylabel("Mean Steps", fontsize=12, fontweight="bold")
     ax4.set_title(

@@ -159,7 +159,7 @@ class MappoAgent:
         if len(self.memory) < self.buffer_size:
             return
 
-        memory_buffer = self.memory[-self.buffer_size :]
+        memory_buffer = self.memory[-self.buffer_size :]  # noqa: E203
 
         obs_b, global_obs_b, actions_b, rewards_b, log_probs_b, dones_b = zip(
             *memory_buffer
