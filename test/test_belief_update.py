@@ -2,8 +2,10 @@ import os
 import sys
 import numpy as np
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
-
+# 将 sys.path 修改放在导入之前
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
+)
 from Enviroment.belief_module import ParticleBeliefTracker
 
 
