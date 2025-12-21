@@ -74,11 +74,13 @@ def test_action_mask_fixed_index_node_mapping():
 
     # index_to_node should always be identity
     for i in range(4):
-        assert result.index_to_node[i] == i, f"index_to_node[{i}] should be {i}"
-        assert result.node_to_index[i] == i, f"node_to_index[{i}] should be {i}"
+        assert result.index_to_node[i] == i, \
+            f"index_to_node[{i}] should be {i}"
+        assert result.node_to_index[i] == i, \
+            f"node_to_index[{i}] should be {i}"
 
     # mask[node] should be True for valid neighbors
-    assert result.mask[0] == False  # Current node
+    assert result.mask[0] is False  # Current node
     assert result.mask[1] is True
     assert result.mask[2] is True
     assert result.mask[3] is True

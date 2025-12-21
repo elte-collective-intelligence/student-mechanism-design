@@ -2,7 +2,10 @@ import os
 import sys
 import numpy as np
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
+sys.path.append(
+    os.path.abspath(os. path.join(os.path. dirname(__file__), "..", "src"))
+)
+
 from Enviroment.belief_module import ParticleBeliefTracker
 
 
