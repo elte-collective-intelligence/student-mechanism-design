@@ -1,14 +1,23 @@
 name: Docker
-on:  [push, pull_request]
+on: [push, pull_request]
 
 jobs:
-  docker:
+  docker: 
     runs-on: ubuntu-latest
     steps:
-      - uses:  actions/checkout@v3
+      - uses: actions/checkout@v3
+
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker system prune -af
+          df -h
 
       - name: Build base Docker image
-        run: docker build -f docker/BaseDockerfile -t student_mechanism_design_base .
+        run: docker build --progress plain -f ./docker/BaseDockerfile -t student_mechanism_design_base .
 
       - name: Build Docker image
-        run: docker build -f docker/Dockerfile -t mechanism-design-task .
+        run: docker build -f docker/Dockerfile -t mechanism-design-task . 
