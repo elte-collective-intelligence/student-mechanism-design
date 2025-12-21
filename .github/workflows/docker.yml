@@ -1,11 +1,14 @@
 name: Docker
 on: [push, pull_request]
 
-jobs:
+jobs: 
   docker: 
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
 
+      - name: Build Base Docker image
+        run: docker build -f docker/BaseDockerfile -t student_mechanism_design_base . 
+
       - name: Build Docker image
-        run: docker build -f docker/Dockerfile -t mechanism-design-task . 
+        run: docker build -f docker/Dockerfile -t mechanism-design-task .
