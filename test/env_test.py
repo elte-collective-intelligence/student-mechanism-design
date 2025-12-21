@@ -8,6 +8,7 @@ from reward_net import RewardWeightNet
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
+
 @dataclass
 class DummyArgs:
     num_agents: int = 2
