@@ -78,10 +78,10 @@ def test_action_mask_fixed_index_node_mapping():
         assert result.node_to_index[i] == i, f"node_to_index[{i}] should be {i}"
 
     # mask[node] should be True for valid neighbors
-    assert result.mask[0] is False  # Current node
-    assert result.mask[1] is True
-    assert result.mask[2] is True
-    assert result.mask[3] is True
+    assert result.mask[0] == False  # Current node
+    assert result.mask[1] == True
+    assert result.mask[2] == True
+    assert result.mask[3] == True
 
 
 def test_action_mask_no_valid_moves():
