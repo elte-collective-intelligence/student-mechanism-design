@@ -398,26 +398,10 @@ pytest test/env_test.py -v
 | `test_belief_update.py` | Belief tracking         | Distribution normalization, reveal collapse  |
 | `env_test.py`           | Environment smoke test  | Reset/step don't throw exceptions            |
 
-### Required Tests (Assignment)
+### Required Tests
 
 1. ✅ **Action mask correctness**: `test_action_mask.py::test_action_mask_fixed_index_node_mapping`
 2. ✅ **Belief update step**: `test_belief_update.py::test_belief_updates_and_reveals`
-
----
-
-## Task Division
-
-_Document team task division here (if applicable)_
-
-| Task                               | Assignee | Status      |
-| ---------------------------------- | -------- | ----------- |
-| Task 1: Core Functionality         | -        | ✅ Complete |
-| Task 2: Mechanism Design           | -        | ✅ Complete |
-| Task 3: Scenarios (Self-play, OOD) | -        | ✅ Complete |
-| Task 4: Metrics & Evaluation       | -        | ✅ Complete |
-| Task 5: Ablation Studies           | -        | ✅ Complete |
-| Task 6: Reproducibility Pack       | -        | ✅ Complete |
-| Task 7: Documentation              | -        | ✅ Complete |
 
 ---
 
