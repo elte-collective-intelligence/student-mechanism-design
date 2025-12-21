@@ -174,12 +174,12 @@ class Logger:
             model_name (str): The name of the model.
         """
         if self.use_wandb and wandb.run:
-            if model_num:
-                model_name_with_num = (
-                    model_name + ":" + str(model_num)
-                )  # this functionality is not included, fyi
-            else:
-                model_name_with_num = model_name + ":latest"
+            # if model_num:
+            #     model_name_with_num = (
+            #         model_name + ":" + str(model_num)
+            #     )  # this functionality is not included, fyi
+            # else:
+            #     model_name_with_num = model_name + ":latest"
             # artifact = wandb.use_artifact(model_name_with_num, type='model')
             # model_dir = artifact.download()
             model_dir = self.log_dir

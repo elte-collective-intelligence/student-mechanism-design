@@ -6,13 +6,13 @@ This script generates comparison plots for ablation experiments.
 import json
 import os
 import argparse
-from typing import Dict, List
 import matplotlib.pyplot as plt
 import matplotlib
-
-matplotlib.use("Agg")  # Non-interactive backend
 import seaborn as sns
 import numpy as np
+
+
+matplotlib.use("Agg")  # Non-interactive backend
 
 # Set style
 sns.set_style("whitegrid")

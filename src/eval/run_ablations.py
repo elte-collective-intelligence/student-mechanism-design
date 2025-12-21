@@ -14,13 +14,13 @@ import os
 import sys
 import yaml
 from dataclasses import dataclass
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 import numpy as np
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from eval.metrics import MetricsTracker, generate_metrics_report, save_metrics_json
+from eval.metrics import MetricsTracker
 
 
 @dataclass

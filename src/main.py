@@ -1,4 +1,7 @@
-import torch, re, os, random
+import torch
+import re
+import os
+import random
 
 import torch.nn as nn
 import torch.optim as optim
@@ -589,7 +592,7 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
 
         # Extract dimensions
         feature_dim = mrx_features.shape[1]
-        num_nodes = mrx_features.shape[0]
+        # num_nodes = mrx_features.shape[0]
 
         # Global observations
         global_obs_dim = feature_dim * (num_agents + 1)

@@ -5,8 +5,7 @@ import random
 import numpy as np
 from collections import deque
 from torch_geometric.nn import AntiSymmetricConv
-from torch_geometric.data import Data, Batch
-from itertools import chain  # For flattening lists
+from torch_geometric.data import Batch
 
 
 class GNNAgent:

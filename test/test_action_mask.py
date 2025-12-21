@@ -3,7 +3,7 @@ import sys
 import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
-from Enviroment.action_mask import compute_action_mask
+from Enviroment.action_mask import compute_action_mask  # noqa: E402
 
 
 def test_action_mask_respects_budget_and_mapping():

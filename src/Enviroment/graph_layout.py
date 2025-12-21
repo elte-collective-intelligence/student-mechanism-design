@@ -1,7 +1,6 @@
 import random
-from gymnasium.spaces import Graph, Box, Discrete
+from gymnasium.spaces import Graph
 import numpy as np
-import networkx as nx
 
 
 class ConnectedGraph(Graph):
