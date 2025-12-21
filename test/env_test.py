@@ -4,10 +4,10 @@ import os
 
 from dataclasses import dataclass
 from torchrl.envs.libs.pettingzoo import PettingZooWrapper
-from logger import Logger
-from reward_net import RewardWeightNet
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
+from reward_net import RewardWeightNet  # noqa: E402
+from logger import Logger  # noqa: E402
 from Enviroment.yard import CustomEnvironment  # noqa: E402
 
 
