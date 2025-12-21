@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Callable, Optional, Any
+from typing import Dict, List, Callable, Any
 import random
 import os
 import json
-import torch
 
 
 @dataclass
