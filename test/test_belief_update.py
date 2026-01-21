@@ -3,7 +3,7 @@ import sys
 import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
-from Enviroment.belief_module import ParticleBeliefTracker  # noqa: E402
+from environment.belief_module import ParticleBeliefTracker  # noqa: E402
 
 
 def test_belief_updates_and_reveals():

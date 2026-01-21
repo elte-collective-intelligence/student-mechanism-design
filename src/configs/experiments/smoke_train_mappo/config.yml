@@ -1,0 +1,36 @@
+agent_configs: 'mappo'
+log_configs: 'default'
+vis_configs: 'none'
+evaluate: False
+
+# Training parameters
+epochs: 1
+episodes_per_epoch: 2
+max_steps: 30
+
+# Environment parameters
+graph_nodes: 10
+graph_edges: 10
+epsilon: 0.1
+capture_distance: 1
+
+# Agent configuration options
+agent_configurations:
+  - num_police_agents: 3
+    agent_money: 14
+  - num_police_agents: 4
+    agent_money: 16
+
+# Curriculum configuration
+node_curriculum: [10]
+edge_curriculum: [10]
+
+# Evaluation parameters
+num_eval_episodes: 3
+
+# MAPPO-specific
+batch_size: 32
+num_ppo_epochs: 4
+ppo_clip: 0.2
+value_loss_coef: 0.5
+entropy_coef: 0.01

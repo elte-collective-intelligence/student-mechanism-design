@@ -1,4 +1,5 @@
-visualize_game: True
-visualize_heatmap: True
-save_visualization: False
+# Default visualization for training: no display, only save to disk
+visualize_game: False
+visualize_heatmap: False
+save_visualization: True
 save_dir: 'logs/vis'

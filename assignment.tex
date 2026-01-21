@@ -1,0 +1,413 @@
+\documentclass[11pt,a4paper]{scrartcl}
+
+% - Base packages -
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[magyar,english]{babel}
+\usepackage[a4paper, top=2.5cm, bottom=2.5cm, left=3cm, right=3cm, headheight=36.5pt, footskip=1.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage[automark,headsepline,footsepline]{scrlayer-scrpage}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{listings}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% Modern color scheme
+\definecolor{primaryblue}{RGB}{41, 128, 185}
+\definecolor{secondaryblue}{RGB}{52, 152, 219}
+\definecolor{darkgray}{RGB}{44, 62, 80}
+\definecolor{lightgray}{RGB}{236, 240, 241}
+\definecolor{accentgreen}{RGB}{46, 204, 113}
+\definecolor{accentorange}{RGB}{230, 126, 34}
+\definecolor{accentpurple}{RGB}{155, 89, 182}
+
+% Hyperref setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=primaryblue,
+    urlcolor=secondaryblue,
+    citecolor=primaryblue
+}
+
+% Code listing setup
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{lightgray},
+    rulecolor=\color{darkgray},
+    columns=fullflexible,
+    showstringspaces=false,
+    keywordstyle=\color{primaryblue}\bfseries,
+    commentstyle=\color{gray}\itshape,
+    stringstyle=\color{accentgreen},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    xleftmargin=2em,
+    framexleftmargin=1.5em
+}
+\lstdefinelanguage{Dockerfile}{
+  morekeywords={FROM,WORKDIR,COPY,RUN,CMD},
+  sensitive=true,
+  morecomment=[l]{\#},
+  morestring=[b]",
+}
+
+% Modern tcolorbox styles
+\tcbuselibrary{listings,breakable,skins}
+
+\tcbset{
+    modern/.style={
+        enhanced,
+        sharp corners=all,
+        colback=white,
+        boxrule=0pt,
+        leftrule=4pt,
+        arc=0mm,
+        top=8pt,
+        bottom=8pt,
+        left=10pt,
+        right=10pt,
+        breakable,
+        before skip=15pt,
+        after skip=15pt
+    }
+}
+
+% Section formatting
+\setkomafont{section}{\LARGE\bfseries\color{primaryblue}}
+\setkomafont{subsection}{\Large\bfseries\color{secondaryblue}}
+\setkomafont{subsubsection}{\large\bfseries\color{darkgray}}
+
+% List spacing
+\setlist{nosep, leftmargin=1.5em}
+\setlist[itemize,1]{label=\textcolor{primaryblue}{$\bullet$}}
+\setlist[enumerate,1]{label=\textcolor{primaryblue}{\arabic*.}}
+
+% Paragraph spacing
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+
+\setlength{\footheight}{25pt}
+
+\clearpairofpagestyles
+
+\ihead{%
+  \raisebox{-2pt}{\includegraphics[height=1.2cm]{images/logo.png}}
+}
+\ohead{\textcolor{darkgray}{\textbf{Mechanism Design Assignment}}}
+\cfoot{\textcolor{darkgray}{\pagemark}}
+\renewcommand*{\titlepagestyle}{scrheadings}
+
+\addtokomafont{title}{\vspace*{-2em}}
+\addtokomafont{author}{\vspace*{-0.5em}}
+\addtokomafont{date}{\vspace*{-0.5em}}
+
+% - Title and authors -
+\title{\Huge \textbf{\textcolor{primaryblue}{Scotland Yard}}\\[0.3em]
+\LARGE \textcolor{darkgray}{Multi-Agent Mechanism Design}}
+
+\author{
+\textcolor{darkgray}{Collective Intelligence -- Spring 2026}
+}
+\date{\textcolor{darkgray}{Teams of 2-3 students | 6-8 weeks}}
+
+\begin{document}
+\maketitle
+
+\vspace{-1em}
+
+\begin{center}
+    \includegraphics[width=0.5\textwidth]{images/scotland_yard.png}
+\end{center}
+
+\vspace{1em}
+
+\section*{Overview}
+
+This assignment extends the Scotland Yard mechanism design project with \textbf{three independent research directions}. The codebase provides a working multi-agent RL framework with GNN/MAPPO agents, graph environments, and training infrastructure. Your team will choose \textbf{one task} to investigate deeply, implementing new algorithms/architectures/mechanisms and producing rigorous experimental results.
+
+\vspace{0.5em}
+
+\begin{tcolorbox}[modern, colframe=primaryblue, title=\textcolor{white}{\textbf{What is already provided}}, coltitle=white, colbacktitle=primaryblue]
+\begin{itemize}[leftmargin=1.2em, itemsep=4pt]
+    \item \textbf{Environment}: Scotland Yard on procedural graphs (PettingZoo + TorchRL)
+    \item \textbf{Agents}: GNN and MAPPO implementations with action masking
+    \item \textbf{Training}: Self-play loops, curriculum learning, reward shaping
+    \item \textbf{Infrastructure}: Hydra configs, Docker, visualization, unit tests
+    \item \textbf{Evaluation}: Metrics system, exploitability tests, OOD evaluation
+\end{itemize}
+\end{tcolorbox}
+
+\begin{tcolorbox}[modern, colframe=accentgreen, title=\textcolor{white}{\textbf{Teams \& Timeline}}, coltitle=white, colbacktitle=accentgreen]
+\begin{itemize}[leftmargin=1.2em, itemsep=4pt]
+    \item \textbf{3 teams} of 2-3 students each
+    \item \textbf{Deadline}: 6-8 weeks from start
+    \item \textbf{Each team chooses ONE task} from the three options below
+    \item \textbf{Tasks are independent} -- no inter-team dependencies
+\end{itemize}
+\end{tcolorbox}
+
+\section*{Task Options}
+\addcontentsline{toc}{section}{Task Options}
+
+\subsection*{Task 1: Population-Based Self-Play \& Robustness}
+\textbf{Research Question}: \textit{Are mechanisms trained against diverse opponent populations more robust and less exploitable than single-opponent self-play?}
+
+\subsubsection*{Hypothesis}
+Maintaining a population of diverse agents (varying strategies, skill levels) during training produces mechanisms that generalize better to unseen opponents and are harder to exploit.
+
+\subsubsection*{Implementation Requirements}
+\begin{enumerate}[leftmargin=1.4em]
+    \item \textbf{Population Manager} (\texttt{src/training/population\_trainer.py}):
+    \begin{itemize}
+        \item Maintain pool of 5-10 checkpoint policies for both MrX and Police
+        \item Implement matchmaking: round-robin, skill-based pairing, or Elo-based
+        \item Periodic checkpoint saving with diversity metrics
+    \end{itemize}
+    
+    \item \textbf{Exploitability Testing} (\texttt{src/eval/exploitability.py} extension):
+    \begin{itemize}
+        \item Best-response training: freeze target mechanism, optimize attacker
+        \item Measure win-rate shift under exploitation attempts
+        \item Compare single-agent vs population-trained exploitability
+    \end{itemize}
+    
+    \item \textbf{Diversity Metrics}:
+    \begin{itemize}
+        \item Behavioral diversity: action entropy, trajectory clustering
+        \item Strategic diversity: response to different opponent styles
+        \item Performance spread: Elo ratings, win-rate distributions
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection*{Technical Guidance}
+\begin{itemize}[leftmargin=1.2em]
+    \item Use \texttt{PopulationTrainer} class inheriting from \texttt{BaseTrainer}
+    \item Store population in \texttt{src/artifacts/populations/}
+    \item Config: \texttt{src/configs/training/population.yaml} with pool sizes, matchmaking strategy
+    \item Plot: exploitability curves, diversity metrics over training, population skill distribution
+\end{itemize}
+
+\subsubsection*{Expected Deliverables}
+\begin{itemize}[leftmargin=1.2em]
+    \item Working population trainer with 3+ matchmaking strategies
+    \item Exploitability comparison: single-agent SP vs population SP (5+ seeds)
+    \item 4-6 plots: exploitability over training, diversity metrics, Elo distributions, behavioral clustering
+    \item 2-3 GIFs: population agents playing, exploitation attempts
+    \item Analysis: when does population training help? Failure cases?
+\end{itemize}
+
+\subsection*{Task 2: Attention Mechanisms \& Architecture Ablations}
+\textbf{Research Question}: \textit{Do graph attention networks learn better strategic coordination than standard message-passing GNNs?}
+
+\subsubsection*{Hypothesis}
+Attention mechanisms allow agents to selectively focus on strategically relevant teammates/opponents, improving sample efficiency and final performance compared to uniform message aggregation.
+
+\subsubsection*{Implementation Requirements}
+\begin{enumerate}[leftmargin=1.4em]
+    \item \textbf{New Agent Architectures}:
+    \begin{itemize}
+        \item \texttt{src/agent/gat\_agent.py}: Graph Attention Networks (PyTorch Geometric)
+        \item \texttt{src/agent/transformer\_agent.py}: Transformer with positional encoding on graphs
+        \item Follow same interface as \texttt{GNNAgent} (inherit from \texttt{BaseAgent})
+    \end{itemize}
+    
+    \item \textbf{Ablation Study} (\texttt{src/eval/architecture\_ablations.py}):
+    \begin{itemize}
+        \item Compare: GCN (baseline) vs GAT vs Transformer
+        \item Vary: number of layers (2-5), hidden dims (64-256), attention heads (1-8)
+        \item Fixed environment/training config for fair comparison
+    \end{itemize}
+    
+    \item \textbf{Attention Visualization}:
+    \begin{itemize}
+        \item Extract attention weights at inference time
+        \item Visualize which agents/nodes receive high attention
+        \item Correlate attention patterns with strategic events (captures, escapes)
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection*{Technical Guidance}
+\begin{itemize}[leftmargin=1.2em]
+    \item Use \texttt{torch\_geometric.nn.GATConv} and \texttt{TransformerConv}
+    \item Configs: \texttt{src/configs/agent/gat.yaml}, \texttt{transformer.yaml}
+    \item Attention extraction: hook into \texttt{.forward()} or use \texttt{return\_attention\_weights=True}
+    \item Compare on same compute budget (match parameter count or training time)
+\end{itemize}
+
+\subsubsection*{Expected Deliverables}
+\begin{itemize}[leftmargin=1.2em]
+    \item 2 new agent implementations (GAT + Transformer) with unit tests
+    \item Ablation results: 3+ architectures $\times$ 3+ hyperparameter settings (5 seeds each)
+    \item 4-6 plots: learning curves, sample efficiency, performance vs parameters, attention heatmaps
+    \item 2-3 GIFs: attention-weighted graphs during gameplay
+    \item Analysis: when does attention help? Diminishing returns? Interpretability insights?
+\end{itemize}
+
+\subsection*{Task 3: Multi-Objective Mechanisms (Fairness vs Efficiency)}
+\textbf{Research Question}: \textit{Can priority edges (metro/ship) enable Pareto-optimal trade-offs between catch efficiency and detective workload fairness?}
+
+\subsubsection*{Hypothesis}
+Adding high-speed "metro" edges that MrX can use creates interesting mechanism design trade-offs: faster games but potential unfairness in which detectives get catches. Optimizing both objectives reveals a Pareto frontier.
+
+\subsubsection*{Implementation Requirements}
+\begin{enumerate}[leftmargin=1.4em]
+    \item \textbf{Priority Edge System} (\texttt{src/environment/graph\_generator.py} extension):
+    \begin{itemize}
+        \item Generate graphs with 10-20\% "metro" edges (weight 0.5-1.0 of normal)
+        \item MrX can use all edges; Police restricted to normal edges (configurable)
+        \item Visualize priority edges distinctly (different colors/line styles)
+    \end{itemize}
+    
+    \item \textbf{Multi-Objective Rewards} (\texttt{src/environment/multi\_objective\_reward.py}):
+    \begin{itemize}
+        \item Objective 1 (Efficiency): time-to-catch, total travel distance
+        \item Objective 2 (Fairness): Gini coefficient of catches per detective, workload balance
+        \item Scalarization: weighted sum $\alpha \cdot \text{eff} + (1-\alpha) \cdot \text{fair}$
+    \end{itemize}
+    
+    \item \textbf{Pareto Frontier Exploration}:
+    \begin{itemize}
+        \item Train mechanisms with $\alpha \in \{0.0, 0.25, 0.5, 0.75, 1.0\}$
+        \item Compare standard graphs vs metro-enhanced graphs
+        \item Identify Pareto-optimal configurations
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection*{Technical Guidance}
+\begin{itemize}[leftmargin=1.2em]
+    \item Extend \texttt{GraphGenerator.generate()} with \texttt{priority\_edge\_ratio} parameter
+    \item Config: \texttt{src/configs/environment/priority\_edges.yaml}
+    \item Fairness metrics: Gini coefficient $G = \frac{\sum_{i,j} |c_i - c_j|}{2n\sum_i c_i}$ where $c_i$ = catches by detective $i$
+    \item Use existing \texttt{RewardCalculator} as base, add multi-objective wrapper
+\end{itemize}
+
+\subsubsection*{Expected Deliverables}
+\begin{itemize}[leftmargin=1.2em]
+    \item Priority edge generation + visualization (clearly distinguishable in GIFs)
+    \item Multi-objective reward system with 2+ metrics per objective
+    \item Pareto frontier: 5+ $\alpha$ values $\times$ 2 graph types (5 seeds each)
+    \item 4-6 plots: Pareto curves, efficiency-fairness scatter, Gini distributions, catch-per-detective histograms
+    \item 2-3 GIFs: standard vs metro graphs in action
+    \item Analysis: optimal trade-offs? When do priority edges help/hurt? Policy differences?
+\end{itemize}
+
+\section*{Shared Requirements (All Tasks)}
+
+All teams must follow these common guidelines to ensure quality and reproducibility.
+
+\vspace{0.5em}
+
+\begin{tcolorbox}[modern, colframe=darkgray, leftrule=4pt]
+\subsection*{Code Quality}
+\begin{itemize}[leftmargin=1.2em, itemsep=4pt]
+    \item Follow existing code structure (inherit from base classes)
+    \item Update relevant folder READMEs documenting new modules
+    \item Add 2-3 unit tests for core functionality
+    \item Hydra configs for all experiments
+\end{itemize}
+
+\subsection*{Experiments}
+\begin{itemize}[leftmargin=1.2em, itemsep=4pt]
+    \item Run on both \textbf{small} (5-7 agents, 20-30 nodes) and \textbf{large} (15-20 agents, 50-80 nodes) graphs
+    \item Use fixed seeds for reproducibility (report all seeds in README)
+    \item Minimum 5 seeds per experimental condition
+\end{itemize}
+
+\subsection*{Documentation}
+\begin{itemize}[leftmargin=1.2em, itemsep=4pt]
+    \item Update root \texttt{README.md} with new "Semester Contribution" section:
+    \begin{itemize}[itemsep=2pt]
+        \item Research question \& hypothesis
+        \item Implementation summary (what was added/modified)
+        \item Key results (embed 2-3 key plots/GIFs)
+        \item Conclusions \& limitations
+        \item Future work
+    \end{itemize}
+    \item Keep it concise (500-800 words max)
+\end{itemize}
+\end{tcolorbox}
+
+% =========================
+% GRADING RUBRIC
+% =========================
+\section*{Grading Rubric}
+
+\begin{tcolorbox}[modern, colframe=accentorange, title=\textcolor{white}{\textbf{Total: 100 points}}, coltitle=white, colbacktitle=accentorange]
+Each task has the same grading structure. All requirements must use Hydra configs and be reproducible.
+\end{tcolorbox}
+
+\vspace{0.5em}
+
+\subsection*{Implementation (40 pts)}
+\begin{itemize}[leftmargin=1.4em, itemsep=3pt]
+    \item Core functionality working (new modules/classes follow codebase conventions) \dotfill \textbf{20 pts}
+    \item Integration with existing system (configs, training loops, evaluation) \dotfill \textbf{10 pts}
+    \item Code quality (documentation, tests, readable) \dotfill \textbf{10 pts}
+\end{itemize}
+
+\subsection*{Experiments (30 pts)}
+\begin{itemize}[leftmargin=1.4em, itemsep=3pt]
+    \item Rigorous experimental design (controls, baselines, multiple seeds) \dotfill \textbf{10 pts}
+    \item Sufficient scale (small + large graphs, 5+ conditions) \dotfill \textbf{10 pts}
+    \item Reproducibility (fixed seeds, configs, clear instructions) \dotfill \textbf{10 pts}
+\end{itemize}
+
+\subsection*{Results \& Analysis (20 pts)}
+\begin{itemize}[leftmargin=1.4em, itemsep=3pt]
+    \item Clear visualizations (4-6 plots + 2-3 GIFs with captions) \dotfill \textbf{10 pts}
+    \item Insightful analysis (hypothesis testing, failure cases, limitations) \dotfill \textbf{10 pts}
+\end{itemize}
+
+\subsection*{Documentation (10 pts)}
+\begin{itemize}[leftmargin=1.4em, itemsep=3pt]
+    \item Semester Contribution in root README (clear, well-structured) \dotfill \textbf{6 pts}
+    \item Updated folder READMEs for modified modules \dotfill \textbf{4 pts}
+\end{itemize}
+
+\subsection*{Bonus (up to +10 pts)}
+\begin{itemize}[leftmargin=1.2em, itemsep=3pt]
+    \item Novel extension beyond task requirements (e.g., additional architectures, metrics, theoretical analysis) \dotfill \textbf{+5 pts}
+    \item Exceptional results (paper-quality plots, surprising insights, strong baselines) \dotfill \textbf{+5 pts}
+\end{itemize}
+
+\vspace{1em}
+
+
+\section*{Presentation}
+
+Brief 10-minute presentation with slides covering: (1) Research question, (2) Implementation highlights, (3) Key results (3-4 plots/GIFs), (4) Failure analysis, (5) Future work. Live demo or pre-recorded GIF required.
+
+\vspace{0.5em}
+
+\section*{Submission}
+
+\begin{tcolorbox}[modern, colframe=secondaryblue, leftrule=4pt]
+\begin{itemize}[leftmargin=1.2em, itemsep=4pt]
+    \item \textbf{GitHub}: Push all code, configs, and updated READMEs to repository
+    \item \textbf{Canvas}: Submit PDF slides and link to GitHub branch/PR
+    \item \textbf{Artifacts}: Include plots/GIFs in \texttt{src/artifacts/semester\_contribution/}
+    \item \textbf{Team}: Document individual contributions in README
+\end{itemize}
+\end{tcolorbox}
+
+\vspace{2em}
+
+\noindent\hrulefill
+
+\vspace{0.5em}
+\noindent\textcolor{darkgray}{\textbf{Prepared by:}} Tamás Takács \\
+\textcolor{darkgray}{\textbf{Semester:}} 2025/26/2
+
+\vspace{1em}
+\begin{center}
+    \footnotesize\textcolor{gray}{Licensed under \href{https://creativecommons.org/licenses/by-nc-nd/4.0/}{CC BY-NC-ND 4.0}. \copyright~Tamás Takács, 2025.}
+\end{center}
+ 
+\end{document}

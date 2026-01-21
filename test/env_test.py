@@ -8,7 +8,7 @@ from torchrl.envs.libs.pettingzoo import PettingZooWrapper
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 from reward_net import RewardWeightNet  # noqa: E402
 from logger import Logger  # noqa: E402
-from Enviroment.yard import CustomEnvironment  # noqa: E402
+from environment.yard import CustomEnvironment  # noqa: E402
 
 
 @dataclass

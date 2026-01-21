@@ -1,0 +1,51 @@
+# config.yaml
+
+agent_configurations:
+  - num_police_agents: 2
+    agent_money: 8
+  - num_police_agents: 2
+    agent_money: 10
+  - num_police_agents: 2
+    agent_money: 12
+  - num_police_agents: 2
+    agent_money: 14
+  - num_police_agents: 2
+    agent_money: 16
+  - num_police_agents: 2
+    agent_money: 18
+  - num_police_agents: 3
+    agent_money: 6
+  - num_police_agents: 3
+    agent_money: 8
+  - num_police_agents: 3
+    agent_money: 10
+  - num_police_agents: 3
+    agent_money: 12
+  - num_police_agents: 3
+    agent_money: 14
+  - num_police_agents: 4
+    agent_money: 4
+  - num_police_agents: 4
+    agent_money: 6
+  - num_police_agents: 4
+    agent_money: 8
+  - num_police_agents: 4
+    agent_money: 10
+  - num_police_agents: 5
+    agent_money: 4
+  - num_police_agents: 5
+    agent_money: 6
+  - num_police_agents: 6
+    agent_money: 4
+
+num_episodes: 70
+num_eval_episodes: 10
+epochs: 200
+log_dir: 'logs'
+wandb_run_name: 'all'
+wandb_resume: false
+random_seed: 42
+evaluate: False
+agent_configs: 'gnn'
+log_configs: 'default'
+vis_configs: 'none'

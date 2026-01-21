@@ -37,6 +37,11 @@ dist/
 # Log files
 *.log
 
+# WandB credentials (never commit!)
+src/wandb_data.json
+.env
+*.env
+
 # Coverage reports
 *.coverage
 .coverage.*
@@ -55,3 +60,15 @@ __pycache__/
 logs/
 outputs/
 wandb/
+
+# Model files
+*.h5
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.model
+
+assignment.aux
+assignment.log
+assignment.out

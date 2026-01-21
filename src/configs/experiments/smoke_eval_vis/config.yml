@@ -1,0 +1,21 @@
+# config.yaml - Evaluation with full visualization
+# Tests visualization module by generating GIFs during evaluation
+
+agent_configurations:
+  - num_police_agents: 4
+    agent_money: 16
+
+graph_edges: 10
+graph_nodes: 10
+num_episodes: 2
+num_eval_episodes: 3
+epochs: 1
+log_dir: 'logs'
+wandb_run_name: 'smoke_eval_vis'
+wandb_resume: false
+random_seed: 42
+evaluate: True
+agent_configs: 'gnn'
+log_configs: 'default'
+vis_configs: 'full'
+model_path: '../smoke_train/logs/best_model.pt'

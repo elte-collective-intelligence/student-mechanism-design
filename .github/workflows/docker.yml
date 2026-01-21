@@ -16,8 +16,5 @@ jobs:
           sudo docker system prune -af
           df -h
 
-      - name: Build base Docker image
-        run: docker build --progress plain -f ./docker/BaseDockerfile -t student_mechanism_design_base .
-
       - name: Build Docker image
-        run: docker build -f docker/Dockerfile -t mechanism-design-task . 
+        run: docker build --progress plain -f docker/Dockerfile -t student_mechanism_design . 

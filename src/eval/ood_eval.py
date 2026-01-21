@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List, Sequence
 import numpy as np
 
-from Enviroment.graph_generator import GraphGenerationConfig, GraphGenerator
+from environment.graph_generator import GraphGenerationConfig, GraphGenerator
 
 
 @dataclass

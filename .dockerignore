@@ -1,0 +1,51 @@
+# Git files
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs and data
+logs/
+*.log
+*.out
+*.tfevents.*
+wandb/
+src/configs/experiments/*/logs/
+src/artifacts/
+
+# Documentation
+README.md.backup
+*.md
+docs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+test/
+*.test.py
+
+# Backup files
+*.backup
+*.bak
+*.tmp

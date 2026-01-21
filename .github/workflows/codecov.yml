@@ -1,14 +1,44 @@
 name: Coverage
-on: [push, pull_request]
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
 jobs:
-  test:
+  coverage:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - run: pip install -r requirements.txt pytest pytest-cov codecov
-      - run: pytest --cov=src --cov-report=xml
-      - uses: codecov/codecov-action@v3
+          python-version: "3.12"
+          cache: 'pip'
+      
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libsm6 libxext6
+      
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+      
+      - name: Run tests with coverage
+        run: |
+          pytest test/ --cov=src --cov-report=xml --cov-report=term -v
+        continue-on-error: false
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          verbose: true
