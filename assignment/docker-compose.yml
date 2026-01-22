@@ -1,0 +1,9 @@
+services:
+  latex-compiler:
+    build:
+      context: .
+      dockerfile: Dockerfile.latex
+    volumes:
+      - .:/work
+    working_dir: /work
+    command: sh -c "pdflatex -interaction=nonstopmode assignment.tex && pdflatex -interaction=nonstopmode assignment.tex"

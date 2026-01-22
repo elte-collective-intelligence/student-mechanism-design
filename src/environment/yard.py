@@ -40,7 +40,7 @@ class CustomEnvironment(BaseEnvironment):
             level="debug",
         )
         self.agent_money = agent_money
-        
+
         # Initialize helper modules
         self.reward_calculator = RewardCalculator(reward_weights, logger)
         self.pathfinder = Pathfinder(logger)
@@ -57,11 +57,11 @@ class CustomEnvironment(BaseEnvironment):
         self.current_winner = None
         self.avg_distance = 0
         self.node_visit_counts = defaultdict(int)
-        
+
         # Initialize state tracking
         self.epoch = epoch
         self.episode = 0
-        
+
         # Generate a reference graph to determine actual achievable edge count
         # This ensures consistent tensor shapes for TorchRL
         reference_board = self.observation_graph.sample(
@@ -72,9 +72,9 @@ class CustomEnvironment(BaseEnvironment):
             self.logger.log(
                 f"Graph constraint: Using {self.actual_num_edges} edges instead of "
                 f"requested {self.graph_edges} due to max_edges_per_node constraint.",
-                level="info"
+                level="info",
             )
-        
+
         self.reset()
 
     def reset(self, episode=0, seed=None, options=None):
@@ -83,7 +83,7 @@ class CustomEnvironment(BaseEnvironment):
         """
         self.episode = episode
         self.node_visit_counts.clear()
-        
+
         # Generate graphs until we get one with the expected edge count
         # This ensures consistent tensor shapes for TorchRL
         max_attempts = 100
@@ -99,7 +99,7 @@ class CustomEnvironment(BaseEnvironment):
                     f"Last attempt had {self.board.edge_links.shape[0]} edges. "
                     f"Consider adjusting graph_edges parameter or max_edges_per_node constraint."
                 )
-        
+
         self.heatmap = self.board
         self.logger.log("Resetting the environment.", level="debug")
         self.logger.log(
@@ -132,7 +132,7 @@ class CustomEnvironment(BaseEnvironment):
         self.avg_distance = 0
         infos = {a: {} for a in self.agents}  # Dummy infos
         self.logger.log("Environment reset complete.", level="debug")
-        
+
         # Update pathfinder and visualizer with new board state
         self.pathfinder.set_board(self.board)
         self.close_render()
@@ -338,18 +338,20 @@ class CustomEnvironment(BaseEnvironment):
         """
         Compute rewards and check termination/truncation conditions.
         """
-        rewards, terminations, truncations, winner = self.reward_calculator.calculate_rewards_and_terminations(
-            mrx_pos=self.MrX_pos[0],
-            police_positions=self.police_positions,
-            timestep=self.timestep,
-            epoch=self.epoch,
-            is_no_money=is_no_money,
-            agents=self.agents,
-            get_distance_func=self.get_distance,
-            get_possible_moves_func=self._get_possible_moves,
-            node_visit_counts=self.node_visit_counts
+        rewards, terminations, truncations, winner = (
+            self.reward_calculator.calculate_rewards_and_terminations(
+                mrx_pos=self.MrX_pos[0],
+                police_positions=self.police_positions,
+                timestep=self.timestep,
+                epoch=self.epoch,
+                is_no_money=is_no_money,
+                agents=self.agents,
+                get_distance_func=self.get_distance,
+                get_possible_moves_func=self._get_possible_moves,
+                node_visit_counts=self.node_visit_counts,
+            )
         )
-        
+
         self.timestep += 1
         self.logger.log(f"Updated timestep to {self.timestep}, ", level="debug")
         return rewards, terminations, truncations, winner
@@ -367,18 +369,18 @@ class CustomEnvironment(BaseEnvironment):
             agents=self.agents,
             get_distance_func=self.get_distance,
             get_possible_moves_func=self._get_possible_moves,
-            node_visit_counts=self.node_visit_counts
+            node_visit_counts=self.node_visit_counts,
         )
 
     def get_distance(self, node1: int, node2: int) -> float:
         """
         Compute the shortest path distance between two nodes using Dijkstra's algorithm,
         considering the weights of the edges.
-        
+
         Args:
             node1: The starting node
             node2: The target node
-            
+
         Returns:
             The shortest distance (sum of edge weights) between node1 and node2
             if a path exists. Returns float('inf') if no path exists.
@@ -562,7 +564,7 @@ class CustomEnvironment(BaseEnvironment):
             node_visits=self.node_visits,
             timestep=self.timestep,
             epoch=self.epoch,
-            episode=self.episode
+            episode=self.episode,
         )
         self.visualizer.initialize_render(reset=reset)
 
@@ -590,7 +592,7 @@ class CustomEnvironment(BaseEnvironment):
             node_visits=self.node_visits,
             timestep=self.timestep,
             epoch=self.epoch,
-            episode=self.episode
+            episode=self.episode,
         )
         self.visualizer.render()
 

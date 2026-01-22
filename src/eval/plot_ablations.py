@@ -11,7 +11,6 @@ import matplotlib
 import seaborn as sns
 import numpy as np
 
-
 matplotlib.use("Agg")  # Non-interactive backend
 
 # Set style

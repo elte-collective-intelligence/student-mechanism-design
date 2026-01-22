@@ -3,53 +3,72 @@
 % - Base packages -
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[magyar,english]{babel}
-\usepackage[a4paper, top=2.5cm, bottom=2.5cm, left=3cm, right=3cm, headheight=36.5pt, footskip=1.5cm]{geometry}
+\usepackage[english]{babel}
+\usepackage[a4paper, top=2.5cm, bottom=2.5cm, left=2.8cm, right=2.8cm, headheight=36.5pt, footskip=1.5cm]{geometry}
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
 \usepackage{enumitem}
 \usepackage{hyperref}
-\usepackage[automark,headsepline,footsepline]{scrlayer-scrpage}
+\usepackage[automark,headsepline]{scrlayer-scrpage}
 \usepackage{xcolor}
 \usepackage{tcolorbox}
 \usepackage{listings}
-\usepackage{lmodern}
 \usepackage{microtype}
+\usepackage{tikz}  % For enhanced graphics and borders
+\usetikzlibrary{shadows,patterns}
 
-% Modern color scheme
-\definecolor{primaryblue}{RGB}{41, 128, 185}
-\definecolor{secondaryblue}{RGB}{52, 152, 219}
-\definecolor{darkgray}{RGB}{44, 62, 80}
-\definecolor{lightgray}{RGB}{236, 240, 241}
-\definecolor{accentgreen}{RGB}{46, 204, 113}
-\definecolor{accentorange}{RGB}{230, 126, 34}
-\definecolor{accentpurple}{RGB}{155, 89, 182}
+% Professional monospace font setup
+\usepackage{inconsolata}  % Clean, crisp monospace font
+\usepackage[scaled=1.0]{helvet}  % For sans-serif headers
+\renewcommand{\familydefault}{\ttdefault}  % Use monospace as main font
+\usepackage[libertine]{newtxmath}  % Math font that pairs well with monospace
 
-% Hyperref setup
-\hypersetup{
-    colorlinks=true,
-    linkcolor=primaryblue,
-    urlcolor=secondaryblue,
-    citecolor=primaryblue
+% Professional grayscale color scheme
+\definecolor{titlecolor}{RGB}{20, 20, 20}
+\definecolor{sectioncolor}{RGB}{40, 40, 40}
+\definecolor{accentcolor}{RGB}{60, 60, 60}
+\definecolor{rulecolor}{RGB}{100, 100, 100}
+\definecolor{lightgray}{RGB}{245, 245, 245}
+\definecolor{codebg}{RGB}{250, 250, 250}
+\definecolor{codehighlight}{RGB}{240, 240, 245}
+\definecolor{shadowcolor}{RGB}{220, 220, 220}
+
+% Custom command for inline code paths with subtle highlight
+\newcommand{\codepath}[1]{\colorbox{codehighlight}{\texttt{#1}}}
+
+% Section divider command
+\newcommand{\sectiondivider}{%
+  \vspace{0.2em}%
+  \noindent\textcolor{rulecolor}{\rule{0.3\textwidth}{0.4pt}}%
+  \vspace{0.3em}%
 }
 
-% Code listing setup
+% Hyperref setup - understated
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=accentcolor,
+    citecolor=black,
+    pdfborder={0 0 0}
+}
+
+% Code listing setup - minimal and crisp
 \lstset{
     language=Python,
     basicstyle=\ttfamily\small,
     breaklines=true,
-    frame=single,
-    backgroundcolor=\color{lightgray},
-    rulecolor=\color{darkgray},
+    frame=none,
+    backgroundcolor=\color{codebg},
+    xleftmargin=1em,
+    framexleftmargin=0em,
     columns=fullflexible,
     showstringspaces=false,
-    keywordstyle=\color{primaryblue}\bfseries,
-    commentstyle=\color{gray}\itshape,
-    stringstyle=\color{accentgreen},
+    keywordstyle=\bfseries,
+    commentstyle=\color{accentcolor}\itshape,
+    stringstyle=\itshape,
     numbers=left,
-    numberstyle=\tiny\color{gray},
-    xleftmargin=2em,
-    framexleftmargin=1.5em
+    numberstyle=\tiny\color{rulecolor},
+    numbersep=1em
 }
 \lstdefinelanguage{Dockerfile}{
   morekeywords={FROM,WORKDIR,COPY,RUN,CMD},
@@ -58,50 +77,66 @@
   morestring=[b]",
 }
 
-% Modern tcolorbox styles
+% Professional tcolorbox styles with shadows
 \tcbuselibrary{listings,breakable,skins}
 
 \tcbset{
     modern/.style={
         enhanced,
-        sharp corners=all,
-        colback=white,
-        boxrule=0pt,
-        leftrule=4pt,
+        sharp corners,
+        colback=codebg,
+        colframe=rulecolor,
+        boxrule=0.5pt,
         arc=0mm,
         top=8pt,
         bottom=8pt,
-        left=10pt,
-        right=10pt,
+        left=12pt,
+        right=12pt,
         breakable,
-        before skip=15pt,
-        after skip=15pt
+        before skip=10pt,
+        after skip=10pt,
+        drop fuzzy shadow=shadowcolor
     }
 }
 
-% Section formatting
-\setkomafont{section}{\LARGE\bfseries\color{primaryblue}}
-\setkomafont{subsection}{\Large\bfseries\color{secondaryblue}}
-\setkomafont{subsubsection}{\large\bfseries\color{darkgray}}
+% Section formatting - minimal and professional with accent bars
+\setkomafont{section}{\ttfamily\LARGE\bfseries\color{sectioncolor}}
+\setkomafont{subsection}{\ttfamily\Large\bfseries\color{sectioncolor}}
+\setkomafont{subsubsection}{\ttfamily\large\bfseries\color{accentcolor}}
 
-% List spacing
-\setlist{nosep, leftmargin=1.5em}
-\setlist[itemize,1]{label=\textcolor{primaryblue}{$\bullet$}}
-\setlist[enumerate,1]{label=\textcolor{primaryblue}{\arabic*.}}
+% Add subtle bars before sections
+\RedeclareSectionCommand[
+  beforeskip=1.0\baselineskip,
+  afterskip=.5\baselineskip
+]{section}
 
-% Paragraph spacing
-\setlength{\parskip}{0.5em}
+\RedeclareSectionCommand[
+  beforeskip=0.8\baselineskip,
+  afterskip=.3\baselineskip
+]{subsection}
+
+% List spacing with improved bullets
+\setlist{nosep, leftmargin=1.8em}
+\setlist[itemize,1]{label={\textcolor{rulecolor}{\small\textbullet}}}
+\setlist[enumerate,1]{label={\textcolor{sectioncolor}{\arabic*.}}}
+
+% Paragraph spacing - compact layout
+\setlength{\parskip}{0.4em}
 \setlength{\parindent}{0pt}
 
 \setlength{\footheight}{25pt}
 
 \clearpairofpagestyles
 
-\ihead{%
-  \raisebox{-2pt}{\includegraphics[height=1.2cm]{images/logo.png}}
+% Enhanced header with subtle line
+\chead{%
+  \raisebox{-2pt}{\includegraphics[height=1.1cm]{logo.png}}
 }
-\ohead{\textcolor{darkgray}{\textbf{Mechanism Design Assignment}}}
-\cfoot{\textcolor{darkgray}{\pagemark}}
+\cfoot{%
+  \vspace{-0.5em}%
+  \textcolor{rulecolor}{\rule{4cm}{0.3pt}}\\[0.3em]%
+  \ttfamily\small\pagemark%
+}
 \renewcommand*{\titlepagestyle}{scrheadings}
 
 \addtokomafont{title}{\vspace*{-2em}}
@@ -109,32 +144,28 @@
 \addtokomafont{date}{\vspace*{-0.5em}}
 
 % - Title and authors -
-\title{\Huge \textbf{\textcolor{primaryblue}{Scotland Yard}}\\[0.3em]
-\LARGE \textcolor{darkgray}{Multi-Agent Mechanism Design}}
+\title{\ttfamily\Huge \textbf{Scotland Yard}\\[0.3em]
+\LARGE Multi-Agent Mechanism Design}
 
 \author{
-\textcolor{darkgray}{Collective Intelligence -- Spring 2026}
+\ttfamily Collective Intelligence - Spring 2026
 }
-\date{\textcolor{darkgray}{Teams of 2-3 students | 6-8 weeks}}
+\date{\ttfamily Teams of 2-3 students | 6-8 weeks}
 
 \begin{document}
 \maketitle
 
-\vspace{-1em}
+\vspace{-3em}
 
 \begin{center}
-    \includegraphics[width=0.5\textwidth]{images/scotland_yard.png}
+    \includegraphics[width=0.4\textwidth]{scotland_yard.png}
 \end{center}
-
-\vspace{1em}
 
 \section*{Overview}
 
-This assignment extends the Scotland Yard mechanism design project with \textbf{three independent research directions}. The codebase provides a working multi-agent RL framework with GNN/MAPPO agents, graph environments, and training infrastructure. Your team will choose \textbf{one task} to investigate deeply, implementing new algorithms/architectures/mechanisms and producing rigorous experimental results.
+This assignment extends the Scotland Yard mechanism design project with \textbf{three independent research directions}. The codebase provides a working multi-agent RL framework with GNN/MAPPO agents, graph environments, and training infrastructure. Your team will choose \textbf{one task} to investigate deeply, implementing new algorithms, architectures, mechanisms and producing rigorous experimental results.
 
-\vspace{0.5em}
-
-\begin{tcolorbox}[modern, colframe=primaryblue, title=\textcolor{white}{\textbf{What is already provided}}, coltitle=white, colbacktitle=primaryblue]
+\begin{tcolorbox}[modern, title=\ttfamily\textbf{What is already provided}]
 \begin{itemize}[leftmargin=1.2em, itemsep=4pt]
     \item \textbf{Environment}: Scotland Yard on procedural graphs (PettingZoo + TorchRL)
     \item \textbf{Agents}: GNN and MAPPO implementations with action masking
@@ -144,12 +175,11 @@ This assignment extends the Scotland Yard mechanism design project with \textbf{
 \end{itemize}
 \end{tcolorbox}
 
-\begin{tcolorbox}[modern, colframe=accentgreen, title=\textcolor{white}{\textbf{Teams \& Timeline}}, coltitle=white, colbacktitle=accentgreen]
+\begin{tcolorbox}[modern, title=\ttfamily\textbf{Teams \& Timeline}]
 \begin{itemize}[leftmargin=1.2em, itemsep=4pt]
     \item \textbf{3 teams} of 2-3 students each
     \item \textbf{Deadline}: 6-8 weeks from start
     \item \textbf{Each team chooses ONE task} from the three options below
-    \item \textbf{Tasks are independent} -- no inter-team dependencies
 \end{itemize}
 \end{tcolorbox}
 
@@ -164,14 +194,14 @@ Maintaining a population of diverse agents (varying strategies, skill levels) du
 
 \subsubsection*{Implementation Requirements}
 \begin{enumerate}[leftmargin=1.4em]
-    \item \textbf{Population Manager} (\texttt{src/training/population\_trainer.py}):
+    \item \textbf{Population Manager} (\codepath{src/training/population\_trainer.py}):
     \begin{itemize}
         \item Maintain pool of 5-10 checkpoint policies for both MrX and Police
         \item Implement matchmaking: round-robin, skill-based pairing, or Elo-based
         \item Periodic checkpoint saving with diversity metrics
     \end{itemize}
     
-    \item \textbf{Exploitability Testing} (\texttt{src/eval/exploitability.py} extension):
+    \item \textbf{Exploitability Testing} (\codepath{src/eval/exploitability.py} extension):
     \begin{itemize}
         \item Best-response training: freeze target mechanism, optimize attacker
         \item Measure win-rate shift under exploitation attempts
@@ -189,8 +219,8 @@ Maintaining a population of diverse agents (varying strategies, skill levels) du
 \subsubsection*{Technical Guidance}
 \begin{itemize}[leftmargin=1.2em]
     \item Use \texttt{PopulationTrainer} class inheriting from \texttt{BaseTrainer}
-    \item Store population in \texttt{src/artifacts/populations/}
-    \item Config: \texttt{src/configs/training/population.yaml} with pool sizes, matchmaking strategy
+    \item Store population in \codepath{src/artifacts/populations/}
+    \item Config: \codepath{src/configs/training/population.yaml} with pool sizes, matchmaking strategy
     \item Plot: exploitability curves, diversity metrics over training, population skill distribution
 \end{itemize}
 
@@ -203,6 +233,8 @@ Maintaining a population of diverse agents (varying strategies, skill levels) du
     \item Analysis: when does population training help? Failure cases?
 \end{itemize}
 
+\sectiondivider
+
 \subsection*{Task 2: Attention Mechanisms \& Architecture Ablations}
 \textbf{Research Question}: \textit{Do graph attention networks learn better strategic coordination than standard message-passing GNNs?}
 
@@ -213,12 +245,12 @@ Attention mechanisms allow agents to selectively focus on strategically relevant
 \begin{enumerate}[leftmargin=1.4em]
     \item \textbf{New Agent Architectures}:
     \begin{itemize}
-        \item \texttt{src/agent/gat\_agent.py}: Graph Attention Networks (PyTorch Geometric)
-        \item \texttt{src/agent/transformer\_agent.py}: Transformer with positional encoding on graphs
+        \item \codepath{src/agent/gat\_agent.py}: Graph Attention Networks (PyTorch Geometric)
+        \item \codepath{src/agent/transformer\_agent.py}: Transformer with positional encoding on graphs
         \item Follow same interface as \texttt{GNNAgent} (inherit from \texttt{BaseAgent})
     \end{itemize}
     
-    \item \textbf{Ablation Study} (\texttt{src/eval/architecture\_ablations.py}):
+    \item \textbf{Ablation Study} (\codepath{src/eval/architecture\_ablations.py}):
     \begin{itemize}
         \item Compare: GCN (baseline) vs GAT vs Transformer
         \item Vary: number of layers (2-5), hidden dims (64-256), attention heads (1-8)
@@ -236,7 +268,7 @@ Attention mechanisms allow agents to selectively focus on strategically relevant
 \subsubsection*{Technical Guidance}
 \begin{itemize}[leftmargin=1.2em]
     \item Use \texttt{torch\_geometric.nn.GATConv} and \texttt{TransformerConv}
-    \item Configs: \texttt{src/configs/agent/gat.yaml}, \texttt{transformer.yaml}
+    \item Configs: \codepath{src/configs/agent/gat.yaml}, \codepath{transformer.yaml}
     \item Attention extraction: hook into \texttt{.forward()} or use \texttt{return\_attention\_weights=True}
     \item Compare on same compute budget (match parameter count or training time)
 \end{itemize}
@@ -250,6 +282,8 @@ Attention mechanisms allow agents to selectively focus on strategically relevant
     \item Analysis: when does attention help? Diminishing returns? Interpretability insights?
 \end{itemize}
 
+\sectiondivider
+
 \subsection*{Task 3: Multi-Objective Mechanisms (Fairness vs Efficiency)}
 \textbf{Research Question}: \textit{Can priority edges (metro/ship) enable Pareto-optimal trade-offs between catch efficiency and detective workload fairness?}
 
@@ -258,14 +292,14 @@ Adding high-speed "metro" edges that MrX can use creates interesting mechanism d
 
 \subsubsection*{Implementation Requirements}
 \begin{enumerate}[leftmargin=1.4em]
-    \item \textbf{Priority Edge System} (\texttt{src/environment/graph\_generator.py} extension):
+    \item \textbf{Priority Edge System} (\codepath{src/environment/graph\_generator.py} extension):
     \begin{itemize}
         \item Generate graphs with 10-20\% "metro" edges (weight 0.5-1.0 of normal)
         \item MrX can use all edges; Police restricted to normal edges (configurable)
         \item Visualize priority edges distinctly (different colors/line styles)
     \end{itemize}
     
-    \item \textbf{Multi-Objective Rewards} (\texttt{src/environment/multi\_objective\_reward.py}):
+    \item \textbf{Multi-Objective Rewards} (\codepath{src/environment/multi\_objective\_reward.py}):
     \begin{itemize}
         \item Objective 1 (Efficiency): time-to-catch, total travel distance
         \item Objective 2 (Fairness): Gini coefficient of catches per detective, workload balance
@@ -283,7 +317,7 @@ Adding high-speed "metro" edges that MrX can use creates interesting mechanism d
 \subsubsection*{Technical Guidance}
 \begin{itemize}[leftmargin=1.2em]
     \item Extend \texttt{GraphGenerator.generate()} with \texttt{priority\_edge\_ratio} parameter
-    \item Config: \texttt{src/configs/environment/priority\_edges.yaml}
+    \item Config: \codepath{src/configs/environment/priority\_edges.yaml}
     \item Fairness metrics: Gini coefficient $G = \frac{\sum_{i,j} |c_i - c_j|}{2n\sum_i c_i}$ where $c_i$ = catches by detective $i$
     \item Use existing \texttt{RewardCalculator} as base, add multi-objective wrapper
 \end{itemize}
@@ -298,13 +332,13 @@ Adding high-speed "metro" edges that MrX can use creates interesting mechanism d
     \item Analysis: optimal trade-offs? When do priority edges help/hurt? Policy differences?
 \end{itemize}
 
+\sectiondivider
+
 \section*{Shared Requirements (All Tasks)}
 
 All teams must follow these common guidelines to ensure quality and reproducibility.
 
-\vspace{0.5em}
-
-\begin{tcolorbox}[modern, colframe=darkgray, leftrule=4pt]
+\begin{tcolorbox}[modern]
 \subsection*{Code Quality}
 \begin{itemize}[leftmargin=1.2em, itemsep=4pt]
     \item Follow existing code structure (inherit from base classes)
@@ -322,7 +356,7 @@ All teams must follow these common guidelines to ensure quality and reproducibil
 
 \subsection*{Documentation}
 \begin{itemize}[leftmargin=1.2em, itemsep=4pt]
-    \item Update root \texttt{README.md} with new "Semester Contribution" section:
+    \item Update root \texttt{README.md} with new ``Semester Contribution'' section:
     \begin{itemize}[itemsep=2pt]
         \item Research question \& hypothesis
         \item Implementation summary (what was added/modified)
@@ -332,14 +366,14 @@ All teams must follow these common guidelines to ensure quality and reproducibil
     \end{itemize}
     \item Keep it concise (500-800 words max)
 \end{itemize}
-\end{tcolorbox}
+    \end{tcolorbox}
 
 % =========================
 % GRADING RUBRIC
 % =========================
 \section*{Grading Rubric}
 
-\begin{tcolorbox}[modern, colframe=accentorange, title=\textcolor{white}{\textbf{Total: 100 points}}, coltitle=white, colbacktitle=accentorange]
+\begin{tcolorbox}[modern, title=\ttfamily\textbf{Total: 100 points}]
 Each task has the same grading structure. All requirements must use Hydra configs and be reproducible.
 \end{tcolorbox}
 
@@ -379,6 +413,7 @@ Each task has the same grading structure. All requirements must use Hydra config
 
 \vspace{1em}
 
+\sectiondivider
 
 \section*{Presentation}
 
@@ -388,26 +423,26 @@ Brief 10-minute presentation with slides covering: (1) Research question, (2) Im
 
 \section*{Submission}
 
-\begin{tcolorbox}[modern, colframe=secondaryblue, leftrule=4pt]
+\begin{tcolorbox}[modern]
 \begin{itemize}[leftmargin=1.2em, itemsep=4pt]
     \item \textbf{GitHub}: Push all code, configs, and updated READMEs to repository
     \item \textbf{Canvas}: Submit PDF slides and link to GitHub branch/PR
-    \item \textbf{Artifacts}: Include plots/GIFs in \texttt{src/artifacts/semester\_contribution/}
+    \item \textbf{Artifacts}: Include plots/GIFs in \codepath{src/artifacts/semester\_contribution/}
     \item \textbf{Team}: Document individual contributions in README
 \end{itemize}
 \end{tcolorbox}
 
 \vspace{2em}
 
-\noindent\hrulefill
+\noindent\rule{\textwidth}{0.5pt}
 
 \vspace{0.5em}
-\noindent\textcolor{darkgray}{\textbf{Prepared by:}} Tamás Takács \\
-\textcolor{darkgray}{\textbf{Semester:}} 2025/26/2
+\noindent\textbf{Prepared by:} Tamás Takács \\
+\textbf{Semester:} 2025/26/2
 
 \vspace{1em}
 \begin{center}
-    \footnotesize\textcolor{gray}{Licensed under \href{https://creativecommons.org/licenses/by-nc-nd/4.0/}{CC BY-NC-ND 4.0}. \copyright~Tamás Takács, 2025.}
+    \footnotesize\color{accentcolor} Licensed under \href{https://creativecommons.org/licenses/by-nc-nd/4.0/}{CC BY-NC-ND 4.0}. \copyright~Tamás Takács, 2025.
 \end{center}
  
 \end{document}

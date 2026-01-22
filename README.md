@@ -11,6 +11,8 @@
 
 This is your team's codebase for exploring **mechanism design** in multi-agent reinforcement learning. You'll be working with a Scotland Yard-inspired pursuit-evasion game where police agents try to catch a hidden criminal (MrX) on a graph. Your job is to design mechanisms (budgets, tolls, reveal schedules) that balance the game and study how agents learn to coordinate.
 
+![Scotland Yard](./assignment/scotland_yard.png)
+
 Don't worry if it seems complex at first, this README will walk you through everything step by step!
 
 ---

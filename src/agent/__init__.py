@@ -9,15 +9,15 @@ Available Agents:
 
 Usage:
     from agent import GNNAgent, MappoAgent, RandomAgent
-    
+
     # For GNN-based training
     agent = GNNAgent(node_feature_size=3, device=device)
     action = agent.select_action(graph_data, action_mask)
-    
+
     # For MAPPO training
     agent = MappoAgent(n_agents=2, obs_size=10, global_obs_size=20, ...)
     action, log_prob, value = agent.select_action(agent_idx, observation, mask)
-    
+
     # For baseline/testing
     agent = RandomAgent()
     action = agent.select_action(observation, action_mask)

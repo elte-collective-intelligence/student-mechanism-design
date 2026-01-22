@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 
 class BaseAgent(ABC):
     """Abstract base class for simple RL agents.
-    
+
     This base class is suitable for agents that don't require neural networks
     or complex state management. For neural network agents, see GNNAgent
     and MappoAgent which have their own interfaces.

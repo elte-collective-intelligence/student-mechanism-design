@@ -21,7 +21,7 @@ from training.utils import (
 __all__ = [
     "device",
     "create_curriculum",
-    "modify_curriculum", 
+    "modify_curriculum",
     "compute_target_difficulty",
     "predict_reward_weights",
     "create_graph_data",

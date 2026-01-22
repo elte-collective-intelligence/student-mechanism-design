@@ -1,0 +1,15 @@
+FROM texlive/texlive:latest
+
+# Most packages are already included in texlive/texlive:latest
+# Only install what's missing (use || true to continue on already-installed packages)
+RUN tlmgr update --self || true && \
+    tlmgr install inconsolata || true && \
+    tlmgr install tcolorbox || true && \
+    tlmgr install enumitem || true && \
+    tlmgr install microtype || true && \
+    tlmgr install listings || true && \
+    tlmgr install newtx || true
+
+WORKDIR /work
+CMD ["pdflatex", "-interaction=nonstopmode", "assignment.tex"]
+

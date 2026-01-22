@@ -7,10 +7,10 @@ This module provides a clean interface for training and evaluation:
 Usage:
     # Training with GNN agents
     python main.py --config experiments/smoke_train/config.yml --agent_configs gnn
-    
-    # Training with MAPPO agents  
+
+    # Training with MAPPO agents
     python main.py --config experiments/smoke_train/config.yml --agent_configs mappo
-    
+
     # Evaluation
     python main.py --config experiments/smoke_train/config.yml --evaluate True
 """
@@ -27,7 +27,9 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Suppress known warnings from TorchRL library
 warnings.filterwarnings("ignore", message=".*To copy construct from a tensor.*")
-warnings.filterwarnings("ignore", message=".*PettingZoo in TorchRL is tested using version.*")
+warnings.filterwarnings(
+    "ignore", message=".*PettingZoo in TorchRL is tested using version.*"
+)
 
 # Import training and evaluation functions
 from training.gnn_trainer import train_gnn
@@ -40,6 +42,7 @@ def load_wandb_config():
     try:
         with open(os.path.join(SCRIPT_DIR, "wandb_data.json"), "r") as f:
             import json
+
             wandb_data = json.load(f)
             return wandb_data
     except FileNotFoundError:
@@ -47,7 +50,7 @@ def load_wandb_config():
         return {
             "wandb_api_key": "null",
             "wandb_project": "null",
-            "wandb_entity": "null"
+            "wandb_entity": "null",
         }
 
 
@@ -56,7 +59,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Scotland Yard Multi-Agent RL Training and Evaluation"
     )
-    
+
     parser.add_argument(
         "--config",
         type=str,
@@ -116,7 +119,7 @@ def parse_arguments():
         action="store_true",
         help="Resume WandB run if exists",
     )
-    
+
     return parser.parse_args()
 
 
@@ -154,17 +157,23 @@ def load_configs(args):
 
     # Load agent configuration
     agent_config_name = experiment_config.get("agent_configs", args.agent_configs)
-    with open(os.path.join(SCRIPT_DIR, f"configs/agent/{agent_config_name}.yaml"), "r") as f:
+    with open(
+        os.path.join(SCRIPT_DIR, f"configs/agent/{agent_config_name}.yaml"), "r"
+    ) as f:
         agent_configs = yaml.load(f, Loader=yaml_loader)
 
     # Load logger configuration
     logger_config_name = experiment_config.get("log_configs", args.log_configs)
-    with open(os.path.join(SCRIPT_DIR, f"configs/logger/{logger_config_name}.yaml"), "r") as f:
+    with open(
+        os.path.join(SCRIPT_DIR, f"configs/logger/{logger_config_name}.yaml"), "r"
+    ) as f:
         logger_configs = yaml.load(f, Loader=yaml_loader)
 
     # Load visualization configuration
     vis_config_name = experiment_config.get("vis_configs", args.vis_configs)
-    vis_config_path = os.path.join(SCRIPT_DIR, f"configs/visualization/{vis_config_name}.yaml")
+    vis_config_path = os.path.join(
+        SCRIPT_DIR, f"configs/visualization/{vis_config_name}.yaml"
+    )
     with open(vis_config_path, "r") as f:
         visualization_configs = yaml.load(f, Loader=yaml_loader)
 
@@ -190,17 +199,19 @@ def merge_configs(args, experiment_config):
 
     # Load WandB config
     wandb_config = load_wandb_config()
-    defaults.update({
-        "wandb_api_key": wandb_config.get("wandb_api_key"),
-        "wandb_project": wandb_config.get("wandb_project"),
-        "wandb_entity": wandb_config.get("wandb_entity"),
-        "wandb_run_name": experiment_config.get("wandb_run_name", "default_run"),
-        "wandb_resume": False,
-    })
+    defaults.update(
+        {
+            "wandb_api_key": wandb_config.get("wandb_api_key"),
+            "wandb_project": wandb_config.get("wandb_project"),
+            "wandb_entity": wandb_config.get("wandb_entity"),
+            "wandb_run_name": experiment_config.get("wandb_run_name", "default_run"),
+            "wandb_resume": False,
+        }
+    )
 
     # Merge: defaults < experiment_config < command-line args
     combined = {**defaults, **experiment_config}
-    
+
     # Override with command-line arguments if provided
     if args.wandb_api_key:
         combined["wandb_api_key"] = args.wandb_api_key
@@ -227,34 +238,48 @@ def main():
     """Main entry point."""
     # Parse arguments
     args = parse_arguments()
-    
+
     # Load configurations
-    experiment_config, agent_configs, logger_configs, visualization_configs = load_configs(args)
-    
+    experiment_config, agent_configs, logger_configs, visualization_configs = (
+        load_configs(args)
+    )
+
     # Merge all configs
     combined_args = merge_configs(args, experiment_config)
-    
+
     # Update logger and vis config paths
-    logger_configs["log_dir"] = os.path.join(combined_args.exp_dir, logger_configs["log_dir"])
+    logger_configs["log_dir"] = os.path.join(
+        combined_args.exp_dir, logger_configs["log_dir"]
+    )
     os.makedirs(logger_configs["log_dir"], exist_ok=True)
-    
-    visualization_configs["save_dir"] = os.path.join(combined_args.exp_dir, visualization_configs["save_dir"])
+
+    visualization_configs["save_dir"] = os.path.join(
+        combined_args.exp_dir, visualization_configs["save_dir"]
+    )
     os.makedirs(visualization_configs["save_dir"], exist_ok=True)
-    
+
     # Route to appropriate function
     if combined_args.evaluate:
         print(f"Starting evaluation with {agent_configs['agent_type']} agents...")
         if agent_configs["agent_type"] == "mappo":
-            evaluate_mappo(combined_args, agent_configs, logger_configs, visualization_configs)
+            evaluate_mappo(
+                combined_args, agent_configs, logger_configs, visualization_configs
+            )
         else:
-            evaluate_gnn(combined_args, agent_configs, logger_configs, visualization_configs)
+            evaluate_gnn(
+                combined_args, agent_configs, logger_configs, visualization_configs
+            )
     else:
         print(f"Starting training with {agent_configs['agent_type']} agents...")
         if agent_configs["agent_type"] == "mappo":
-            train_mappo(combined_args, agent_configs, logger_configs, visualization_configs)
+            train_mappo(
+                combined_args, agent_configs, logger_configs, visualization_configs
+            )
         else:
-            train_gnn(combined_args, agent_configs, logger_configs, visualization_configs)
-    
+            train_gnn(
+                combined_args, agent_configs, logger_configs, visualization_configs
+            )
+
     print("Done!")
 
 
