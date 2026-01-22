@@ -24,13 +24,14 @@ Don't worry if it seems complex at first, this README will walk you through ever
 3. [Quick Start](#quick-start)
 4. [Your Assignment](#your-assignment)
 5. [Available Experiments](#available-experiments)
-6. [Understanding the Code](#understanding-the-code)
-7. [Configuration & Customization](#configuration--customization)
-8. [Metrics & Evaluation](#metrics--evaluation)
-9. [Running Ablation Studies](#running-ablation-studies)
-10. [Troubleshooting & Tips](#troubleshooting--tips)
-11. [Technical Details](#technical-details)
-12. [References](#references)
+6. [Experimental Results](#experimental-results)
+7. [Understanding the Code](#understanding-the-code)
+8. [Configuration & Customization](#configuration--customization)
+9. [Metrics & Evaluation](#metrics--evaluation)
+10. [Running Ablation Studies](#running-ablation-studies)
+11. [Troubleshooting & Tips](#troubleshooting--tips)
+12. [Technical Details](#technical-details)
+13. [References](#references)
 
 ---
 
@@ -315,6 +316,68 @@ Edit these to customize:
 - Training hyperparameters (episodes, epochs)
 - Graph sizes
 - Random seeds
+
+---
+
+## Experimental Results
+
+This section showcases the trained GNN agents playing Scotland Yard on procedurally generated graphs.
+
+### Game Visualizations
+
+The GIFs below show trained Police agents (blue nodes) chasing Mr. X (red node) across different graph configurations:
+
+<table>
+<tr>
+<td align="center"><b>Episode 1 - Large Graph</b></td>
+<td align="center"><b>Episode 2 - Medium Graph</b></td>
+<td align="center"><b>Episode 3 - Small Graph</b></td>
+</tr>
+<tr>
+<td><img src="images/run_epoch_0-episode_1.gif" width="280"/></td>
+<td><img src="images/run_epoch_0-episode_2.gif" width="280"/></td>
+<td><img src="images/run_epoch_0-episode_3.gif" width="280"/></td>
+</tr>
+</table>
+
+**What you're seeing:**
+- 🔴 **Red node**: Mr. X (the evader)
+- 🔵 **Blue nodes**: Police detectives (the pursuers)
+- **Edges**: Valid movement paths on the procedural graph
+- **Animation**: Each frame is one game step
+
+### Belief State Heatmaps
+
+The heatmaps show what the Police agents *believe* about Mr. X's location over time:
+
+<table>
+<tr>
+<td align="center"><b>Episode 1 - Belief Tracking</b></td>
+<td align="center"><b>Episode 2 - Belief Tracking</b></td>
+<td align="center"><b>Episode 3 - Belief Tracking</b></td>
+</tr>
+<tr>
+<td><img src="images/heatmap_epoch_0-episode_1.gif" width="280"/></td>
+<td><img src="images/heatmap_epoch_0-episode_2.gif" width="280"/></td>
+<td><img src="images/heatmap_epoch_0-episode_3.gif" width="280"/></td>
+</tr>
+</table>
+
+**What you're seeing:**
+- **Brighter colors**: Higher probability of Mr. X being at that node
+- **Belief updates**: Watch how beliefs sharpen when Mr. X reveals position
+- **Spreading**: Beliefs diffuse along edges when Mr. X is hidden
+
+### Key Observations
+
+| Metric | Observation |
+|--------|-------------|
+| **Coordination** | Police agents learn to spread out and cover the graph |
+| **Belief Quality** | Agents maintain accurate beliefs even during hidden phases |
+| **Capture Rate** | Trained agents significantly outperform random baselines |
+| **Adaptability** | Policies generalize across different graph sizes |
+
+> **Note**: These results are from the `smoke_eval_vis` experiment. For full training, use the `all` or `big_graph` configurations.
 
 ---
 
