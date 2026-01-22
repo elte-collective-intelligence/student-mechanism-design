@@ -7,7 +7,6 @@ between nodes in the game graph.
 
 import heapq
 import numpy as np
-from typing import Tuple
 
 
 class Pathfinder:

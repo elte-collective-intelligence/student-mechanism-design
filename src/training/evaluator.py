@@ -1,7 +1,6 @@
 """Evaluation module for trained agents."""
 
 import torch
-import random
 
 from logger import Logger
 from agent.gnn_agent import GNNAgent
@@ -87,8 +86,6 @@ def evaluate_gnn(args, agent_configs, logger_configs, visualization_configs):
 
         # Initialize agents
         node_feature_size = env.number_of_agents + 1
-        mrX_action_size = env.action_space("MrX").n
-        police_action_size = env.action_space("Police0").n
 
         MrX_model_name = f"MrX_{node_feature_size}_agents"
         Police_model_name = f"Police_{node_feature_size}_agents"

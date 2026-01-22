@@ -21,6 +21,9 @@ import os
 import re
 import yaml
 import warnings
+from training.gnn_trainer import train_gnn
+from training.mappo_trainer import train_mappo
+from training.evaluator import evaluate_gnn, evaluate_mappo
 
 # Get the directory where this script is located
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -30,11 +33,6 @@ warnings.filterwarnings("ignore", message=".*To copy construct from a tensor.*")
 warnings.filterwarnings(
     "ignore", message=".*PettingZoo in TorchRL is tested using version.*"
 )
-
-# Import training and evaluation functions
-from training.gnn_trainer import train_gnn
-from training.mappo_trainer import train_mappo
-from training.evaluator import evaluate_gnn, evaluate_mappo
 
 
 def load_wandb_config():

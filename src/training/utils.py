@@ -6,9 +6,8 @@ to avoid code duplication in main.py.
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import numpy as np
-from typing import Dict, Any, List, Tuple
+from typing import Dict, List, Tuple
 
 from torch_geometric.data import Data
 

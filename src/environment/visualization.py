@@ -6,14 +6,14 @@ including both regular game visualization and heatmap visualization.
 """
 
 import matplotlib
-
-matplotlib.use("Agg")  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import matplotlib.patches as mpatches
 import networkx as nx
 import numpy as np
 from typing import Optional, List
+
+matplotlib.use("Agg")  # Use non-interactive backend
 
 
 class GameVisualizer:
@@ -244,7 +244,7 @@ class GameVisualizer:
         if self.fig is not None:
             try:
                 plt.close(self.fig)
-            except Exception as e:
+            except Exception:
                 # Silently handle any matplotlib cleanup errors
                 pass
             finally:

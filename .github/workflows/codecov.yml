@@ -43,3 +43,4 @@ jobs:
           name: codecov-umbrella
           fail_ci_if_error: false
           verbose: true
+          slug: elte-collective-intelligence/student-mechanism-design

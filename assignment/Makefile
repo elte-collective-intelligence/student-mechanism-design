@@ -18,13 +18,12 @@ docker:
 docker-compose:
 	docker-compose up --build
 
-# Clean auxiliary files
+# Clean auxiliary files and PDF
 clean:
-	rm -f *.aux *.log *.out *.toc *.synctex.gz
+	rm -f *.aux *.log *.out *.toc *.synctex.gz assignment.pdf
 
-# Clean everything including the PDF
+# Clean everything (alias for clean)
 distclean: clean
-	rm -f assignment.pdf
 
 # View the PDF (Linux)
 view: assignment.pdf
