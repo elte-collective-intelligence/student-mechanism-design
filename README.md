@@ -7,7 +7,7 @@
 
 ---
 
-**Welcome to Assignment 2!** 🎉
+**Welcome to Assignment 2!**
 
 This is your team's codebase for exploring **mechanism design** in multi-agent reinforcement learning. You'll be working with a Scotland Yard-inspired pursuit-evasion game where police agents try to catch a hidden criminal (MrX) on a graph. Your job is to design mechanisms (budgets, tolls, reveal schedules) that balance the game and study how agents learn to coordinate.
 
@@ -17,7 +17,7 @@ Don't worry if it seems complex at first, this README will walk you through ever
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 1. [What Is This Project?](#what-is-this-project)
 2. [The Environment](#the-environment)
@@ -126,7 +126,7 @@ Both learn through self-play over thousands of episodes, gradually improving the
 - **GPU** (optional but much faster for training)
 - **~2GB disk space** for Docker image
 
-### 🚀 30-Second Quickstart
+### 30-Second Quickstart
 
 Let's run your first experiment to make sure everything works:
 
@@ -145,7 +145,7 @@ docker run --rm --gpus=all \
   bash -c "./scripts/run_experiment.sh smoke_train"
 ```
 
-If you see training logs and no errors, you're good to go! 🎉
+If you see training logs and no errors, you're good to go!
 
 ### What Just Happened?
 
@@ -341,8 +341,8 @@ The GIFs below show trained Police agents (blue nodes) chasing Mr. X (red node) 
 </table>
 
 **What you're seeing:**
-- 🔴 **Red node**: Mr. X (the evader)
-- 🔵 **Blue nodes**: Police detectives (the pursuers)
+- **Red node**: Mr. X (the evader)
+- **Blue nodes**: Police detectives (the pursuers)
 - **Edges**: Valid movement paths on the procedural graph
 - **Animation**: Each frame is one game step
 
@@ -389,9 +389,9 @@ The heatmaps show what the Police agents *believe* about Mr. X's location over t
 student-mechanism-design/
 ├── src/
 │   ├── main.py                      # Training entry point (START HERE)
-│   ├── README.md                    # 📖 Source code overview & architecture
+│   ├── README.md                    # Source code overview & architecture
 │   ├── environment/
-│   │   ├── README.md                # 📖 Environment documentation
+│   │   ├── README.md                # Environment documentation
 │   │   ├── yard.py                  # Main game environment (605 lines, refactored)
 │   │   ├── reward_calculator.py     # Reward computation system (270 lines)
 │   │   ├── pathfinding.py           # Dijkstra's shortest paths (138 lines)
@@ -402,13 +402,13 @@ student-mechanism-design/
 │   │   ├── graph_layout.py          # Graph sampling utilities
 │   │   └── base_env.py              # Base environment utilities
 │   ├── agent/
-│   │   ├── README.md                # 📖 Agent implementations guide
+│   │   ├── README.md                # Agent implementations guide
 │   │   ├── gnn_agent.py             # Graph neural network agent
 │   │   ├── mappo_agent.py           # Multi-agent PPO
 │   │   ├── random_agent.py          # Random baseline
 │   │   └── base_agent.py            # Agent interface
 │   ├── eval/
-│   │   ├── README.md                # 📖 Evaluation & analysis tools
+│   │   ├── README.md                # Evaluation & analysis tools
 │   │   ├── metrics.py               # Win rate, belief quality, etc.
 │   │   ├── exploitability.py        # Strategy robustness testing
 │   │   ├── belief_quality.py        # Belief system evaluation
@@ -416,13 +416,13 @@ student-mechanism-design/
 │   │   ├── run_ablations.py         # Ablation study runner
 │   │   └── plot_ablations.py        # Visualization of ablation results
 │   ├── training/
-│   │   ├── README.md                # 📖 Training systems documentation
+│   │   ├── README.md                # Training systems documentation
 │   │   ├── gnn_trainer.py           # GNN training loop (318 lines)
 │   │   ├── mappo_trainer.py         # MAPPO training loop (319 lines)
 │   │   ├── evaluator.py             # Model evaluation system (242 lines)
 │   │   └── utils.py                 # Training utilities
 │   ├── configs/
-│   │   ├── README.md                # 📖 Configuration system guide
+│   │   ├── README.md                # Configuration system guide
 │   │   ├── experiments/             # Experiment configurations
 │   │   ├── agent/                   # Agent hyperparameters
 │   │   ├── logger/                  # Logging settings
@@ -430,35 +430,28 @@ student-mechanism-design/
 │   ├── reward_net.py                # Meta-learning for mechanism design
 │   └── logger.py                    # WandB/TensorBoard logging
 ├── scripts/
-│   ├── README.md                    # 📖 Shell scripts documentation
+│   ├── README.md                    # Shell scripts documentation
 │   ├── run_experiment.sh            # Run single experiment
 │   ├── train_all.sh                 # Run all training experiments
 │   └── eval_all.sh                  # Run all evaluation experiments
 ├── test/
-│   ├── README.md                    # 📖 Test suite documentation
+│   ├── README.md                    # Test suite documentation
 │   ├── test_action_mask.py          # Action masking tests (5 tests)
 │   ├── test_belief_update.py        # Belief tracking tests
 │   └── env_test.py                  # Environment tests
 ├── docker/
-│   ├── README.md                    # 📖 Docker setup & troubleshooting
+│   ├── README.md                    # Docker setup & troubleshooting
 │   └── Dockerfile                   # Docker container definition
 ├── requirements.txt                 # Python dependencies
 └── README.md                        # You are here!
 ```
 
-**📚 Every directory now has a comprehensive README!** Each subdirectory contains detailed documentation explaining:
+**Every directory now has a comprehensive README!** Each subdirectory contains detailed documentation explaining:
 - What each file does (line-by-line descriptions)
 - How components interact with each other
 - Usage examples and best practices
 - Tips for students on where to start
 - Common tasks and troubleshooting
-
-**Recent Refactoring (January 2026):**
-The codebase has been refactored for better maintainability:
-- `yard.py` reduced from 1018 → 605 lines (41% reduction)
-- Extracted specialized modules: `reward_calculator.py`, `pathfinding.py`, `visualization.py`
-- All functionality preserved and tested
-- Clearer separation of concerns
 
 ### Key Files to Understand
 
@@ -607,7 +600,7 @@ docker run --rm --gpus=all \
 
 Your assignment requires measuring these metrics:
 
-#### 1. 📊 Win Rate (Balance)
+#### 1. Win Rate (Balance)
 
 **What it measures**: Game balance between police and MrX
 
@@ -620,7 +613,7 @@ Target: 0.50 ± 0.05  # Fair game
 
 **Implementation**: `src/eval/metrics.py::compute_win_rate()`
 
-#### 2. 🎯 Belief Quality (Cross-Entropy)
+#### 2. Belief Quality (Cross-Entropy)
 
 **What it measures**: How well police can track MrX's location
 
@@ -633,7 +626,7 @@ Lower is better (0 = perfect prediction)
 
 **Implementation**: `src/eval/metrics.py::belief_cross_entropy()`
 
-#### 3. ⏱️ Episode Length
+#### 3. Episode Length
 
 **What it measures**: Game dynamics and efficiency
 
@@ -846,10 +839,10 @@ pytest test/ --cov=src --cov-report=html
 ```
 
 **Current Test Coverage (8 passing tests):**
-- ✅ Environment initialization and step operations
-- ✅ Action masking with budget constraints (5 tests)
-- ✅ Belief update and propagation
-- ✅ All components tested after refactoring
+- Environment initialization and step operations
+- Action masking with budget constraints (5 tests)
+- Belief update and propagation
+- All components tested after refactoring
 
 **Read `test/README.md` for detailed testing documentation**
 
@@ -869,42 +862,6 @@ tensorboard --logdir src/configs/experiments/all/logs/
 5. **Read the docs**: Each subdirectory has detailed README files
 6. **Run tests first**: `pytest test/ -v` to verify environment works
 7. **Check visualizations**: Enable `vis_configs: 'full'` to see agent behavior
-
-### Verified Functionality ✅
-
-The following components have been tested and verified (January 2026):
-
-**Training Systems:**
-- ✅ GNN agent training with curriculum learning
-- ✅ MAPPO agent training with PPO updates
-- ✅ Model checkpointing and loading
-- ✅ Adaptive reward shaping
-- ✅ Multi-configuration training
-
-**Evaluation Systems:**
-- ✅ Model evaluation with greedy policies
-- ✅ Win rate and episode length metrics
-- ✅ Configuration-specific model loading
-- ✅ Evaluation logging and reporting
-
-**Visualization Systems:**
-- ✅ Game state rendering
-- ✅ Belief heatmap generation
-- ✅ GIF animation creation (game + heatmap)
-- ✅ Frame capture during evaluation
-
-**Environment Systems:**
-- ✅ Refactored modular architecture
-- ✅ Reward calculation (all components)
-- ✅ Pathfinding (Dijkstra's algorithm)
-- ✅ Action masking with budget constraints
-- ✅ Belief tracking and updates
-
-**Infrastructure:**
-- ✅ Docker build and execution
-- ✅ Unit test suite (8/8 passing)
-- ✅ Configuration loading system
-- ✅ Comprehensive documentation
 
 ---
 
@@ -1022,6 +979,6 @@ This project is licensed under **CC BY-NC-ND 4.0**. See the [LICENSE](LICENSE) f
 
 ---
 
-**Good luck with your assignment! 🚀**
+**Good luck with your assignment!**
 
 Remember: Start with `smoke_train` to understand the system, then move to your specific task. Read the code, run experiments, and don't hesitate to ask questions!
