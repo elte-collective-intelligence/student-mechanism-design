@@ -40,7 +40,10 @@ class GNNAgent:
 
         if self.agent_type == "gat":
             from .gat_model import GATModel
-            self.model = GATModel(node_feature_size, **(model_kwargs or {})).to(self.device)
+
+            self.model = GATModel(node_feature_size, **(model_kwargs or {})).to(
+                self.device
+            )
         else:
             self.model = GNNModel(node_feature_size).to(self.device)
 

@@ -208,7 +208,11 @@ def evaluate_gnn(args, agent_configs, logger_configs, visualization_configs):
                 attention_data = getattr(mrX_agent, "last_attention", None)
                 if attention_data is not None and visualization_configs == "full":
                     # Pass the last layer's attention to the visualizer
-                    if hasattr(env_wrappable, 'render') and 'attention_data' in env_wrappable.render.__code__.co_varnames:
+                    if (
+                        hasattr(env_wrappable, "render")
+                        and "attention_data"
+                        in env_wrappable.render.__code__.co_varnames
+                    ):
                         env_wrappable.render(attention_data=attention_data[-1])
                     else:
                         env_wrappable.render()
