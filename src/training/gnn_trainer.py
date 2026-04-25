@@ -143,8 +143,8 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
         MrX_model_name = f"MrX_{node_feature_size}_agents"
         Police_model_name = f"Police_{node_feature_size}_agents"
 
-        # Initialize GNN agents
-        if agent_configs["agent_type"] == "gnn":
+        # Initialize GNN/GAT agents
+        if agent_configs["agent_type"] in ["gnn", "gat"]:
             mrX_agent = GNNAgent(
                 node_feature_size=node_feature_size,
                 device=device,
@@ -155,6 +155,8 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
                 epsilon=agent_configs["epsilon"],
                 epsilon_decay=agent_configs["epsilon_decay"],
                 epsilon_min=agent_configs["epsilon_min"],
+                agent_type=agent_configs["agent_type"],
+                model_kwargs=agent_configs,
             )
             if logger.model_exists(MrX_model_name):
                 mrX_agent.load_state_dict(
@@ -171,6 +173,8 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
                 epsilon=agent_configs["epsilon"],
                 epsilon_decay=agent_configs["epsilon_decay"],
                 epsilon_min=agent_configs["epsilon_min"],
+                agent_type=agent_configs["agent_type"],
+                model_kwargs=agent_configs,
             )
             if logger.model_exists(Police_model_name):
                 police_agent.load_state_dict(

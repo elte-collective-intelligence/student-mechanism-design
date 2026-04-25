@@ -33,11 +33,12 @@ class GNNAgent:
         self.epsilon_min = epsilon_min
         self.batch_size = batch_size
         self.device = device  # Store device
+        self.agent_type = agent_type
 
         # Experience replay buffer
         self.memory = deque(maxlen=buffer_size)
 
-        if agent_type == "gat":
+        if self.agent_type == "gat":
             from .gat_model import GATModel
             self.model = GATModel(node_feature_size, **(model_kwargs or {})).to(self.device)
         else:

@@ -91,7 +91,7 @@ def evaluate_gnn(args, agent_configs, logger_configs, visualization_configs):
         Police_model_name = f"Police_{node_feature_size}_agents"
 
         # Load trained models
-        if agent_configs["agent_type"] == "gnn":
+        if agent_configs["agent_type"] in ["gnn", "gat"]:
             mrX_agent = GNNAgent(
                 node_feature_size=node_feature_size,
                 device=device,
@@ -102,6 +102,8 @@ def evaluate_gnn(args, agent_configs, logger_configs, visualization_configs):
                 epsilon=0.0,  # No exploration during evaluation
                 epsilon_decay=1.0,
                 epsilon_min=0.0,
+                agent_type=agent_configs["agent_type"],
+                model_kwargs=agent_configs,
             )
 
             if logger.model_exists(MrX_model_name):
@@ -125,6 +127,8 @@ def evaluate_gnn(args, agent_configs, logger_configs, visualization_configs):
                 epsilon=0.0,  # No exploration
                 epsilon_decay=1.0,
                 epsilon_min=0.0,
+                agent_type=agent_configs["agent_type"],
+                model_kwargs=agent_configs,
             )
 
             if logger.model_exists(Police_model_name):
