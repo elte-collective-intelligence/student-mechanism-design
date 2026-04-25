@@ -12,6 +12,7 @@ class GATModel(nn.Module):
         heads=4,
         dropout=0.2,
         edge_dim=None,
+        **kwargs,
     ):
         super(GATModel, self).__init__()
         self.dropout = dropout

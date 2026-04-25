@@ -1,0 +1,21 @@
+# GAT Architecture Experiment
+
+agent_configurations:
+  - num_police_agents: 2
+    agent_money: 20
+  - num_police_agents: 3
+    agent_money: 15
+
+graph_edges: 15
+graph_nodes: 20
+num_episodes: 10
+num_eval_episodes: 5
+epochs: 50
+log_dir: 'logs/gat_experiment'
+wandb_run_name: 'gat_experiment'
+wandb_resume: false
+random_seed: 42
+evaluate: false
+agent_configs: 'gat'
+log_configs: 'default'
+vis_configs: 'full'

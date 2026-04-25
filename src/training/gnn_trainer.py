@@ -262,7 +262,7 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
                 episode_step += 1
 
                 # Update agents immediately
-                if agent_configs["agent_type"] == "gnn":
+                if agent_configs["agent_type"] in ["gnn", "gat", "transformer"]:
                     # Update MrX agent
                     mrX_next_graph_data = create_graph_data(next_state, "MrX", env).to(
                         device
@@ -349,7 +349,7 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
         )
 
         # Save models
-        if agent_configs["agent_type"] == "gnn":
+        if agent_configs["agent_type"] in ["gnn", "gat", "transformer"]:
             logger.log_model(mrX_agent, MrX_model_name)
             logger.log_model(police_agent, Police_model_name)
             logger.log_model(reward_weight_net, "RewardWeightNet")

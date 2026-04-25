@@ -59,6 +59,10 @@ class GameVisualizer:
         self.epoch = 0
         self.episode = 0
 
+        # Attention visualization
+        self.attention_data = None
+        self.attention_images: List = []
+
     def set_game_state(
         self, board, mrx_pos, police_positions, node_visits, timestep, epoch, episode
     ):
