@@ -30,7 +30,6 @@ Note:
 
 from agent.base_agent import BaseAgent
 from agent.gnn_agent import GNNAgent
-from agent.gat_model import GATModel
 from agent.mappo_agent import MappoAgent
 from agent.random_agent import RandomAgent
 

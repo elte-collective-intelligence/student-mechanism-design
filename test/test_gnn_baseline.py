@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 from src.agent.gnn_agent import GNNModel
 from torch_geometric.data import Data
 
