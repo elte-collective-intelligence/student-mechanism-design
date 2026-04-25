@@ -20,6 +20,8 @@ class GNNAgent:
         epsilon_decay=0.995,
         epsilon_min=0.01,
         device=torch.device("cpu"),  # Default device
+        agent_type="gnn",
+        model_kwargs=None,
     ):
         """
         Graph Neural Network Agent with Experience Replay and Epsilon-Greedy policy.
@@ -35,8 +37,11 @@ class GNNAgent:
         # Experience replay buffer
         self.memory = deque(maxlen=buffer_size)
 
-        # GNN Model
-        self.model = GNNModel(node_feature_size).to(self.device)  # Move model to device
+        if agent_type == "gat":
+            from .gat_model import GATModel
+            self.model = GATModel(node_feature_size, **(model_kwargs or {})).to(self.device)
+        else:
+            self.model = GNNModel(node_feature_size).to(self.device)
 
         # Optimizer and Loss
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
@@ -50,7 +55,11 @@ class GNNAgent:
         self.model.eval()
         with torch.no_grad():
             graph = graph.to(self.device)  # Move graph to device
-            q_values = self.model(graph)  # Shape: [num_nodes]
+            # Support attention extraction for logging/viz
+            if self.agent_type in ["gat", "transformer"]:
+                q_values, self.last_attention = self.model(graph, return_attention=True)
+            else:
+                q_values = self.model(graph)
             q_values = q_values.cpu().numpy()  # Move to CPU for numpy operations
 
         if action_mask.size(0) != graph.num_nodes:

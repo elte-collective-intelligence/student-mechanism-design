@@ -1,0 +1,7 @@
+agent_type: "gat"
+hidden_dim: 128
+num_layers: 3
+heads: 4
+dropout: 0.2
+lr: 0.001
+gamma: 0.99
