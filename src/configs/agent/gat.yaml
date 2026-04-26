@@ -1,0 +1,13 @@
+agent_type: gat
+hidden_dim: 128
+num_layers: 3
+heads: 4
+dropout: 0.2
+lr: 0.001
+gamma: 0.99
+batch_size: 64
+buffer_size: 10000
+epsilon: 1.0
+epsilon_decay: 0.995
+epsilon_min: 0.01
+edge_dim: 1

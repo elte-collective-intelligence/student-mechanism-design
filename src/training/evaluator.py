@@ -3,7 +3,7 @@
 import torch
 
 from logger import Logger
-from agent.gnn_agent import GNNAgent
+from agent.graph_dqn_agent import GraphDQNAgent
 from agent.random_agent import RandomAgent
 from environment.yard import CustomEnvironment
 from torchrl.envs.libs.pettingzoo import PettingZooWrapper
@@ -17,9 +17,11 @@ from training.utils import (
 )
 
 
-def evaluate_gnn(args, agent_configs, logger_configs, visualization_configs):
+def evaluate_graph_dqn_agents(
+    args, agent_configs, logger_configs, visualization_configs
+):
     """
-    Evaluate trained GNN agents.
+    Evaluate trained GraphDQN agents.
 
     Runs evaluation episodes with trained models to assess performance
     on held-out configurations or different graph distributions.
@@ -91,8 +93,8 @@ def evaluate_gnn(args, agent_configs, logger_configs, visualization_configs):
         Police_model_name = f"Police_{node_feature_size}_agents"
 
         # Load trained models
-        if agent_configs["agent_type"] == "gnn":
-            mrX_agent = GNNAgent(
+        if agent_configs["agent_type"] in ["gnn", "gat", "transformer"]:
+            mrX_agent = GraphDQNAgent(
                 node_feature_size=node_feature_size,
                 device=device,
                 gamma=agent_configs["gamma"],
@@ -102,6 +104,8 @@ def evaluate_gnn(args, agent_configs, logger_configs, visualization_configs):
                 epsilon=0.0,  # No exploration during evaluation
                 epsilon_decay=1.0,
                 epsilon_min=0.0,
+                agent_type=agent_configs["agent_type"],
+                model_kwargs=agent_configs,
             )
 
             if logger.model_exists(MrX_model_name):
@@ -115,7 +119,7 @@ def evaluate_gnn(args, agent_configs, logger_configs, visualization_configs):
                     level="warning",
                 )
 
-            police_agent = GNNAgent(
+            police_agent = GraphDQNAgent(
                 node_feature_size=node_feature_size,
                 device=device,
                 gamma=agent_configs["gamma"],
@@ -125,6 +129,8 @@ def evaluate_gnn(args, agent_configs, logger_configs, visualization_configs):
                 epsilon=0.0,  # No exploration
                 epsilon_decay=1.0,
                 epsilon_min=0.0,
+                agent_type=agent_configs["agent_type"],
+                model_kwargs=agent_configs,
             )
 
             if logger.model_exists(Police_model_name):
@@ -199,6 +205,19 @@ def evaluate_gnn(args, agent_configs, logger_configs, visualization_configs):
 
                 state_stepped = env.step(state)
                 next_state = step_mdp(state_stepped)
+
+                # Evaluation Hook - Attention Visualization
+                attention_data = getattr(mrX_agent, "last_attention", None)
+                if attention_data is not None and visualization_configs == "full":
+                    # Pass the last layer's attention to the visualizer
+                    if (
+                        hasattr(env_wrappable, "render")
+                        and "attention_data"
+                        in env_wrappable.render.__code__.co_varnames
+                    ):
+                        env_wrappable.render(attention_data=attention_data[-1])
+                    else:
+                        env_wrappable.render()
 
                 # Extract episode info
                 rewards, terminations, truncations = extract_step_info(

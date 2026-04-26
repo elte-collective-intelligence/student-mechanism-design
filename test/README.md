@@ -36,6 +36,24 @@ This directory contains unit tests and integration tests for the Scotland Yard g
 pytest test/env_test.py -v
 ```
 
+### `test_gnn_baseline.py`
+**Validation of the baseline GNN architecture.**
+- Verifies message passing logic
+- Ensures compatibility with `GraphDQNAgent`
+- Checks for spatial reasoning correctness
+
+### `test_gat.py`
+**Tests for Graph Attention Network model.**
+- Verifies multi-head attention mechanisms
+- Checks attention weight extraction functionality
+- Ensures dropout and ELU activations work as expected
+
+### `test_transformer.py`
+**Tests for Graph Transformer model.**
+- Verifies global attention and residual connections
+- Tests Laplacian Positional Encoding (PE) computation and caching
+- Ensures LayerNorm and input projection layers function correctly
+
 **What to check if tests fail:**
 - Environment initialization parameters
 - Observation space definitions
@@ -300,6 +318,7 @@ test/test_belief_update.py::test_belief_updates_and_reveals PASSED          [100
 - ✅ Basic step operations
 - ✅ Action masking (5 tests)
 - ✅ Belief updates
+- ✅ GNN, GAT, and Transformer models
 - ❌ Reward calculations (future work)
 - ❌ Agent training (future work)
 - ❌ Visualization (future work)

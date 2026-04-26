@@ -1,7 +1,7 @@
 """Main entry point for training and evaluating Scotland Yard RL agents.
 
 This module provides a clean interface for training and evaluation:
-- GNN-based agents (train_gnn/evaluate_gnn)
+- GNN-based agents (train_graph_dqn_agents/evaluate_graph_dqn_agents)
 - MAPPO-based agents (train_mappo/evaluate_mappo)
 
 Usage:
@@ -21,9 +21,9 @@ import os
 import re
 import yaml
 import warnings
-from training.gnn_trainer import train_gnn
+from training.graph_dqn_trainer import train_graph_dqn_agents
 from training.mappo_trainer import train_mappo
-from training.evaluator import evaluate_gnn, evaluate_mappo
+from training.evaluator import evaluate_graph_dqn_agents, evaluate_mappo
 
 # Get the directory where this script is located
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -264,7 +264,7 @@ def main():
                 combined_args, agent_configs, logger_configs, visualization_configs
             )
         else:
-            evaluate_gnn(
+            evaluate_graph_dqn_agents(
                 combined_args, agent_configs, logger_configs, visualization_configs
             )
     else:
@@ -274,7 +274,7 @@ def main():
                 combined_args, agent_configs, logger_configs, visualization_configs
             )
         else:
-            train_gnn(
+            train_graph_dqn_agents(
                 combined_args, agent_configs, logger_configs, visualization_configs
             )
 

@@ -5,7 +5,7 @@ import random
 import numpy as np
 
 from logger import Logger
-from agent.gnn_agent import GNNAgent
+from agent.graph_dqn_agent import GraphDQNAgent
 from agent.random_agent import RandomAgent
 from reward_net import RewardWeightNet
 from environment.yard import CustomEnvironment
@@ -21,11 +21,11 @@ from training.utils import (
 )
 
 
-def train_gnn(args, agent_configs, logger_configs, visualization_configs):
+def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_configs):
     """
-    Main training function for GNN agents.
+    Main training function for GraphDQN agents.
 
-    Trains GNN-based agents (MrX and Police) using graph neural networks
+    Trains GraphDQN-based agents (MrX and Police) using graph neural networks
     with curriculum learning over multiple epochs and agent configurations.
 
     Args:
@@ -143,9 +143,9 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
         MrX_model_name = f"MrX_{node_feature_size}_agents"
         Police_model_name = f"Police_{node_feature_size}_agents"
 
-        # Initialize GNN agents
-        if agent_configs["agent_type"] == "gnn":
-            mrX_agent = GNNAgent(
+        # Initialize GNN/GAT/Transformer agents
+        if agent_configs["agent_type"] in ["gnn", "gat", "transformer"]:
+            mrX_agent = GraphDQNAgent(
                 node_feature_size=node_feature_size,
                 device=device,
                 gamma=agent_configs["gamma"],
@@ -155,13 +155,15 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
                 epsilon=agent_configs["epsilon"],
                 epsilon_decay=agent_configs["epsilon_decay"],
                 epsilon_min=agent_configs["epsilon_min"],
+                agent_type=agent_configs["agent_type"],
+                model_kwargs=agent_configs,
             )
             if logger.model_exists(MrX_model_name):
                 mrX_agent.load_state_dict(
                     logger.load_model(MrX_model_name), strict=False
                 )
 
-            police_agent = GNNAgent(
+            police_agent = GraphDQNAgent(
                 node_feature_size=node_feature_size,
                 device=device,
                 gamma=agent_configs["gamma"],
@@ -171,6 +173,8 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
                 epsilon=agent_configs["epsilon"],
                 epsilon_decay=agent_configs["epsilon_decay"],
                 epsilon_min=agent_configs["epsilon_min"],
+                agent_type=agent_configs["agent_type"],
+                model_kwargs=agent_configs,
             )
             if logger.model_exists(Police_model_name):
                 police_agent.load_state_dict(
@@ -258,7 +262,7 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
                 episode_step += 1
 
                 # Update agents immediately
-                if agent_configs["agent_type"] == "gnn":
+                if agent_configs["agent_type"] in ["gnn", "gat", "transformer"]:
                     # Update MrX agent
                     mrX_next_graph_data = create_graph_data(next_state, "MrX", env).to(
                         device
@@ -345,7 +349,7 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
         )
 
         # Save models
-        if agent_configs["agent_type"] == "gnn":
+        if agent_configs["agent_type"] in ["gnn", "gat", "transformer"]:
             logger.log_model(mrX_agent, MrX_model_name)
             logger.log_model(police_agent, Police_model_name)
             logger.log_model(reward_weight_net, "RewardWeightNet")
