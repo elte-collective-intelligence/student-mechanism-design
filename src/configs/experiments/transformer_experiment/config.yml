@@ -1,23 +1,23 @@
 agent_configs: 'transformer'
-log_configs: 'default'
-vis_configs: 'none'
 evaluate: false
 
 agent_configurations:
   - num_police_agents: 2
-    agent_money: 16
+    agent_money: 20
   - num_police_agents: 3
-    agent_money: 12
-  - num_police_agents: 4
-    agent_money: 10
+    agent_money: 15
 
 epochs: 50
-num_episodes: 70
-num_eval_episodes: 10
+num_episodes: 10
+num_eval_episodes: 5
 
-graph_nodes: 30
-graph_edges: 70
+graph_nodes: 20
+graph_edges: 15
 
 wandb_run_name: 'transformer_experiment'
 wandb_resume: false
 random_seed: 42
+
+log_dir: 'logs/transformer_experiment'  
+log_configs: 'default'
+vis_configs: 'full'
