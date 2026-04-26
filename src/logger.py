@@ -186,7 +186,8 @@ class Logger:
         else:
             model_dir = self.log_dir
 
-        model = torch.load(model_dir + "/" + model_name + ".pt")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = torch.load(model_dir + "/" + model_name + ".pt", map_location=device)
         return model
 
     def close(self):
