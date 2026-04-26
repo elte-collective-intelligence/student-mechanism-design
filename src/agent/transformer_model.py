@@ -45,6 +45,7 @@ class TransformerModel(nn.Module):
         self.dropout = dropout
         self.use_pe = use_positional_encoding
         self.pe_dim = pe_dim
+        self.edge_dim = edge_dim
 
         # Adjust input dimension if using positional encoding
         input_dim = node_feature_size + (pe_dim if use_positional_encoding else 0)
@@ -83,6 +84,11 @@ class TransformerModel(nn.Module):
             root_weight=True,
         )
 
+        # Cache for Laplacian Positional Encoding (for static/curriculum graph topology)
+        self._cached_pe = None
+        self._cached_num_nodes = None
+        self._cached_num_edges = None
+
     def forward(self, data, return_attention=False):
         """
         Forward pass.
@@ -98,11 +104,57 @@ class TransformerModel(nn.Module):
         x, edge_index = data.x, data.edge_index
         edge_attr = getattr(data, "edge_attr", None)
 
+        # Ensure edge_attr has the correct shape [num_edges, edge_dim]
+        if edge_attr is not None and self.edge_dim is not None:
+            if edge_attr.dim() == 1:
+                edge_attr = edge_attr.unsqueeze(-1)
+
         all_attentions = []
 
         # Optional: Add Laplacian positional encoding
-        if self.use_pe and hasattr(data, "laplacian_eigenvector_pe"):
-            pe = data.laplacian_eigenvector_pe[:, : self.pe_dim]
+        if self.use_pe:
+            if hasattr(data, "laplacian_eigenvector_pe"):
+                pe = data.laplacian_eigenvector_pe[:, : self.pe_dim]
+            else:
+                # Determine topology of a single graph (static within curriculum epoch)
+                is_batch = hasattr(data, "num_graphs") and data.num_graphs > 1
+                num_nodes_single = (
+                    data.num_nodes // data.num_graphs if is_batch else data.num_nodes
+                )
+                num_edges_single = (
+                    data.edge_index.size(1) // data.num_graphs
+                    if is_batch
+                    else data.edge_index.size(1)
+                )
+
+                # Cache check (detect curriculum advancement or topology change)
+                if (
+                    self._cached_pe is None
+                    or self._cached_num_nodes != num_nodes_single
+                    or self._cached_num_edges != num_edges_single
+                ):
+                    # Extract single graph edge index for computation
+                    if is_batch:
+                        # Extract edge index for the first graph in batch
+                        # (Assumes all graphs in batch share topology)
+                        mask = data.batch[data.edge_index[0]] == 0
+                        edge_index_single = data.edge_index[:, mask]
+                    else:
+                        edge_index_single = data.edge_index
+
+                    pe_raw = compute_laplacian_pe(
+                        edge_index_single, num_nodes_single, k=self.pe_dim
+                    )
+                    self._cached_pe = pe_raw.to(x.device)
+                    self._cached_num_nodes = num_nodes_single
+                    self._cached_num_edges = num_edges_single
+
+                # Align PE with current data (repeat if batch)
+                if is_batch:
+                    pe = self._cached_pe.repeat(data.num_graphs, 1)
+                else:
+                    pe = self._cached_pe
+
             x = torch.cat([x, pe], dim=-1)
 
         # Input projection
