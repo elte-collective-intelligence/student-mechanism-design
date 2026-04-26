@@ -4,9 +4,9 @@ This directory contains the training loops and utilities for different agent typ
 
 ## Files
 
-### `gnn_trainer.py` (318 lines)
-**Training loop for Graph Neural Network (GNN) agents.** This file:
-- Orchestrates the complete training process for GNN-based agents
+### `graph_dqn_trainer.py`
+**Training loop for Graph DQN agents (GNN, GAT, Transformer).** This file:
+- Orchestrates the complete training process for agents using the Deep Q-Network algorithm on graphs
 - Implements curriculum learning with progressive difficulty increase
 - Handles model checkpointing and performance tracking
 - Supports multi-configuration training (different agent counts and budgets)
@@ -15,12 +15,14 @@ This directory contains the training loops and utilities for different agent typ
 1. **Curriculum Initialization**: Create schedules for graph complexity
 2. **Epoch Loop**: Iterate through training epochs
 3. **Configuration Selection**: Choose random agent configuration
-4. **Episode Generation**: Run episodes with current policy
-5. **Model Update**: Update agent networks based on collected experience
+4. **Episode Generation**: Run episodes with current policy (epsilon-greedy)
+5. **Model Update**: Update agent networks by sampling from experience replay
 6. **Evaluation**: Track win rates and adjust reward weights
 7. **Model Saving**: Checkpoint models for each configuration
 
 **Key Features:**
+- **Flexible Model Support**: Compatible with `GNNModel`, `GATModel`, and `TransformerModel`
+
 - **Curriculum Learning**: Gradually increase graph size and complexity
   - Start with small graphs (easier to learn)
   - Progressively add more nodes and edges
@@ -41,12 +43,16 @@ This directory contains the training loops and utilities for different agent typ
   - Maintains best models based on performance
   - Enables continuation of interrupted training
 
+- **Experience Replay**: Stores experiences for stable learning
+  - Batches collected experiences for efficient updates
+  - Maintains uniform sampling for unbiased learning
+  - Supports flexible batch sizing
+
 **Parameters:**
 - `args.epochs`: Total number of training epochs
 - `args.episodes_per_epoch`: Episodes per epoch
 - `args.agent_configurations`: List of (num_police, budget) tuples
-- `args.graph_nodes`: Number of nodes in graph
-- `args.graph_edges`: Number of edges in graph
+- `args.agent_configs`: Choose between 'gnn', 'gat', or 'transformer'
 
 **Logging:**
 - Episode-level: Winner, steps, rewards
@@ -206,11 +212,11 @@ Training Flow:
 │   (Entry Point)     │
 └──────┬──────────────┘
        │
-       ├──→ GNN Agent?  → gnn_trainer.py
-       │                  ├── Curriculum Learning
-       │                  ├── Experience Collection
-       │                  ├── Model Updates
-       │                  └── Model Saving
+       ├──→ Graph DQN?   → graph_dqn_trainer.py
+       │                   ├── Curriculum Learning
+       │                   ├── Experience Replay Buffer
+       │                   ├── Q-Network Updates (GNN/GAT/Transformer)
+       │                   └── Model Saving
        │
        ├──→ MAPPO Agent? → mappo_trainer.py
        │                   ├── Trajectory Collection
@@ -287,11 +293,11 @@ Police_5_agents.pt: 4.9 KB
 
 ## Tips for Students
 
-1. **Start with GNN Trainer**: Simpler algorithm, easier to understand
+1. **Start with Graph DQN Trainer**: Simpler algorithm, easier to understand
 2. **Study Curriculum Implementation**: See how difficulty progression helps learning
-3. **Compare GNN vs MAPPO**: Different learning paradigms, different strengths
+3. **Compare Models**: Switch between `gnn`, `gat`, and `transformer` in your config to see which architecture learns faster
 4. **Monitor Win Rates**: Balanced training is key to good agents
-5. **Experiment with Hyperparameters**: Learning rate, batch size, PPO clip
+5. **Experiment with Hyperparameters**: Learning rate, batch size, buffer size
 6. **Visualize Evaluation**: Use evaluator.py to see what agents learned
 7. **Read Training Logs**: Understand learning progress from metrics
 8. **Checkpoint Management**: Learn when to save/load models

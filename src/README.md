@@ -58,7 +58,7 @@ python src/main.py --config src/configs/experiments/smoke_train/config.yml
 ## Subdirectories
 
 ### `agent/`
-Contains all agent implementations (GNN-based, MAPPO, Random, Base classes).
+Contains all agent implementations (**Graph DQN** with GNN/GAT/Transformer models, MAPPO, Random, Base classes).
 See [agent/README.md](agent/README.md) for details.
 
 ### `configs/`
@@ -74,7 +74,7 @@ Contains evaluation scripts for measuring agent performance and analyzing traini
 See [eval/README.md](eval/README.md) for details.
 
 ### `training/`
-Contains training loops for different agent types (GNN, MAPPO).
+Contains training loops for different agent types (**Graph DQN**, MAPPO).
 See [training/README.md](training/README.md) for details.
 
 ## Quick Start
@@ -98,7 +98,7 @@ See [training/README.md](training/README.md) for details.
 
 The codebase follows a modular design:
 - **Environment**: Defines the Scotland Yard game mechanics
-- **Agents**: Implement different strategies (GNN, MAPPO, Random)
+- **Agents**: Implement different strategies (**Graph DQN**, MAPPO, Random)
 - **Training**: Orchestrates the learning process with curriculum learning
 - **Evaluation**: Measures and analyzes agent performance
 - **Configuration**: Separates hyperparameters from code for easy experimentation

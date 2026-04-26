@@ -25,29 +25,46 @@ class MyAgent(BaseAgent):
         return action_index
 ```
 
-### `gnn_agent.py`
-**Graph Neural Network (GNN) based agent.** This file:
-- Implements an agent using PyTorch Geometric for graph-based reasoning
-- Uses message passing to aggregate information from neighboring nodes
-- Processes the graph structure of the Scotland Yard map
-- Learns spatial relationships and strategic movement patterns
-
-**Architecture:**
-- **Input**: Graph observation with node features (positions, budgets, beliefs)
-- **GNN Layers**: Multiple graph convolution layers for information propagation
-- **Output Layer**: Fully connected layer outputting action probabilities
+### `graph_dqn_agent.py`
+**Deep Q-Network (DQN) agent for graph environments.** This file:
+- Implements a flexible agent that uses DQN for learning optimal strategies on graphs
+- Acts as an orchestrator for multiple underlying model architectures (GNN, GAT, Transformer)
+- Handles experience replay and epsilon-greedy exploration
+- Manages device placement (CPU/GPU) for graph data
 
 **Key Features:**
-- Handles variable graph sizes (different numbers of nodes/edges)
-- Uses attention mechanisms to focus on important nodes
-- Respects action masks for valid moves only
-- Supports epsilon-greedy exploration during training
+- **Architecture Agnostic**: Can swap between GNN, GAT, and Transformer models via configuration
+- **Experience Replay**: Stores and samples past experiences for stable learning
+- **Batch Processing**: Uses PyTorch Geometric's `Batch` for efficient parallel graph processing
+- **Device Management**: Automatically moves graphs and models to the configured device (e.g., CUDA)
 
 **Parameters:**
 - `node_feature_size`: Number of features per node (e.g., position, money, belief)
-- `hidden_dim`: Size of hidden layers in the GNN
-- `num_layers`: Number of graph convolution layers
-- `action_size`: Number of possible actions (depends on graph size)
+- `gamma`: Discount factor for rewards (default: 0.99)
+- `lr`: Learning rate for the Adam optimizer (default: 0.001)
+- `batch_size`: Number of samples per training batch (default: 64)
+- `buffer_size`: Maximum size of the experience replay buffer (default: 10000)
+- `epsilon`: Initial exploration rate for epsilon-greedy policy
+- `epsilon_decay`: Rate at which epsilon decreases after each update
+- `epsilon_min`: Minimum exploration rate
+- `agent_type`: Underlying model architecture (`gnn`, `gat`, or `transformer`)
+
+### `gnn_model.py`
+**Baseline Graph Neural Network model.**
+- Uses standard message passing layers to aggregate local node information
+- Provides a simple yet effective baseline for spatial reasoning
+
+### `gat_model.py`
+**Graph Attention Network (GAT) model.**
+- Implements multi-head attention over neighboring nodes
+- Allows the agent to focus on specific, more important neighbors during decision making
+- Supports attention weight extraction for visualization and analysis
+
+### `transformer_model.py`
+**Graph Transformer model.**
+- Uses global attention mechanisms to capture long-range dependencies across the graph
+- Well-suited for complex coordination tasks where distant nodes may be relevant
+- Includes positional encodings or graph-based structural features
 
 ### `mappo_agent.py`
 **Multi-Agent Proximal Policy Optimization (MAPPO) agent.** This file:
@@ -90,16 +107,15 @@ class MyAgent(BaseAgent):
 
 ## Agent Selection Guide
 
-### When to use GNN Agent?
+### When to use Graph DQN Agent?
 - **Pros:** 
-  - Naturally handles graph structure
-  - Learns spatial reasoning
-  - Generalizes to different graph sizes
-  - Good for strategy games with explicit graph topology
+  - Flexible: choose between **GNN**, **GAT**, or **Transformer** models
+  - Naturally handles graph structure and spatial reasoning
+  - Sample efficient through Experience Replay
+  - Generalizes well to different graph sizes
 - **Cons:**
-  - Requires graph representation
-  - More computationally intensive
-  - May need more training data
+  - Requires tuning of buffer size and exploration parameters
+  - Can be computationally intensive with large graphs
 
 ### When to use MAPPO Agent?
 - **Pros:**
@@ -122,41 +138,43 @@ class MyAgent(BaseAgent):
 ## Configuration
 
 Each agent type has a corresponding configuration file in `src/configs/agent/`:
-- `gnn.yaml`: GNN agent hyperparameters
+- `gnn.yaml`, `gat.yaml`, `transformer.yaml`: Hyperparameters for the Graph DQN agent using respective models
 - `mappo.yaml`: MAPPO agent hyperparameters
 - `random.yaml`: Random agent settings
 
-**Example GNN config:**
+**Example Graph DQN (GAT) config:**
 ```yaml
+agent_type: 'gat'
 node_feature_size: 10
 hidden_dim: 128
 num_layers: 3
+num_heads: 4             # GAT-specific: attention heads
 learning_rate: 0.001
 epsilon: 0.1  # Exploration rate
 ```
 
 ## Training Flow
 
-1. **Initialization**: Agent is created based on config file
+1. **Initialization**: Agent and model are created based on the YAML config
 2. **Action Selection**: Agent observes state and selects action
-   - During training: Epsilon-greedy or stochastic policy
-   - During evaluation: Greedy (argmax) policy
+   - During training: Epsilon-greedy (explores random moves with probability ε)
+   - During evaluation: Greedy (always chooses the move with highest Q-value)
 3. **Learning**: Agent updates its parameters based on rewards
-   - GNN: Q-learning style updates
-   - MAPPO: PPO policy gradient updates
-4. **Model Saving**: Trained agent parameters saved to disk
+   - **Graph DQN**: Uses Q-learning with experience replay to minimize Bellman error
+   - **MAPPO**: Uses PPO policy gradient updates with a centralized critic
+4. **Model Saving**: Trained agent parameters saved to disk at the end of each epoch
 
 ## Model Naming Convention
 
-Models are saved with names indicating the agent type and configuration:
-- **GNN agents**: `MrX_{node_feature_size}_agents.pt`, `Police_{node_feature_size}_agents.pt`
-- **MAPPO agents**: `MAPPO_MrX_0.pt`, `MAPPO_Police_0.pt`
+Models are saved with names indicating the side (MrX/Police) and the agent count:
+- **Graph DQN agents**: `MrX_{num_police}_agents.pt`, `Police_{num_police}_agents.pt`
+- **MAPPO agents**: `MAPPO_MrX_{id}.pt`, `MAPPO_Police_{id}.pt`
 - **Reward network**: `RewardWeightNet.pt` (shared across agents)
 
 ## Tips for Students
 
 1. **Start with Random Agent**: Understand the interface before implementing learning
-2. **Study GNN Agent**: Good example of graph-based learning
+2. **Study Graph DQN Agent**: Good example of graph-based Q-learning
 3. **Experiment with MAPPO**: Learn multi-agent coordination techniques
-4. **Modify Architectures**: Try different network designs in `gnn_agent.py`
-5. **Compare Performance**: Run experiments with different agent types
+4. **Modify Architectures**: Try different network designs in `gnn_model.py`, `gat_model.py`, or `transformer_model.py`
+5. **Compare Performance**: Run experiments with different models and agent types

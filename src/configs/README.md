@@ -30,31 +30,36 @@ Experiments load multiple config files:
 - Common hyperparameters
 - Fallback values if specific config missing
 
-### `gnn.yaml`
-**Graph Neural Network agent configuration.** Specifies:
-```yaml
-# Architecture
-node_feature_size: 10        # Features per node (position, budget, beliefs)
-hidden_dim: 128              # Hidden layer size
-num_layers: 3                # Number of GNN layers
-action_size: 50              # Max number of actions
+### `gnn.yaml`, `gat.yaml`, `transformer.yaml`
+**Graph DQN agent configurations.** These files specify the architecture and learning parameters for the Graph DQN agent, which supports multiple underlying models.
 
-# Learning
-learning_rate: 0.001         # Adam optimizer learning rate
-epsilon: 0.1                 # Exploration rate (epsilon-greedy)
-gamma: 0.99                  # Discount factor for rewards
-```
+#### Common Parameters (All Graph DQN Agents)
+- `agent_type`: The architecture to use (`gnn`, `gat`, or `transformer`).
+- `learning_rate`: Step size for optimization (typically 0.001).
+- `gamma`: Discount factor for future rewards (typically 0.99).
+- `batch_size`: Number of transitions sampled from replay buffer (e.g., 64).
+- `buffer_size`: Capacity of the experience replay memory (e.g., 10000).
+- `epsilon`, `epsilon_decay`, `epsilon_min`: Epsilon-greedy exploration parameters.
 
-**Key Parameters:**
-- `node_feature_size`: Depends on observation space
-  - Higher for more complex state representations
-  - Must match environment observation size
-- `hidden_dim`: Network capacity
-  - Larger for complex strategies
-  - Too large: overfitting, slow training
-- `num_layers`: Depth of message passing
-  - More layers → larger receptive field
-  - 2-4 typical for most graphs
+#### GAT and Transformer Specific
+These parameters are passed as `model_kwargs` to the respective models:
+- `hidden_dim`: Capacity of hidden layers (Standard: 64-256).
+- `num_layers`: Depth of the network (Standard: 2-5).
+- `dropout`: Dropout probability for regularization.
+
+#### GAT Specific (`gat.yaml`)
+- `heads`: Number of multi-head attention mechanisms (Standard: 1-8).
+- `edge_dim`: Dimension of edge features.
+
+#### Transformer Specific (`transformer.yaml`)
+- `num_heads`: Number of attention heads (Standard: 1-8).
+- `use_positional_encoding`: Boolean to enable Laplacian Positional Encoding (required for capturing graph topology).
+- `pe_dim`: Dimension of the positional encoding (e.g., 8).
+
+**Note on GNN**: The baseline `gnn` model use a fixed architecture of 2 AntiSymmetricConv layers and does not currently use the `hidden_dim` or `num_layers` parameters.
+
+**Key Parameters for Ablation Studies:**
+As per Assignment 2 requirements, students should vary `num_layers` (2-5), `hidden_dim` (64-256), and attention heads (1-8) in the `gat` and `transformer` configs to study their impact on coordination and sample efficiency.
 
 ### `mappo.yaml`
 **Multi-Agent PPO configuration.** Specifies:
@@ -156,7 +161,6 @@ agent_configurations:
 ```
 
 **Important:** Only include configurations that have trained models!
-
 ### `smoke_eval_vis/config.yml`
 **Evaluation with visualization.** Settings:
 ```yaml
@@ -170,6 +174,12 @@ agent_configurations:
     agent_money: 16
 ```
 
+### `gat_experiment/` and `transformer_experiment/`
+**Architecture-specific training runs.**
+- These experiments use the `gat` and `transformer` agent configurations respectively.
+- Used to validate that attention-based agents can successfully learn coordination strategies on the Scotland Yard graph.
+
+### Other Experiments
 **Output:** Generates GIFs in `logs/vis/`:
 - `run_epoch_0-episode_1.gif`: Game visualization
 - `heatmap_epoch_0-episode_1.gif`: Belief heatmap
