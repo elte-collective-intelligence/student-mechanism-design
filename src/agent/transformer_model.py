@@ -2,9 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import TransformerConv
-import numpy as np
-from scipy.sparse import csr_matrix
-from scipy.sparse.linalg import eigsh
 
 
 class TransformerModel(nn.Module):
@@ -218,40 +215,37 @@ def compute_laplacian_pe(edge_index, num_nodes, k=8):
         pe: Positional encoding [num_nodes, k]
     """
 
-    # Build adjacency matrix
-    edge_index_np = edge_index.cpu().numpy()
-    row, col = edge_index_np[0], edge_index_np[1]
+    # Create dense adjacency matrix
+    device = edge_index.device
+    A = torch.zeros((num_nodes, num_nodes), dtype=torch.float32, device=device)
 
-    # For undirected graph, ensure symmetry
-    A = csr_matrix((np.ones(len(row)), (row, col)), shape=(num_nodes, num_nodes))
-    A = A + A.T
-    A.data = np.clip(A.data, 0, 1)  # Remove duplicate entries
+    A[edge_index[0], edge_index[1]] = 1.0
+    A[edge_index[1], edge_index[0]] = 1.0
 
     # Degree matrix
-    degrees = np.array(A.sum(axis=1)).flatten()
-    D = csr_matrix(np.diag(degrees))
+    degrees = A.sum(dim=1)
+    D = torch.diag(degrees)
 
     # Laplacian: L = D - A
     L = D - A
 
-    # Compute k smallest eigenvectors (skip the constant eigenvector with eigenvalue 0)
+    # Compute eigenvalues and eigenvectors
+    # torch.linalg.eigh returns eigenvalues in ascending order
     try:
-        eigenvalues, eigenvectors = eigsh(
-            L.astype(np.float32),
-            k=min(k + 1, num_nodes - 1),
-            which="SM",
-            return_eigenvectors=True,
-        )
-        # Remove the first eigenvector (constant)
-        k_plus_1 = k + 1
-        pe = torch.from_numpy(eigenvectors[:, 1:k_plus_1]).float()
+        eigenvalues, eigenvectors = torch.linalg.eigh(L)
+
+        # We want k smallest eigenvectors, skipping the first one (constant, eval=0)
+        k_actual = min(k, num_nodes - 1)
+        pe = eigenvectors[:, 1 : k_actual + 1]
     except Exception:
         # Fallback to zeros if eigendecomposition fails
-        pe = torch.zeros(num_nodes, k)
+        pe = torch.zeros((num_nodes, k), dtype=torch.float32, device=device)
 
     # Pad if we got fewer eigenvectors than requested
     if pe.shape[1] < k:
-        padding = torch.zeros(num_nodes, k - pe.shape[1])
+        padding = torch.zeros(
+            (num_nodes, k - pe.shape[1]), dtype=torch.float32, device=pe.device
+        )
         pe = torch.cat([pe, padding], dim=1)
 
     return pe
