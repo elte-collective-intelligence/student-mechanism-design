@@ -4,11 +4,13 @@ import torch.optim as optim
 import random
 import numpy as np
 from collections import deque
-from torch_geometric.nn import AntiSymmetricConv
 from torch_geometric.data import Batch
+from .gat_model import GATModel
+from .transformer_model import TransformerModel
+from .gnn_model import GNNModel
 
 
-class GNNAgent:
+class GraphDQNAgent:
     def __init__(
         self,
         node_feature_size,
@@ -39,13 +41,17 @@ class GNNAgent:
         self.memory = deque(maxlen=buffer_size)
 
         if self.agent_type == "gat":
-            from .gat_model import GATModel
-
             self.model = GATModel(node_feature_size, **(model_kwargs or {})).to(
                 self.device
             )
-        else:
+        elif self.agent_type == "transformer":
+            self.model = TransformerModel(node_feature_size, **(model_kwargs or {})).to(
+                self.device
+            )
+        elif self.agent_type == "gnn":
             self.model = GNNModel(node_feature_size).to(self.device)
+        else:
+            raise ValueError(f"Unknown agent type: {self.agent_type}")
 
         # Optimizer and Loss
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
@@ -238,33 +244,3 @@ class GNNAgent:
         Loads the model parameters.
         """
         self.model.load_state_dict(state_dict, strict=strict)
-
-
-class GNNModel(nn.Module):
-    def __init__(self, node_feature_size):
-        super(GNNModel, self).__init__()
-        self.conv1 = AntiSymmetricConv(
-            in_channels=node_feature_size,
-            num_iters=1,
-            epsilon=0.1,
-            gamma=0.1,
-            act="tanh",
-        )
-        self.conv2 = AntiSymmetricConv(
-            in_channels=node_feature_size,
-            num_iters=1,
-            epsilon=0.1,
-            gamma=0.1,
-            act="tanh",
-        )
-        # Output layer to get scalar Q-value per node
-        self.output_layer = nn.Linear(node_feature_size, 1)
-
-    def forward(self, data):
-        x, edge_index = data.x, data.edge_index
-        x = self.conv1(x, edge_index)
-        x = torch.relu(x)
-        x = self.conv2(x, edge_index)
-        x = torch.relu(x)
-        x = self.output_layer(x)  # Shape: [num_nodes, 1]
-        return x.squeeze(-1)  # Shape: [num_nodes]

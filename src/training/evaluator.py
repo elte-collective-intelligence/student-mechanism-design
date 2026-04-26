@@ -3,7 +3,7 @@
 import torch
 
 from logger import Logger
-from agent.gnn_agent import GNNAgent
+from agent.graph_dqn_agent import GraphDQNAgent
 from agent.random_agent import RandomAgent
 from environment.yard import CustomEnvironment
 from torchrl.envs.libs.pettingzoo import PettingZooWrapper
@@ -17,9 +17,11 @@ from training.utils import (
 )
 
 
-def evaluate_gnn(args, agent_configs, logger_configs, visualization_configs):
+def evaluate_graph_dqn_agents(
+    args, agent_configs, logger_configs, visualization_configs
+):
     """
-    Evaluate trained GNN agents.
+    Evaluate trained GraphDQN agents.
 
     Runs evaluation episodes with trained models to assess performance
     on held-out configurations or different graph distributions.
@@ -91,8 +93,8 @@ def evaluate_gnn(args, agent_configs, logger_configs, visualization_configs):
         Police_model_name = f"Police_{node_feature_size}_agents"
 
         # Load trained models
-        if agent_configs["agent_type"] in ["gnn", "gat"]:
-            mrX_agent = GNNAgent(
+        if agent_configs["agent_type"] in ["gnn", "gat", "transformer"]:
+            mrX_agent = GraphDQNAgent(
                 node_feature_size=node_feature_size,
                 device=device,
                 gamma=agent_configs["gamma"],
@@ -117,7 +119,7 @@ def evaluate_gnn(args, agent_configs, logger_configs, visualization_configs):
                     level="warning",
                 )
 
-            police_agent = GNNAgent(
+            police_agent = GraphDQNAgent(
                 node_feature_size=node_feature_size,
                 device=device,
                 gamma=agent_configs["gamma"],
