@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import random
-import numpy as np
 from collections import deque
 from torch_geometric.data import Batch
+from torch_geometric.utils import scatter
 from .gat_model import GATModel
 from .transformer_model import TransformerModel
 from .gnn_model import GNNModel
@@ -62,6 +62,7 @@ class GraphDQNAgent:
         Selects an action using epsilon-greedy policy.
         Ensures that all inputs are on the correct device.
         """
+
         self.model.eval()
         with torch.no_grad():
             graph = graph.to(self.device)  # Move graph to device
@@ -70,7 +71,8 @@ class GraphDQNAgent:
                 q_values, self.last_attention = self.model(graph, return_attention=True)
             else:
                 q_values = self.model(graph)
-            q_values = q_values.cpu().numpy()  # Move to CPU for numpy operations
+
+        action_mask = action_mask.to(self.device)
 
         if action_mask.size(0) != graph.num_nodes:
             raise ValueError(
@@ -78,21 +80,21 @@ class GraphDQNAgent:
                 f"number of nodes in graph ({graph.num_nodes})."
             )
 
-        valid_actions = np.where(action_mask.cpu().numpy() == 1)[
-            0
-        ]  # Ensure action_mask is on CPU
+        valid_actions = torch.where(action_mask == 1)[0]
         if len(valid_actions) == 0:
             return None
 
-        if np.random.rand() <= self.epsilon:
-            # Explore
-            selected_action = np.random.choice(valid_actions)
+        if torch.rand(1, device=self.device).item() <= self.epsilon:
+            # Explore: random valid action
+            idx = torch.randint(len(valid_actions), (1,), device=self.device)
+            selected_action = valid_actions[idx].item()
         else:
-            # Exploit
+            # Exploit: best Q-value among valid actions
             valid_q_values = q_values[valid_actions]
-            selected_action = valid_actions[np.argmax(valid_q_values)]
-        num_nodes = graph.num_nodes
+            best_idx = torch.argmax(valid_q_values)
+            selected_action = valid_actions[best_idx].item()
 
+        num_nodes = graph.num_nodes
         if not (0 <= selected_action < num_nodes):
             raise ValueError(
                 f"Selected action {selected_action} is invalid for graph with {num_nodes} nodes."
@@ -119,16 +121,16 @@ class GraphDQNAgent:
         if not isinstance(dones, (list, tuple)):
             dones = [dones]
 
-        # Move all graphs to device
-        graphs = [g.to(self.device) for g in graphs]
-        next_graphs = [ng.to(self.device) for ng in next_graphs]
-        actions = torch.LongTensor(actions).to(self.device)  # Shape: [batch_size]
-        rewards = torch.FloatTensor(rewards).to(self.device)  # Shape: [batch_size]
-        dones = torch.FloatTensor(dones).to(self.device)  # Shape: [batch_size]
+        # Move all graphs to CPU for storage (saves GPU memory in replay buffer)
+        graphs_cpu = [g.cpu() for g in graphs]
+        next_graphs_cpu = [ng.cpu() for ng in next_graphs]
+        actions = torch.LongTensor(actions)
+        rewards = torch.FloatTensor(rewards)
+        dones = torch.FloatTensor(dones)
 
-        # Store each experience individually
+        # Store each experience individually (on CPU)
         for graph, action, reward, next_graph, done in zip(
-            graphs, actions, rewards, next_graphs, dones
+            graphs_cpu, actions, rewards, next_graphs_cpu, dones
         ):
             if action >= graph.num_nodes:
                 print(
@@ -147,10 +149,10 @@ class GraphDQNAgent:
             zip(*mini_batch)
         )
 
-        # Move actions, rewards, and dones to tensors
-        batch_actions = torch.stack(batch_actions)  # Shape: [batch_size]
-        batch_rewards = torch.stack(batch_rewards)  # Shape: [batch_size]
-        batch_dones = torch.stack(batch_dones)  # Shape: [batch_size]
+        # Move actions, rewards, and dones to device for training
+        batch_actions = torch.stack(batch_actions).to(self.device)
+        batch_rewards = torch.stack(batch_rewards).to(self.device)
+        batch_dones = torch.stack(batch_dones).to(self.device)
 
         # Validate actions against their respective graph sizes
         batch_graph_num_nodes = torch.tensor(
@@ -173,46 +175,36 @@ class GraphDQNAgent:
         next_batch_graph = Batch.from_data_list(batch_next_graphs).to(self.device)
 
         # Forward pass for current states
-        q_values = self.model(batch_graph)  # Shape: [total_nodes_in_batch]
+        q_values = self.model(batch_graph)
 
         # Map actions to global node indices in the batch
-        node_indices = batch_graph.ptr[:-1] + batch_actions  # Shape: [batch_size]
-        # print("node_indices:", node_indices)
-        # print("q_values size:", q_values.size())
+        node_indices = batch_graph.ptr[:-1] + batch_actions
 
         # Ensure node_indices are within bounds
         assert torch.all(
             node_indices < q_values.size(0)
         ), "node_indices exceed q_values size."
 
-        current_q_values = q_values[node_indices]  # Shape: [batch_size]
+        current_q_values = q_values[node_indices]
 
         # Forward pass for next states
         with torch.no_grad():
-            next_q_values = self.model(
-                next_batch_graph
-            )  # Shape: [total_nodes_in_batch]
-            max_next_q_values = []
-            for i in range(len(batch_next_graphs)):
-                node_start = next_batch_graph.ptr[i]
-                node_end = next_batch_graph.ptr[i + 1]
-                graph_q_values = next_q_values[node_start:node_end]
-                max_q_value = graph_q_values.max()
-                max_next_q_values.append(max_q_value)
-            max_next_q_values = torch.stack(max_next_q_values).to(
-                self.device
-            )  # Shape: [batch_size]
+            next_q_values = self.model(next_batch_graph)
+            # Vectorized max-next-Q using scatter (replaces Python loop)
+            max_next_q_values = scatter(
+                next_q_values, next_batch_graph.batch, reduce="max"
+            )
 
         # Compute target Q-values
         target_q_values = batch_rewards + self.gamma * max_next_q_values * (
             1 - batch_dones
-        )  # Shape: [batch_size]
+        )
 
         # Compute loss
         loss = self.criterion(current_q_values, target_q_values)
 
         # Optimize the model
-        self.optimizer.zero_grad()
+        self.optimizer.zero_grad(set_to_none=True)
         loss.backward()
         self.optimizer.step()
 

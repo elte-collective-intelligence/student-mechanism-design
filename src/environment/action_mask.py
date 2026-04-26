@@ -39,6 +39,8 @@ def compute_action_mask(
     The mask uses a FIXED index→node mapping where action index i corresponds to node i.
     This ensures consistency across all agents and timesteps.
 
+    Uses vectorized numpy operations for efficiency.
+
     Args:
         adjacency: Binary adjacency matrix describing the graph.
         current_node: Node where the agent is located.
@@ -52,8 +54,6 @@ def compute_action_mask(
         ActionMaskResult with mask, mappings, and valid action list.
     """
     num_nodes = adjacency.shape[0]
-    mask = np.zeros(num_nodes, dtype=bool)
-    valid_actions = []
 
     # Fixed identity mapping: action index i = node i
     index_to_node = {i: i for i in range(num_nodes)}
@@ -62,18 +62,12 @@ def compute_action_mask(
     toll_matrix = _normalize_tolls(tolls, num_nodes)
     weight_matrix = _normalize_weights(edge_weights, adjacency, num_nodes)
 
-    for node in range(num_nodes):
-        if node == current_node:
-            continue
-        if adjacency[current_node, node] == 0:
-            continue
-
-        # Total cost = edge weight + toll
-        cost = weight_matrix[current_node, node] + toll_matrix[current_node, node]
-
-        if cost <= budget:
-            mask[node] = True  # Fixed: use node index directly
-            valid_actions.append(node)
+    # Vectorized: compute mask for all nodes at once
+    neighbors = adjacency[current_node] > 0
+    costs = weight_matrix[current_node] + toll_matrix[current_node]
+    mask = neighbors & (costs <= budget)
+    mask[current_node] = False  # Can't stay at current node
+    valid_actions = np.where(mask)[0].tolist()
 
     return ActionMaskResult(
         mask=mask,
