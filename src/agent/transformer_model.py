@@ -236,7 +236,7 @@ def compute_laplacian_pe(edge_index, num_nodes, k=8):
 
         # We want k smallest eigenvectors, skipping the first one (constant, eval=0)
         k_actual = min(k, num_nodes - 1)
-        pe = eigenvectors[:, 1 : k_actual + 1]
+        pe = eigenvectors[:, 1:k_actual + 1]
     except Exception:
         # Fallback to zeros if eigendecomposition fails
         pe = torch.zeros((num_nodes, k), dtype=torch.float32, device=device)
