@@ -1,5 +1,6 @@
 import functools
 import numpy as np
+import torch
 from gymnasium.spaces import Discrete, MultiDiscrete, Box, Dict, MultiBinary
 from environment.base_env import BaseEnvironment
 from environment.graph_layout import ConnectedGraph
@@ -45,6 +46,10 @@ class CustomEnvironment(BaseEnvironment):
         self.reward_calculator = RewardCalculator(reward_weights, logger)
         self.pathfinder = Pathfinder(logger)
         self.visualizer = GameVisualizer(vis_configs, logger)
+
+        # When True, distances are computed on-the-fly with Dijkstra so they
+        # always reflect the current edge weights (e.g. dynamic toll changes).
+        self.dynamic_pathfinding = False
 
         self.vis_config = vis_configs
         self.visualize = vis_configs["visualize_game"]
@@ -107,11 +112,16 @@ class CustomEnvironment(BaseEnvironment):
             level="debug",
         )
 
+        # Cache graph structure (extracted so dynamic-graph code can re-call it)
+        self.invalidate_graph_cache()
+
         self.agents = self.possible_agents
         self.node_visits = np.zeros((self.board.nodes.shape[0]), dtype=np.int32)
         agent_starting_positions = list(
             np.random.choice(
-                self.board.nodes.shape[0], size=self.number_of_agents + 1, replace=False
+                self.board.nodes.shape[0],
+                size=self.number_of_agents + 1,
+                replace=False,
             )
         )
         self.agents_money = [MAX_MONEY_LIMIT] + [
@@ -119,7 +129,8 @@ class CustomEnvironment(BaseEnvironment):
         ]
 
         self.logger.log(
-            f"Agent starting positions: {agent_starting_positions}", level="debug"
+            f"Agent starting positions: {agent_starting_positions}",
+            level="debug",
         )
 
         self.MrX_pos = [agent_starting_positions[0]]
@@ -127,14 +138,13 @@ class CustomEnvironment(BaseEnvironment):
         self.timestep = 0
         self.logger.log(f"MrX initial position: {self.MrX_pos[0]}", level="debug")
         self.logger.log(
-            f"Police initial positions: {self.police_positions}", level="debug"
+            f"Police initial positions: {self.police_positions}",
+            level="debug",
         )
         self.avg_distance = 0
         infos = {a: {} for a in self.agents}  # Dummy infos
         self.logger.log("Environment reset complete.", level="debug")
 
-        # Update pathfinder and visualizer with new board state
-        self.pathfinder.set_board(self.board)
         self.close_render()
         self.initialize_render()
 
@@ -272,10 +282,19 @@ class CustomEnvironment(BaseEnvironment):
         """
         Create graph-based observations for all agents.
         Includes adjacency matrix, node features, edge features, and action masks.
+        Uses cached adjacency and weight matrices for efficiency.
+
+        Args:
+            mrx_pos: MrX's current position
+            police_positions: List of police positions
+            agents: List of agent names
+            edge_index: Edge index tensor
+            edge_features: Edge features tensor
+
+        Returns:
+            Dictionary mapping agent names to their observations
         """
         self.logger.log("Generating graph observations., ", level="debug")
-        adjacency_matrix = self._get_adjacency_matrix()
-        edge_weight_matrix = self._get_edge_weight_matrix()
         node_features = np.zeros((self.board.nodes.shape[0], self.number_of_agents + 1))
 
         # Encode agent positions as node features
@@ -308,16 +327,16 @@ class CustomEnvironment(BaseEnvironment):
                 agent_pos = self.police_positions[police_idx]
                 agent_budget = self.agents_money[agent_idx]
 
-            # Compute action mask with fixed index→node mapping
+            # Compute action mask with fixed index→node mapping (uses cached matrices)
             mask_result = compute_action_mask(
-                adjacency=adjacency_matrix,
+                adjacency=self._adjacency_matrix,
                 current_node=agent_pos,
                 budget=agent_budget,
-                edge_weights=edge_weight_matrix,
+                edge_weights=self._edge_weight_matrix,
             )
 
             observations[agent] = {
-                "adjacency_matrix": adjacency_matrix,
+                "adjacency_matrix": self._adjacency_matrix,
                 "node_features": node_features,
                 "edge_index": edge_index,
                 "edge_features": edge_features,
@@ -337,6 +356,12 @@ class CustomEnvironment(BaseEnvironment):
     def _calculate_rewards_terminations(self, is_no_money):
         """
         Compute rewards and check termination/truncation conditions.
+
+        Args:
+            is_no_money: Whether police ran out of money
+
+        Returns:
+            Tuple of (rewards, terminations, truncations, winner)
         """
         rewards, terminations, truncations, winner = (
             self.reward_calculator.calculate_rewards_and_terminations(
@@ -360,6 +385,19 @@ class CustomEnvironment(BaseEnvironment):
         """
         Compute rewards for all agents based on the specified components.
         Rewards are weighted by the reward_weights parameters.
+
+        Args:
+            mrx_pos: MrX's current position
+            police_positions: List of police positions
+            timestep: Current timestep
+            epoch: Current epoch
+            agents: List of agent names
+            get_distance_func: Function to compute distance between nodes
+            get_possible_moves_func: Function to get possible moves for position
+            node_visit_counts: Dictionary tracking node visit counts
+
+        Returns:
+            Dictionary mapping agent names to their rewards
         """
         return self.reward_calculator.calculate_rewards(
             mrx_pos=self.MrX_pos[0],
@@ -374,22 +412,63 @@ class CustomEnvironment(BaseEnvironment):
 
     def get_distance(self, node1: int, node2: int) -> float:
         """
-        Compute the shortest path distance between two nodes using Dijkstra's algorithm,
-        considering the weights of the edges.
+        Compute the shortest path distance between two nodes.
+
+        Delegates to the Pathfinder, using the precomputed all-pairs matrix
+        by default. Set ``self.dynamic_pathfinding = True`` to switch to
+        on-the-fly Dijkstra for environments with changing edge weights.
 
         Args:
-            node1: The starting node
-            node2: The target node
+            node1: The starting node.
+            node2: The target node.
 
         Returns:
             The shortest distance (sum of edge weights) between node1 and node2
             if a path exists. Returns float('inf') if no path exists.
         """
-        return self.pathfinder.get_distance(node1, node2)
+        return self.pathfinder.get_distance(
+            node1, node2, dynamic=self.dynamic_pathfinding
+        )
+
+    def invalidate_graph_cache(self):
+        """Recompute all cached graph-derived data structures.
+
+        Call this after any mutation to ``self.board`` (adding/removing edges,
+        changing edge weights, etc.) so that every downstream consumer sees the
+        updated graph.  ``reset()`` calls this automatically; you only need to
+        call it explicitly for **mid-episode** graph mutations (e.g. dynamic
+        tolls, edge removals).
+
+        Invalidated caches:
+            * ``_adjacency_matrix``   - used by action masking & possible-moves
+            * ``_edge_weight_matrix`` - used by action masking & move costs
+            * ``_edge_index_tensor``  - used by ``create_graph_data`` (GNN input)
+            * ``_edge_features_tensor`` - used by ``create_graph_data``
+            * ``pathfinder``          - all-pairs shortest-path matrix
+        """
+
+        self._adjacency_matrix = self._get_adjacency_matrix()
+        self._edge_weight_matrix = self._get_edge_weight_matrix()
+
+        self._edge_index_tensor = torch.tensor(
+            self.board.edge_links.T, dtype=torch.long
+        )
+        self._edge_features_tensor = torch.tensor(self.board.edges, dtype=torch.float)
+
+        if not getattr(self, "dynamic_pathfinding", False):
+            self.pathfinder.set_board(self.board)
+
+        self.logger.log("Graph cache invalidated and rebuilt.", level="debug")
 
     def _get_adjacency_matrix(self):
         """
         Generate the adjacency matrix of the graph.
+
+        Args:
+            edge_links: Edge links of the graph
+
+        Returns:
+            Adjacency matrix
         """
         self.logger.log("Generating adjacency matrix., ", level="debug")
         adjacency_matrix = np.zeros(
@@ -405,6 +484,13 @@ class CustomEnvironment(BaseEnvironment):
         """
         Generate the edge weight matrix of the graph.
         Returns a matrix where weight_matrix[i,j] is the cost to traverse from node i to j.
+
+        Args:
+            edge_links: Edge links of the graph
+            edges: Edge weights of the graph
+
+        Returns:
+            Edge weight matrix
         """
         num_nodes = self.board.nodes.shape[0]
         weight_matrix = np.full((num_nodes, num_nodes), np.inf)
@@ -451,18 +537,20 @@ class CustomEnvironment(BaseEnvironment):
         combined_neighbors = np.concatenate([neighbors_from, neighbors_to])
         combined_weights = np.concatenate([weights_from, weights_to])
 
-        # Create a structured array to facilitate finding the minimum weight for each neighbor
-        dtype = [("node", combined_neighbors.dtype), ("weight", combined_weights.dtype)]
-        structured_array = np.array(
-            list(zip(combined_neighbors, combined_weights)), dtype=dtype
+        if len(combined_neighbors) == 0:
+            return np.array([], dtype=np.int64), np.array([], dtype=np.float64)
+
+        # Find minimum weight per neighbor using dict (faster than structured array sort)
+        neighbor_min_weight = {}
+        for n, w in zip(combined_neighbors, combined_weights):
+            n_int = int(n)
+            if n_int not in neighbor_min_weight or w < neighbor_min_weight[n_int]:
+                neighbor_min_weight[n_int] = w
+
+        unique_nodes = np.array(sorted(neighbor_min_weight.keys()), dtype=np.int64)
+        unique_weights = np.array(
+            [neighbor_min_weight[n] for n in unique_nodes], dtype=np.float64
         )
-
-        # Sort by node and then by weight to bring the minimum weight first for each node
-        sorted_array = np.sort(structured_array, order=["node", "weight"])
-
-        # Use np.unique to find unique nodes, keeping the first occurrence (minimum weight)
-        unique_nodes, indices = np.unique(sorted_array["node"], return_index=True)
-        unique_weights = sorted_array["weight"][indices]
 
         self.logger.log(
             f"Agent {self.agents[agent_idx]} (money: {self.agents_money[agent_idx]}) at position {pos} can move to: {unique_nodes} with weights {unique_weights}",
@@ -503,6 +591,12 @@ class CustomEnvironment(BaseEnvironment):
     def observation_space(self, agent):
         """
         Define the observation space for GNN input.
+
+        Args:
+            agent: Name of the agent
+
+        Returns:
+            Observation space for GNN input
         """
         self.logger.log(
             f"Defining observation space for agent {agent}., ", level="debug"
@@ -556,6 +650,9 @@ class CustomEnvironment(BaseEnvironment):
     def initialize_render(self, reset=False):
         """
         Initialize the matplotlib plot for rendering the graph.
+
+        Args:
+            reset: Whether to reset the plot
         """
         self.visualizer.set_game_state(
             board=self.board,
