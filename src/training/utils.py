@@ -152,7 +152,7 @@ def create_graph_data(state: Dict, agent_id: str, env) -> Data:
     """Create a PyTorch Geometric Data object from the environment state.
 
     This converts the environment state into a graph representation suitable
-    for Graph Neural Network agents.
+    for Graph Neural Network agents. Uses cached tensors when available.
 
     Args:
         state: Current environment state dictionary.
@@ -166,15 +166,21 @@ def create_graph_data(state: Dict, agent_id: str, env) -> Data:
     logger = env.logger
     logger.log(f"Creating graph data for agent {agent_id}.", level="debug")
 
-    # Get graph structure from environment
-    edge_index = torch.tensor(env.board.edge_links.T, dtype=torch.long)
-    edge_features = torch.tensor(env.board.edges, dtype=torch.float)
+    # Use cached tensors from environment
+    env_inner = getattr(env, "_env", env)  # Handle PettingZooWrapper
+    if hasattr(env_inner, "_edge_index_tensor"):
+        edge_index = env_inner._edge_index_tensor.clone()
+        edge_features = env_inner._edge_features_tensor.clone()
+    else:
+        edge_index = torch.tensor(env.board.edge_links.T, dtype=torch.long)
+        edge_features = torch.tensor(env.board.edges, dtype=torch.float)
 
     num_nodes = env.board.nodes.shape[0]
     num_features = env.number_of_agents + 1  # One-hot encoding for agent positions
 
-    # Initialize node features
-    node_features = np.zeros((num_nodes, num_features), dtype=np.float32)
+    node_features = torch.zeros(
+        num_nodes, num_features, dtype=torch.float32, device=device
+    )
 
     # Encode MrX position (feature index 0)
     mrX_pos = state.get("MrX", {}).get("observation", None)
@@ -199,8 +205,6 @@ def create_graph_data(state: Dict, agent_id: str, env) -> Data:
                     level="debug",
                 )
 
-    # Convert to tensors and move to device
-    node_features = torch.tensor(node_features, dtype=torch.float32).to(device)
     edge_index = edge_index.to(device)
     edge_features = edge_features.to(device)
 
@@ -254,7 +258,7 @@ def is_episode_done(terminations: Dict, truncations: Dict) -> bool:
 def create_action_mask(
     num_actions: int, possible_moves: List[int], dtype=torch.float32
 ) -> torch.Tensor:
-    """Create an action mask tensor.
+    """Create an action mask tensor using vectorized indexing.
 
     Args:
         num_actions: Total number of possible actions (mask size).
@@ -265,7 +269,9 @@ def create_action_mask(
         Tensor with 1s at valid action indices, 0s elsewhere.
     """
     mask = torch.zeros(num_actions, dtype=dtype, device=device)
-    for move in possible_moves:
-        if move < num_actions:
-            mask[move] = 1.0
+    if len(possible_moves) > 0:
+        moves = torch.tensor(possible_moves, dtype=torch.long, device=device)
+        moves = moves[moves < num_actions]
+        if len(moves) > 0:
+            mask[moves] = 1.0
     return mask
