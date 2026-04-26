@@ -85,7 +85,7 @@ class Logger:
             message (str): The message to log.
             level (str, optional): The log level ('info', 'warning', 'error').
         """
-        if level == "info" or self.configs["verbose"] == True:
+        if level == "info" or self.configs["verbose"]:
             self.logger.info(message)
         elif level == "debug":
             self.logger.debug(message)

@@ -284,7 +284,7 @@ def generate_ablation_report(
         lines.append(f"\n### {name} ###")
         lines.append(f"Description: {result.config.description}")
         lines.append(f"Parameters: {result.config.params}")
-        lines.append(f"Metrics:")
+        lines.append("Metrics:")
         for k, v in result.metrics.items():
             if isinstance(v, float):
                 lines.append(f"  {k}: {v:.4f}")

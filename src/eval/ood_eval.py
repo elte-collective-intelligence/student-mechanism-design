@@ -392,7 +392,7 @@ def generate_ood_report(results: List[OODResult]) -> str:
         lines.append(
             f"  Noise: {summary['config']['noise_std']}, Drop: {summary['config']['edge_drop']}"
         )
-        lines.append(f"  Metrics:")
+        lines.append("  Metrics:")
         for k, v in summary["metrics"].items():
             if isinstance(v, float):
                 lines.append(f"    {k}: {v:.4f}")

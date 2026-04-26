@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import TransformerConv
+import numpy as np
+from scipy.sparse import csr_matrix
+from scipy.sparse.linalg import eigsh
 
 
 class TransformerModel(nn.Module):
@@ -214,9 +217,6 @@ def compute_laplacian_pe(edge_index, num_nodes, k=8):
     Returns:
         pe: Positional encoding [num_nodes, k]
     """
-    import numpy as np
-    from scipy.sparse import csr_matrix
-    from scipy.sparse.linalg import eigsh
 
     # Build adjacency matrix
     edge_index_np = edge_index.cpu().numpy()

@@ -262,7 +262,7 @@ class GameVisualizer:
 
     def save_visualizations(self):
         """Save visualization GIFs if enabled."""
-        if self.vis_config["save_visualization"] == True:
+        if self.vis_config["save_visualization"]:
 
             if len(self.run_images) > 0:
                 self.logger.log(
