@@ -53,6 +53,9 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
     criterion = torch.nn.MSELoss()
     logger.log("Loss function (MSELoss) initialized.", level="debug")
 
+    # Store the last predicted_weight for meta-learner update
+    last_predicted_weight = None
+
     # Validate agent configurations
     if not hasattr(args, "agent_configurations") or not args.agent_configurations:
         raise ValueError(
@@ -94,6 +97,7 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
             [[num_agents, agent_money, args.graph_nodes, args.graph_edges]]
         ).to(device)
         predicted_weight = reward_weight_net(inputs)
+        last_predicted_weight = predicted_weight  # Save for meta-learner update
 
         reward_weights = {
             "Police_distance": predicted_weight[0, 0],
@@ -216,12 +220,14 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
                 mrX_action = mrX_agent.select_action(mrX_graph_data, mrX_action_mask)
                 actions["MrX"] = mrX_action
 
-                # Police actions
+                # Police actions — cache graph data for reuse during update
+                police_graph_data_cache = {}
                 for i in range(num_agents):
                     police_name = f"Police{i}"
                     police_graph_data = create_graph_data(state, police_name, env).to(
                         device
                     )
+                    police_graph_data_cache[police_name] = police_graph_data
                     police_possible_moves = env.get_possible_moves(i + 1)
                     police_action_mask = torch.zeros(
                         police_graph_data.num_nodes, dtype=torch.int32, device=device
@@ -263,7 +269,7 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
 
                 # Update agents immediately
                 if agent_configs["agent_type"] in ["gnn", "gat", "transformer"]:
-                    # Update MrX agent
+                    # Update MrX agent (reuse mrX_graph_data from action selection above)
                     mrX_next_graph_data = create_graph_data(next_state, "MrX", env).to(
                         device
                     )
@@ -275,12 +281,11 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
                         not terminations.get("Police0", False),
                     )
 
-                    # Update Police agents
+                    # Update Police agents (reuse police_graph_data from action selection)
                     for i in range(num_agents):
                         police_name = f"Police{i}"
-                        police_graph_data_stored = create_graph_data(
-                            state, police_name, env
-                        ).to(device)
+                        # Reuse graph data stored during action selection
+                        police_graph_data_stored = police_graph_data_cache[police_name]
                         police_next_graph_data = create_graph_data(
                             next_state, police_name, env
                         ).to(device)
@@ -307,10 +312,10 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
             env_wrappable.save_visualizations()
 
             # Log to tensorboard
-            logger.log_scalar(f"episode/steps", episode_step, episode)
-            logger.log_scalar(f"episode/mrx_reward", episode_mrx_reward, episode)
-            logger.log_scalar(f"episode/police_reward", episode_police_reward, episode)
-            logger.log_scalar(f"episode/total_reward", episode_reward, episode)
+            logger.log_scalar("episode/steps", episode_step, episode)
+            logger.log_scalar("episode/mrx_reward", episode_mrx_reward, episode)
+            logger.log_scalar("episode/police_reward", episode_police_reward, episode)
+            logger.log_scalar("episode/total_reward", episode_reward, episode)
 
             if winner == "MrX":
                 mrx_wins += 1
@@ -334,17 +339,26 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
         logger.log_scalar("epoch/police_wins", police_wins, epoch)
         logger.log_scalar("epoch/win_ratio", win_ratio, epoch)
 
-        # Update reward weight network (match original behavior)
-        target_difficulty = torch.FloatTensor([[0.5]]).to(device).requires_grad_()
-        win_ratio_tensor = torch.FloatTensor([[win_ratio]]).to(device).requires_grad_()
+        target_difficulty = torch.FloatTensor([[0.5]]).to(device)
+        win_ratio_tensor = torch.FloatTensor([[win_ratio]]).to(device)
+        
+        if last_predicted_weight is not None:
+            predicted_difficulty = (
+                last_predicted_weight.mean().unsqueeze(0).unsqueeze(0)
+            )
+            loss = criterion(predicted_difficulty, target_difficulty)
+            # Also add a regularization term based on win ratio imbalance
+            imbalance_loss = criterion(win_ratio_tensor, target_difficulty)
+            total_loss = loss + 0.1 * imbalance_loss
+        else:
+            total_loss = criterion(win_ratio_tensor, target_difficulty)
 
-        loss = criterion(win_ratio_tensor, target_difficulty)
-        optimizer.zero_grad()
-        loss.backward()
+        optimizer.zero_grad(set_to_none=True)
+        total_loss.backward()
         optimizer.step()
 
         logger.log(
-            f"Epoch {epoch + 1}: Loss: {loss.item()}, Win Ratio: {win_ratio}",
+            f"Epoch {epoch + 1}: Loss: {total_loss.item()}, Win Ratio: {win_ratio}",
             level="info",
         )
 
