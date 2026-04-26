@@ -341,7 +341,7 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
 
         target_difficulty = torch.FloatTensor([[0.5]]).to(device)
         win_ratio_tensor = torch.FloatTensor([[win_ratio]]).to(device)
-        
+
         if last_predicted_weight is not None:
             predicted_difficulty = (
                 last_predicted_weight.mean().unsqueeze(0).unsqueeze(0)
