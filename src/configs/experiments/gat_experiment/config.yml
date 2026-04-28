@@ -6,7 +6,7 @@ agent_configurations:
   - num_police_agents: 3
     agent_money: 15
 
-graph_edges: 15
+graph_edges: 40
 graph_nodes: 20
 num_episodes: 10
 num_eval_episodes: 5

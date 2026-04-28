@@ -12,7 +12,7 @@ num_episodes: 10
 num_eval_episodes: 5
 
 graph_nodes: 20
-graph_edges: 15
+graph_edges: 40
 
 wandb_run_name: 'transformer_experiment'
 wandb_resume: false
