@@ -1,14 +1,12 @@
+import os
+import sys
 import pytest
 import torch
-import numpy as np
 from torch_geometric.data import Data
 
-import sys
-import os
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
-from agent.gat_agent import GATAgent
-from agent.transformer_agent import TransformerAgent
+from agent.gat_agent import GATAgent  # noqa: E402
+from agent.transformer_agent import TransformerAgent  # noqa: E402
 
 
 @pytest.fixture
