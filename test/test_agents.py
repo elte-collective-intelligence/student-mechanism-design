@@ -54,13 +54,7 @@ def test_agent_full_cycle(agent_class, dummy_graph):
     # 3. Test update (Training Pass)
     # We need to fill the buffer to trigger the actual training logic
     for _ in range(3):  # buffer size is larger than batch_size
-        agent.update(
-            graphs=dummy_graph,
-            actions=action,
-            rewards=1.0,
-            next_graphs=dummy_graph,
-            dones=False,
-        )
+        agent.update([dummy_graph], [action], [1.0], [dummy_graph], [False])
 
     # Check if epsilon decayed (meaning the optimizer step was reached)
     assert agent.epsilon < 1.0 or agent.epsilon == agent.epsilon_min
@@ -72,5 +66,5 @@ def test_transformer_specific_pe(dummy_graph):
 
     # Test the internal PE computation
     pe = agent.compute_pos_enc(dummy_graph)
-    assert pe.shape == (5, 4), "Laplacian PE shape is incorrect"
+    assert pe.x_pe.shape == (5, 4), "Laplacian PE shape is incorrect"
     assert not torch.isnan(pe).any(), "PE contains NaNs"
