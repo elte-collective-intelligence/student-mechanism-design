@@ -7,7 +7,6 @@ from torch_geometric.utils import get_laplacian, to_dense_adj
 from base_agent import BaseAgent
 import torch
 import torch.nn as nn
-
 from torch_geometric.nn import TransformerConv
 
 
@@ -58,7 +57,7 @@ class TransformerAgent(BaseAgent):
         eigvecs = eigvecs[:, idx]
 
         pos_enc = (
-            torch.from_numpy(eigvecs[:, 1: self.pos_dim + 1]).float().to(self.device)
+            torch.from_numpy(eigvecs[:, 1 : self.pos_dim + 1]).float().to(self.device)
         )
 
         if pos_enc.shape[1] < self.pos_dim:
