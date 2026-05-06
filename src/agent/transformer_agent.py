@@ -4,7 +4,7 @@ import numpy as np
 from collections import deque
 from torch_geometric.data import Batch
 from torch_geometric.utils import get_laplacian, to_dense_adj
-from base_agent import BaseAgent
+from .base_agent import BaseAgent
 import torch
 import torch.nn as nn
 from torch_geometric.nn import TransformerConv
