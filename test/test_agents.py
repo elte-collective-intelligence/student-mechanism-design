@@ -64,7 +64,10 @@ def test_transformer_specific_pe(dummy_graph):
     """Specifically tests the Positional Encoding logic in the Transformer."""
     agent = TransformerAgent(node_feature_size=16, pos_dim=4)
 
-    # Test the internal PE computation
-    pe = agent.compute_pos_enc(dummy_graph)
-    assert pe.x_pe.shape == (5, 4), "Laplacian PE shape is incorrect"
-    assert not torch.isnan(pe).any(), "PE contains NaNs"
+    # Run the computation
+    graph_with_pe = agent.compute_pos_enc(dummy_graph)
+
+    # Match the attribute name in your compute_pos_enc code: .pos_enc
+    assert hasattr(graph_with_pe, "pos_enc"), "Graph is missing pos_enc attribute"
+    assert graph_with_pe.pos_enc.shape == (5, 4), "Laplacian PE shape is incorrect"
+    assert not torch.isnan(graph_with_pe.pos_enc).any(), "PE contains NaNs"
