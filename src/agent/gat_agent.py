@@ -1,18 +1,20 @@
-import torch
-import torch.nn as nn
 import torch.optim as optim
 import random
 import numpy as np
 from collections import deque
-from torch_geometric.nn import GATConv
 from torch_geometric.data import Batch
-from base_agent import BaseAgent
+from torch_geometric.utils import get_laplacian, to_dense_adj
+from .base_agent import BaseAgent
+import torch
+import torch.nn as nn
+from torch_geometric.nn import TransformerConv
 
 
-class GATAgent(BaseAgent):
+class TransformerAgent(BaseAgent):
     def __init__(
         self,
         node_feature_size,
+        pos_dim=8,
         gamma=0.99,
         lr=1e-3,
         batch_size=64,
@@ -22,32 +24,56 @@ class GATAgent(BaseAgent):
         epsilon_min=0.01,
         device=torch.device("cpu"),
     ):
-        """
-        Graph Attention Network (GAT) Agent with Experience Replay.
-        """
-        self.node_feature_size = node_feature_size
+        self.device = device
+        self.pos_dim = pos_dim
         self.gamma = gamma
+        self.batch_size = batch_size
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
         self.epsilon_min = epsilon_min
-        self.batch_size = batch_size
-        self.device = device
 
         self.memory = deque(maxlen=buffer_size)
 
-        self.model = GATModel(node_feature_size).to(self.device)
-
+        self.model = GraphTransformerModel(node_feature_size, pos_edge_dim=pos_dim).to(
+            self.device
+        )
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         self.criterion = nn.MSELoss()
 
-    def select_action(self, graph, action_mask):
-        """Selects action using epsilon-greedy policy with attention-based Q-values."""
+    def compute_pos_enc(self, data):
+        if hasattr(data, "pos_enc"):
+            return data
 
+        edge_index = data.edge_index
+        num_nodes = data.num_nodes
+
+        L_index, L_weight = get_laplacian(
+            edge_index, num_nodes=num_nodes, normalization="sym"
+        )
+        L_dense = to_dense_adj(L_index, edge_attr=L_weight).squeeze(0).cpu().numpy()
+
+        eigvals, eigvecs = np.linalg.eigh(L_dense)
+        idx = eigvals.argsort()
+        eigvecs = eigvecs[:, idx]
+
+        pos_enc = (
+            torch.from_numpy(eigvecs[:, 1: self.pos_dim + 1]).float().to(self.device)
+        )
+
+        if pos_enc.shape[1] < self.pos_dim:
+            pad = torch.zeros((num_nodes, self.pos_dim - pos_enc.shape[1])).to(
+                self.device
+            )
+            pos_enc = torch.cat([pos_enc, pad], dim=1)
+
+        data.pos_enc = pos_enc
+        return data
+
+    def select_action(self, graph, action_mask):
         self.model.eval()
         with torch.no_grad():
-            graph = graph.to(self.device)
-            q_values = self.model(graph)
-            q_values = q_values.cpu().numpy()
+            graph = self.compute_pos_enc(graph).to(self.device)
+            q_values = self.model(graph).cpu().numpy()
 
         mask_np = (
             action_mask.cpu().numpy() if torch.is_tensor(action_mask) else action_mask
@@ -58,12 +84,9 @@ class GATAgent(BaseAgent):
             return None
 
         if np.random.rand() <= self.epsilon:
-            selected_action = np.random.choice(valid_actions)
+            return int(np.random.choice(valid_actions))
         else:
-            valid_q_values = q_values[valid_actions]
-            selected_action = valid_actions[np.argmax(valid_q_values)]
-
-        return int(selected_action)
+            return int(valid_actions[np.argmax(q_values[valid_actions])])
 
     def update(self, graphs, actions, rewards, next_graphs, dones):
         if actions is None:
@@ -71,59 +94,53 @@ class GATAgent(BaseAgent):
 
         if not isinstance(graphs, (list, tuple)):
             graphs = [graphs]
-        if not isinstance(actions, (list, tuple)):
-            actions = [actions]
-        if not isinstance(rewards, (list, tuple)):
-            rewards = [rewards]
         if not isinstance(next_graphs, (list, tuple)):
             next_graphs = [next_graphs]
-        if not isinstance(dones, (list, tuple)):
-            dones = [dones]
 
         for g, a, r, ng, d in zip(graphs, actions, rewards, next_graphs, dones):
-            r_t = torch.tensor(r, dtype=torch.float) if not torch.is_tensor(r) else r
-            d_t = torch.tensor(d, dtype=torch.float) if not torch.is_tensor(d) else d
-            a_t = torch.tensor(a, dtype=torch.long) if not torch.is_tensor(a) else a
+            g_pe = self.compute_pos_enc(g).to(self.device)
+            ng_pe = self.compute_pos_enc(ng).to(self.device)
 
             self.memory.append(
                 (
-                    g.to(self.device),
-                    a_t.to(self.device),
-                    r_t.to(self.device),
-                    ng.to(self.device),
-                    d_t.to(self.device),
+                    g_pe,
+                    torch.tensor(a, dtype=torch.long, device=self.device),
+                    torch.tensor(r, dtype=torch.float, device=self.device),
+                    ng_pe,
+                    torch.tensor(d, dtype=torch.float, device=self.device),
                 )
             )
 
         if len(self.memory) < self.batch_size:
             return
 
-        mini_batch = random.sample(self.memory, self.batch_size)
-        b_graphs, b_actions, b_rewards, b_next_graphs, b_dones = zip(*mini_batch)
+        batch = random.sample(self.memory, self.batch_size)
+        b_graphs, b_actions, b_rewards, b_next_graphs, b_dones = zip(*batch)
 
-        batch_graph = Batch.from_data_list(b_graphs).to(self.device)
-        next_batch_graph = Batch.from_data_list(b_next_graphs).to(self.device)
+        bg = Batch.from_data_list(b_graphs).to(self.device)
+        nbg = Batch.from_data_list(b_next_graphs).to(self.device)
 
-        b_actions = torch.stack(b_actions)
-        b_rewards = torch.stack(b_rewards)
-        b_dones = torch.stack(b_dones)
+        ba = torch.stack(b_actions)
+        br = torch.stack(b_rewards)
+        bd = torch.stack(b_dones)
 
         self.model.train()
-        q_values = self.model(batch_graph)
-        node_indices = batch_graph.ptr[:-1] + b_actions
-        current_q_values = q_values[node_indices]
+        q_out = self.model(bg)
+
+        current_indices = bg.ptr[:-1] + ba
+        current_q = q_out[current_indices]
 
         with torch.no_grad():
-            next_q_all = self.model(next_batch_graph)
+            next_q_out = self.model(nbg)
             max_next_q = []
-            for i in range(len(b_next_graphs)):
-                start, end = next_batch_graph.ptr[i], next_batch_graph.ptr[i + 1]
-                max_next_q.append(next_q_all[start:end].max())
+            for i in range(self.batch_size):
+                start, end = nbg.ptr[i], nbg.ptr[i + 1]
+                max_next_q.append(next_q_out[start:end].max())
             max_next_q = torch.stack(max_next_q)
 
-        target_q_values = b_rewards + (self.gamma * max_next_q * (1 - b_dones))
+        target_q = br + (self.gamma * max_next_q * (1 - bd))
 
-        loss = self.criterion(current_q_values, target_q_values)
+        loss = self.criterion(current_q, target_q)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -136,7 +153,6 @@ class GATAgent(BaseAgent):
 
     def load(self, filepath):
         self.model.load_state_dict(torch.load(filepath, map_location=self.device))
-        self.model.to(self.device)
 
     def state_dict(self):
         """
@@ -151,26 +167,42 @@ class GATAgent(BaseAgent):
         self.model.load_state_dict(state_dict, strict=strict)
 
 
-class GATModel(nn.Module):
-    def __init__(self, node_feature_size, hidden_channels=32, heads=8):
-        super(GATModel, self).__init__()
+class GraphTransformerModel(nn.Module):
+    def __init__(self, node_feature_size, pos_edge_dim=8, hidden_channels=64, heads=4):
+        super(GraphTransformerModel, self).__init__()
 
-        self.conv1 = GATConv(node_feature_size, hidden_channels, heads=heads)
+        self.node_emb = nn.Linear(node_feature_size + pos_edge_dim, hidden_channels)
 
-        self.conv2 = GATConv(
-            hidden_channels * heads, hidden_channels, heads=1, concat=False
+        self.trans1 = TransformerConv(
+            hidden_channels, hidden_channels, heads=heads, dropout=0.1
+        )
+        self.trans2 = TransformerConv(
+            hidden_channels * heads, hidden_channels, heads=heads, dropout=0.1
+        )
+        self.trans3 = TransformerConv(
+            hidden_channels * heads, hidden_channels, heads=1, concat=False, dropout=0.1
         )
 
         self.output_layer = nn.Linear(hidden_channels, 1)
+        self.leaky_relu = nn.LeakyReLU(0.01)
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
 
-        x = self.conv1(x, edge_index)
-        x = torch.leaky_relu(x)
+        if hasattr(data, "pos_enc"):
+            x = torch.cat([x, data.pos_enc], dim=-1)
 
-        x = self.conv2(x, edge_index)
-        x = torch.leaky_relu(x)
+        x = self.node_emb(x)
+        x = self.leaky_relu(x)
+
+        x = self.trans1(x, edge_index)
+        x = self.leaky_relu(x)
+
+        x = self.trans2(x, edge_index)
+        x = self.leaky_relu(x)
+
+        x = self.trans3(x, edge_index)
+        x = self.leaky_relu(x)
 
         x = self.output_layer(x)
         return x.squeeze(-1)
