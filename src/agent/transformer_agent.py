@@ -57,7 +57,7 @@ class TransformerAgent(BaseAgent):
         eigvecs = eigvecs[:, idx]
 
         pos_enc = (
-            torch.from_numpy(eigvecs[:, 1 : self.pos_dim + 1]).float().to(self.device)
+            torch.from_numpy(eigvecs[:, 1: self.pos_dim + 1]).float().to(self.device)
         )
 
         if pos_enc.shape[1] < self.pos_dim:
