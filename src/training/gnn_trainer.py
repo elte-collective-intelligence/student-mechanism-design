@@ -3,7 +3,6 @@
 import torch
 import random
 import numpy as np
-from collections import deque
 
 from logger import Logger
 from agent.gnn_agent import GNNAgent
