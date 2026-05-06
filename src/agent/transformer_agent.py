@@ -4,7 +4,11 @@ import numpy as np
 from collections import deque
 from torch_geometric.data import Batch
 from torch_geometric.utils import get_laplacian, to_dense_adj
-from .base_agent import BaseAgent
+
+try:
+    from .base_agent import BaseAgent
+except ImportError:
+    from agent.base_agent import BaseAgent
 import torch
 import torch.nn as nn
 from torch_geometric.nn import TransformerConv
@@ -56,9 +60,8 @@ class TransformerAgent(BaseAgent):
         idx = eigvals.argsort()
         eigvecs = eigvecs[:, idx]
 
-        pos_enc = (
-            torch.from_numpy(eigvecs[:, 1: self.pos_dim + 1]).float().to(self.device)
-        )
+        start, end = 1, self.pos_dim + 1
+        pos_enc = torch.from_numpy(eigvecs[:, start:end]).float().to(self.device)
 
         if pos_enc.shape[1] < self.pos_dim:
             pad = torch.zeros((num_nodes, self.pos_dim - pos_enc.shape[1])).to(
