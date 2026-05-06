@@ -171,10 +171,10 @@ class GATModel(nn.Module):
         x, edge_index = data.x, data.edge_index
 
         x = self.conv1(x, edge_index)
-        x = torch.leaky_relu(x)
+        x = torch.nn.functional.leaky_relu(x)(x)
 
         x = self.conv2(x, edge_index)
-        x = torch.leaky_relu(x)
+        x = torch.nn.functional.leaky_relu(x)(x)
 
         x = self.output_layer(x)
         return x.squeeze(-1)
