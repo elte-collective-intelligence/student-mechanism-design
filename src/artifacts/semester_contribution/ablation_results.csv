@@ -1,0 +1,4 @@
+arch,n_layers,hidden_dim,n_heads,seed,graph_size,win_rate,mean_episode_length,mean_entropy,n_params
+gnn,2,128,1,0,small,0.28,72.0,1.3709296876854367,77
+gat,3,128,4,0,small,0.66,167.06,1.008425794660021,534533
+transformer,3,128,8,0,small,0.62,152.52,0.5307521692638311,201220
