@@ -117,6 +117,17 @@ def parse_arguments():
         action="store_true",
         help="Resume WandB run if exists",
     )
+    parser.add_argument(
+        "--ablation_checkpoint_dir",
+        type=str,
+        default=None,
+        help=(
+            "If set, copy the final MrX and Police models to this directory as "
+            "MrX.pt / Police.pt after training completes. Used by the architecture "
+            "ablation study — see src/configs/eval/ablation.yaml for the naming "
+            "convention."
+        ),
+    )
 
     return parser.parse_args()
 
@@ -153,11 +164,15 @@ def load_configs(args):
         list("-+0123456789."),
     )
 
-    # Load agent configuration
+    # Load agent configuration (supports absolute paths for programmatic use)
     agent_config_name = experiment_config.get("agent_configs", args.agent_configs)
-    with open(
-        os.path.join(SCRIPT_DIR, f"configs/agent/{agent_config_name}.yaml"), "r"
-    ) as f:
+    if os.path.isabs(agent_config_name):
+        agent_config_path = agent_config_name
+    else:
+        agent_config_path = os.path.join(
+            SCRIPT_DIR, f"configs/agent/{agent_config_name}.yaml"
+        )
+    with open(agent_config_path, "r") as f:
         agent_configs = yaml.load(f, Loader=yaml_loader)
 
     # Load logger configuration
@@ -223,6 +238,8 @@ def merge_configs(args, experiment_config):
         combined["wandb_resume"] = True
     if args.evaluate:
         combined["evaluate"] = True
+    if args.ablation_checkpoint_dir:
+        combined["ablation_checkpoint_dir"] = args.ablation_checkpoint_dir
 
     # Handle null values
     for key in ["wandb_api_key", "wandb_project", "wandb_entity"]:

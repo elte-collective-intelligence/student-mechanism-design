@@ -406,3 +406,86 @@ python src/eval/plot_ablations.py --results ablation_results.json
 - Overfitting → Add regularization, diverse training
 - Unbalanced → Adaptive reward shaping
 - Exploitable → More diverse opponents, adversarial training
+
+---
+
+## Architecture Ablation Modules (Semester Contribution)
+
+### `architecture_ablations.py`
+
+Evaluates pre-trained GNN, GAT, and Transformer checkpoints across a full
+hyperparameter grid and saves results to a CSV for downstream plotting.
+
+**What it measures per checkpoint:**
+- Win rate (MrX wins / total episodes)
+- Mean episode length
+- Number of trainable parameters
+- Mean action entropy (softmax over Q-values)
+
+**Usage:**
+```bash
+# Full grid (all architectures, all seeds — requires trained checkpoints)
+python src/eval/architecture_ablations.py
+
+# Filter to specific architectures
+python src/eval/architecture_ablations.py --arch gat transformer
+
+# Dry run — print the sweep grid without loading anything
+python src/eval/architecture_ablations.py --dry_run
+
+# Custom config or output path
+python src/eval/architecture_ablations.py \
+    --config src/configs/eval/ablation.yaml \
+    --output src/artifacts/semester_contribution/ablation_results.csv
+```
+
+**Outputs:** `src/artifacts/semester_contribution/ablation_results.csv`
+
+Columns: `arch, n_layers, hidden_dim, n_heads, seed, graph_size, win_rate,
+mean_episode_length, n_params, mean_entropy`
+
+**Checkpoint convention** (see `src/configs/eval/README.md`):
+```
+src/artifacts/checkpoints/{arch}_L{n_layers}_H{hidden_dim}_h{n_heads}_s{seed}_{graph_size}/MrX.pt
+src/artifacts/checkpoints/{arch}_L{n_layers}_H{hidden_dim}_h{n_heads}_s{seed}_{graph_size}/Police.pt
+```
+
+Missing checkpoints are skipped gracefully — partial grids are fine.
+
+---
+
+### `plot_architecture_ablations.py`
+
+Generates publication-quality plots from `ablation_results.csv`.
+
+**Plots produced:**
+
+| File | Description |
+|---|---|
+| `win_rate_by_arch.png` | Bar chart: mean win rate per architecture (mean ± std) |
+| `sample_efficiency.png` | Scatter: win rate vs episode length, coloured by arch |
+| `perf_vs_params.png` | Scatter: win rate vs parameter count (log x-axis) |
+| `win_rate_vs_layers.png` | Line: win rate over depth (2→3→5 layers), shaded std |
+| `attention_{arch}_*.png` | Heatmap of attention weights (requires `--attention` flag) |
+| `learning_curves.png` | Win ratio over epochs from TensorBoard logs (requires `--tb_logs`) |
+
+**Usage:**
+```bash
+# Basic plots from CSV
+python src/eval/plot_architecture_ablations.py
+
+# Include attention heatmaps (needs checkpoints)
+python src/eval/plot_architecture_ablations.py --attention
+
+# Include learning curves from TensorBoard event files
+python src/eval/plot_architecture_ablations.py \
+    --tb_logs logs/gnn_experiment:gnn \
+             logs/gat_experiment:gat \
+             logs/transformer_experiment:transformer
+
+# All plots at once
+python src/eval/plot_architecture_ablations.py --attention \
+    --tb_logs logs/gnn_experiment:gnn logs/gat_experiment:gat logs/transformer_experiment:transformer
+```
+
+All plots are saved to `src/artifacts/semester_contribution/plots/` at 150 dpi.

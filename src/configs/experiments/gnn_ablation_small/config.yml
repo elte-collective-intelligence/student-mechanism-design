@@ -1,0 +1,23 @@
+# GNN baseline training for architecture ablation study.
+# Matches the graph size and police config used by GAT/Transformer runs.
+# After training, checkpoint is saved to:
+#   src/artifacts/checkpoints/gnn_L2_H128_h1_s0_small/
+
+agent_configurations:
+  - num_police_agents: 2
+    agent_money: 20
+
+graph_nodes: 20
+graph_edges: 40
+num_episodes: 10
+num_eval_episodes: 5
+epochs: 50
+
+log_dir: logs/gnn_ablation_small
+wandb_run_name: gnn_ablation_small
+wandb_resume: false
+random_seed: 0
+evaluate: false
+agent_configs: gnn
+log_configs: default
+vis_configs: none

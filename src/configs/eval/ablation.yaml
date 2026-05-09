@@ -1,0 +1,46 @@
+# Architecture ablation study configuration.
+# Single source of truth for all architecture comparison experiments.
+# Used by: src/eval/architecture_ablations.py
+#
+# Checkpoint convention:
+#   {checkpoint_dir}/{arch}_L{n_layers}_H{hidden_dim}_h{n_heads}_s{seed}_{graph_size}/MrX.pt
+#   {checkpoint_dir}/{arch}_L{n_layers}_H{hidden_dim}_h{n_heads}_s{seed}_{graph_size}/Police.pt
+#
+# Available checkpoints:
+#   gnn_L2_H128_h1_s0_small   — GNN baseline (train with: python main.py --config ...)
+#   gat_L3_H128_h4_s0_small   — GAT default: L3, H128, h4, dropout=0.2, edge_dim=1
+#   transformer_L3_H128_h8_s0_small — Transformer default: L3, H128, h8, use_pe=True, pe_dim=8
+
+architectures: [gnn, gat, transformer]
+
+# Each architecture is evaluated at its own default hyperparameters.
+# The sweep is intentionally set to the single trained config per arch;
+# n_heads is ignored for gnn (always treated as 1).
+sweep:
+  n_layers: [2, 3]
+  hidden_dims: [128]
+  n_heads: [4]   # GAT uses h=4, Transformer uses h=8 — handled per-arch below
+
+# Arch-specific head counts (overrides sweep.n_heads when arch differs)
+arch_heads:
+  gnn: [1]
+  gat: [4]
+  transformer: [8]
+
+seeds: [0]
+
+graph_sizes:
+  small:
+    graph_nodes: 20
+    graph_edges: 40
+    num_police_agents: 2
+    agent_money: 20
+
+n_eval_episodes: 50
+
+checkpoint_dir: artifacts/checkpoints
+output_dir: artifacts/semester_contribution
+
+env:
+  max_steps: 50
+  seed_offset: 1000

@@ -1,5 +1,7 @@
 """GNN agent training module."""
 
+import os
+import shutil
 import torch
 import random
 import numpy as np
@@ -34,6 +36,14 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
         logger_configs: Logging configuration (WandB, TensorBoard)
         visualization_configs: Visualization settings
     """
+    # Apply random seed before anything else so runs are reproducible.
+    seed = getattr(args, "random_seed", 42)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
     logger = Logger(
         wandb_api_key=args.wandb_api_key,
         wandb_project=args.wandb_project,
@@ -43,6 +53,7 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
         configs=logger_configs,
     )
 
+    logger.log(f"Random seed set to {seed}.", level="info")
     logger.log("Logger initialized.", level="debug")
 
     # Initialize reward weight network for meta-learning
@@ -370,4 +381,29 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
             logger.log(f"Models saved for epoch {epoch + 1}.", level="info")
 
     logger.log("Training complete.", level="info")
+
+    # Optionally copy final models to the ablation checkpoint directory.
+    # This is used by architecture_ablations.py which expects:
+    #   {ablation_checkpoint_dir}/MrX.pt
+    #   {ablation_checkpoint_dir}/Police.pt
+    ablation_dir = getattr(args, "ablation_checkpoint_dir", None)
+    if ablation_dir and agent_configs["agent_type"] in ["gnn", "gat", "transformer"]:
+        os.makedirs(ablation_dir, exist_ok=True)
+        for src_name, dst_name in [
+            (MrX_model_name, "MrX"),
+            (Police_model_name, "Police"),
+        ]:
+            src_path = os.path.join(logger.log_dir, f"{src_name}.pt")
+            dst_path = os.path.join(ablation_dir, f"{dst_name}.pt")
+            if os.path.exists(src_path):
+                shutil.copy2(src_path, dst_path)
+                logger.log(
+                    f"Ablation checkpoint saved: {dst_path}", level="info"
+                )
+            else:
+                logger.log(
+                    f"Warning: could not find {src_path} to copy to ablation dir.",
+                    level="warning",
+                )
+
     logger.close()
