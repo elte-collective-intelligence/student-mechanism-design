@@ -20,6 +20,16 @@ import numpy as np
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from eval.metrics import MetricsTracker  # noqa: E402
+import torch
+from environment.yard import CustomEnvironment
+from torchrl.envs.libs.pettingzoo import PettingZooWrapper
+from torchrl.envs import step_mdp
+from agent.gnn_agent import GNNAgent
+from agent.gat_agent import GATAgent
+from agent.transformer_agent import TransformerAgent
+from agent.random_agent import RandomAgent
+from logger import Logger
+from training.utils import device, create_graph_data, extract_step_info, is_episode_done
 
 
 @dataclass
@@ -225,6 +235,202 @@ def run_mechanism_ablation(
                         is_reveal=(
                             reveal_interval > 0
                             and step > 0
+                            and step % reveal_interval == 0
+                        ),
+                    )
+
+                tracker.end_episode(winner=winner)
+
+        agg = tracker.get_aggregated_metrics()
+        results[config.name] = AblationResult(
+            config=config,
+            metrics=agg.to_dict(),
+            raw_episodes=[e.to_dict() for e in tracker.episodes],
+            seed=seeds[0],
+        )
+
+    return results
+
+
+def run_architectural_ablation(
+    base_config: dict,
+    num_episodes: int = 50,
+    seeds: List[int] = None,
+) -> Dict[str, AblationResult]:
+    """Run architectural ablation study.
+
+    Compares: gnn (baseline) vs GAT vs Transformer
+
+    Args:
+        base_config: Base experiment configuration.
+        num_episodes: Number of episodes per variant.
+        seeds: Random seeds for reproducibility.
+
+    Returns:
+        Dictionary mapping variant name to AblationResult.
+    """
+    seeds = seeds or [42, 123, 456]
+    ablation_configs = load_ablation_config(
+        os.path.join(
+            os.path.dirname(__file__), "..", "configs", "ablation", "architecture.yaml"
+        )
+    )
+
+    results = {}
+    for config in ablation_configs:
+        print(f"\n{'='*60}")
+        print(f"Running architectural ablation: {config.name}")
+        print(f"Description: {config.description}")
+        print(f"{'='*60}")
+
+        tracker = MetricsTracker()
+
+        # Get architectural parameters
+        agent_type = config.params.get("agent_type", "gnn")
+        num_layers = config.params.get("num_layers", 2)
+        hidden_dim = config.params.get("hidden_dim", 64)
+        num_heads = config.params.get("num_heads", 4)
+
+        for seed in seeds:
+            np.random.seed(seed)
+
+            for ep in range(num_episodes // len(seeds)):
+                tracker.start_episode(initial_budget=10.0)
+
+                # Create environment
+                num_agents_total = 6  # 5 police + 1 MrX
+                agent_money = 15
+                reward_weights = {
+                    "Police_distance": 0.1,
+                    "Police_group": 0.1,
+                    "Police_position": 0.1,
+                    "Police_time": 0.0,
+                    "Mrx_closest": 0.3,
+                    "Mrx_average": 0.2,
+                    "Mrx_position": 0.1,
+                    "Mrx_time": 0.0,
+                    "Police_coverage": 0.05,
+                    "Police_proximity": 0.05,
+                    "Police_overlap_penalty": 0.0,
+                }
+
+                log_config = {"log_dir": os.path.join("architecture_ablationlogs", "logs"), "verbose": False, "log_file": "run.log"}
+                viz_config = {"visualize_game": False,
+                                "visualize_heatmap": False,
+                                "save_visualization": True,
+                                "save_dir": os.path.join("architecture_ablationlogs", 'logs/vis')}
+                
+                logger = Logger(
+                    wandb_api_key=None,
+                    wandb_project=None,
+                    wandb_entity=None,
+                    wandb_run_name=None,
+                    wandb_resume=False,
+                    configs=log_config,
+                )
+                
+                env_wrappable = CustomEnvironment(
+                    number_of_agents=num_agents_total,
+                    agent_money=agent_money,
+                    reward_weights=reward_weights,
+                    logger=logger,
+                    epoch=0,
+                    graph_nodes=10,
+                    graph_edges=10,
+                    vis_configs=viz_config,
+                )
+                env = PettingZooWrapper(env=env_wrappable)
+                
+                # Create agents based on architecture
+                node_feature_size = num_agents_total + 1
+                common_params = {
+                    "node_feature_size": node_feature_size,
+                    "device": device,
+                    "gamma": 0.99,
+                    "lr": 1e-3,
+                    "batch_size": 64,
+                    "buffer_size": 10000,
+                    "epsilon": 0.0,
+                    "epsilon_decay": 0.995,
+                    "epsilon_min": 0.01,
+                    "num_layers": num_layers,
+                    "hidden_dim": hidden_dim,
+                    "num_heads": num_heads,
+                }
+                
+                if agent_type == "gnn":
+                    common_params.pop("num_layers", None)
+                    common_params.pop("hidden_dim", None)
+                    common_params.pop("num_heads", None)
+                    mrX_agent = GNNAgent(**common_params)
+                    police_agent = GNNAgent(**common_params)
+                elif agent_type == "gat":
+                    mrX_agent = GATAgent(**common_params)
+                    police_agent = GATAgent(**common_params)
+                elif agent_type == "transformer":
+                    common_params["pos_dim"] = 8
+                    mrX_agent = TransformerAgent(**common_params)
+                    police_agent = TransformerAgent(**common_params)
+                else:
+                    mrX_agent = RandomAgent()
+                    police_agent = RandomAgent()
+                
+                # Run episode
+                state = env.reset(episode=ep)
+                done = False
+                episode_length = 0
+                
+                while not done and episode_length < 100:
+                    actions = {}
+                    
+                    # MrX action
+                    mrx_graph = create_graph_data(state, "MrX", env).to(device)
+                    mrx_mask = torch.zeros(mrx_graph.num_nodes, dtype=torch.int32, device=device)
+                    mrx_mask[env.get_possible_moves(0)] = 1
+                    mrx_act = mrX_agent.select_action(mrx_graph, mrx_mask)
+                    actions["MrX"] = mrx_act if mrx_act is not None else 0
+                    
+                    # Police actions
+                    for i in range(num_agents_total - 1):
+                        p_name = f"Police{i}"
+                        p_graph = create_graph_data(state, p_name, env).to(device)
+                        p_mask = torch.zeros(p_graph.num_nodes, dtype=torch.int32, device=device)
+                        p_mask[env.get_possible_moves(i + 1)] = 1
+                        p_act = police_agent.select_action(p_graph, p_mask)
+                        actions[p_name] = p_act if p_act is not None else 0
+                    
+                    # Apply actions
+                    for obj_id, act in actions.items():
+                        state[obj_id]["action"] = torch.tensor([act if act is not None else 0], dtype=torch.int64)
+                    
+                    # Step environment
+                    state_stepped = env.step(state)
+                    next_state = step_mdp(state_stepped)
+                    rewards, terminations, truncations = extract_step_info(next_state, env.possible_agents)
+                    done = is_episode_done(terminations, truncations)
+                    
+                    episode_length += 1
+                    state = next_state
+                
+                # Determine winner and extract episode stats
+                winner = env_wrappable.current_winner if hasattr(env_wrappable, 'current_winner') else "MrX"
+                total_budget_spent = 5.0
+                total_tolls = 2.0
+                reveal_interval = 5  # Could also ablate this
+
+                for step in range(
+                    0,
+                    episode_length,
+                    reveal_interval,
+                ):
+                    tracker.record_step(
+                        step=step,
+                        toll_paid=total_tolls
+                        / max(episode_length // reveal_interval, 1),
+                        budget_spent=total_budget_spent
+                        / max(episode_length // reveal_interval, 1),
+                        is_reveal=(
+                            step > 0
                             and step % reveal_interval == 0
                         ),
                     )
