@@ -551,7 +551,7 @@ def main():
     parser.add_argument(
         "--ablation",
         type=str,
-        choices=["belief", "mechanism", "all"],
+        choices=["belief", "mechanism", "architecture", "all"],
         default="all",
         help="Which ablation study to run",
     )
@@ -597,6 +597,17 @@ def main():
             seeds=args.seeds,
         )
         save_ablation_results(results, args.output_dir, "mechanism")
+
+    if args.ablation in ["architecture", "all"]:
+        print("\n" + "=" * 70)
+        print("RUNNING ARCHITECTURAL ABLATION")
+        print("=" * 70)
+        results = run_architectural_ablation(
+            base_config,
+            num_episodes=args.num_episodes,
+            seeds=args.seeds,
+        )
+        save_ablation_results(results, args.output_dir, "architecture")
 
 
 if __name__ == "__main__":
