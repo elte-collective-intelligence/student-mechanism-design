@@ -1,0 +1,43 @@
+variants:
+  - name: baseline
+    description: "Baseline architecture."
+    agent_type: "gnn"
+    num_layers: 1
+    hidden_dim: 1
+    num_heads: 1
+  - name: gat_1
+    description: "GAT architecture with 2 layers."
+    agent_type: "gat"
+    num_layers: 2
+    hidden_dim: 64
+    num_heads: 1
+  - name: gat_2
+    description: "GAT architecture with 3 layers."
+    agent_type: "gat"
+    num_layers: 3
+    hidden_dim: 128
+    num_heads: 4
+  - name: gat_3
+    description: "GAT architecture with 4 layers."
+    agent_type: "gat"
+    num_layers: 4
+    hidden_dim: 256
+    num_heads: 8
+  - name: transformer_1
+    description: "Transformer architecture with 2 layers."
+    agent_type: "transformer"
+    num_layers: 2
+    hidden_dim: 64
+    num_heads: 1
+  - name: transformer_2
+    description: "Transformer architecture with 3 layers."
+    agent_type: "transformer"
+    num_layers: 3
+    hidden_dim: 128
+    num_heads: 4
+  - name: transformer_3
+    description: "Transformer architecture with 4 layers."
+    agent_type: "transformer"
+    num_layers: 4
+    hidden_dim: 256
+    num_heads: 8
