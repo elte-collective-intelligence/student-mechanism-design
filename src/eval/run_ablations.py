@@ -16,7 +16,6 @@ import yaml
 from dataclasses import dataclass
 from typing import Dict, List, Any
 import numpy as np
-
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from eval.metrics import MetricsTracker  # noqa: E402
@@ -314,12 +313,18 @@ def run_architectural_ablation(
                     "Police_overlap_penalty": 0.0,
                 }
 
-                log_config = {"log_dir": os.path.join("architecture_ablationlogs", "logs"), "verbose": False, "log_file": "run.log"}
-                viz_config = {"visualize_game": False,
-                                "visualize_heatmap": False,
-                                "save_visualization": True,
-                                "save_dir": os.path.join("architecture_ablationlogs", 'logs/vis')}
-                
+                log_config = {
+                    "log_dir": os.path.join("architecture_ablationlogs", "logs"),
+                    "verbose": False,
+                    "log_file": "run.log",
+                }
+                viz_config = {
+                    "visualize_game": False,
+                    "visualize_heatmap": False,
+                    "save_visualization": True,
+                    "save_dir": os.path.join("architecture_ablationlogs", "logs/vis"),
+                }
+
                 logger = Logger(
                     wandb_api_key=None,
                     wandb_project=None,
@@ -328,7 +333,7 @@ def run_architectural_ablation(
                     wandb_resume=False,
                     configs=log_config,
                 )
-                
+
                 env_wrappable = CustomEnvironment(
                     number_of_agents=num_agents_total,
                     agent_money=agent_money,
@@ -340,7 +345,7 @@ def run_architectural_ablation(
                     vis_configs=viz_config,
                 )
                 env = PettingZooWrapper(env=env_wrappable)
-                
+
                 # Create agents based on architecture
                 node_feature_size = num_agents_total + 1
                 common_params = {
@@ -357,7 +362,7 @@ def run_architectural_ablation(
                     "hidden_dim": hidden_dim,
                     "num_heads": num_heads,
                 }
-                
+
                 if agent_type == "gnn":
                     common_params.pop("num_layers", None)
                     common_params.pop("hidden_dim", None)
@@ -374,46 +379,58 @@ def run_architectural_ablation(
                 else:
                     mrX_agent = RandomAgent()
                     police_agent = RandomAgent()
-                
+
                 # Run episode
                 state = env.reset(episode=ep)
                 done = False
                 episode_length = 0
-                
+
                 while not done and episode_length < 100:
                     actions = {}
-                    
+
                     # MrX action
                     mrx_graph = create_graph_data(state, "MrX", env).to(device)
-                    mrx_mask = torch.zeros(mrx_graph.num_nodes, dtype=torch.int32, device=device)
+                    mrx_mask = torch.zeros(
+                        mrx_graph.num_nodes, dtype=torch.int32, device=device
+                    )
                     mrx_mask[env.get_possible_moves(0)] = 1
                     mrx_act = mrX_agent.select_action(mrx_graph, mrx_mask)
                     actions["MrX"] = mrx_act if mrx_act is not None else 0
-                    
+
                     # Police actions
                     for i in range(num_agents_total - 1):
                         p_name = f"Police{i}"
                         p_graph = create_graph_data(state, p_name, env).to(device)
-                        p_mask = torch.zeros(p_graph.num_nodes, dtype=torch.int32, device=device)
+                        p_mask = torch.zeros(
+                            p_graph.num_nodes, dtype=torch.int32, device=device
+                        )
                         p_mask[env.get_possible_moves(i + 1)] = 1
                         p_act = police_agent.select_action(p_graph, p_mask)
                         actions[p_name] = p_act if p_act is not None else 0
-                    
+
                     # Apply actions
                     for obj_id, act in actions.items():
-                        state[obj_id]["action"] = torch.tensor([act if act is not None else 0], dtype=torch.int64)
-                    
+                        state[obj_id]["action"] = torch.tensor(
+                            [act if act is not None else 0], dtype=torch.int64
+                        )
+
                     # Step environment
                     state_stepped = env.step(state)
                     next_state = step_mdp(state_stepped)
-                    rewards, terminations, truncations = extract_step_info(next_state, env.possible_agents)
+                    rewards, terminations, truncations = extract_step_info(
+                        next_state, env.possible_agents
+                    )
                     done = is_episode_done(terminations, truncations)
-                    
+
                     episode_length += 1
                     state = next_state
-                
+
                 # Determine winner and extract episode stats
-                winner = env_wrappable.current_winner if hasattr(env_wrappable, 'current_winner') else "MrX"
+                winner = (
+                    env_wrappable.current_winner
+                    if hasattr(env_wrappable, "current_winner")
+                    else "MrX"
+                )
                 total_budget_spent = 5.0
                 total_tolls = 2.0
                 reveal_interval = 5  # Could also ablate this
@@ -429,10 +446,7 @@ def run_architectural_ablation(
                         / max(episode_length // reveal_interval, 1),
                         budget_spent=total_budget_spent
                         / max(episode_length // reveal_interval, 1),
-                        is_reveal=(
-                            step > 0
-                            and step % reveal_interval == 0
-                        ),
+                        is_reveal=(step > 0 and step % reveal_interval == 0),
                     )
 
                 tracker.end_episode(winner=winner)

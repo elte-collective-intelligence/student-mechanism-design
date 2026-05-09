@@ -1,3 +1,5 @@
 [flake8]
 max-line-length = 300
 extend-ignore = E712, F541 
+per-file-ignores =
+    src/eval/run_ablations.py: E402
