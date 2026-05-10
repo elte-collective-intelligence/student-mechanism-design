@@ -148,71 +148,40 @@ def predict_reward_weights(
     return {name: predicted_weight[0, i] for i, name in enumerate(REWARD_WEIGHT_NAMES)}
 
 
-def create_graph_data(state: Dict, agent_id: str, env) -> Data:
-    """Create a PyTorch Geometric Data object from the environment state.
+def create_graph_data(state: Dict, env) -> Data:
+    """Create a shared PyTorch Geometric Data object for all agents.
 
-    This converts the environment state into a graph representation suitable
-    for Graph Neural Network agents. Uses cached tensors when available.
-
-    Args:
-        state: Current environment state dictionary.
-        agent_id: ID of the agent (e.g., "MrX", "Police0").
-        env: The wrapped environment instance.
-
-    Returns:
-        PyTorch Geometric Data object with node features, edge indices,
-        and edge attributes.
+    Uses pre-moved device tensors for edge structure and vectorized node
+    feature assignment for speed.
     """
-    logger = env.logger
-    logger.log(f"Creating graph data for agent {agent_id}.", level="debug")
+    env_inner = getattr(env, "_env", env)
 
-    # Use cached tensors from environment
-    env_inner = getattr(env, "_env", env)  # Handle PettingZooWrapper
-    if hasattr(env_inner, "_edge_index_tensor"):
-        edge_index = env_inner._edge_index_tensor.clone()
-        edge_features = env_inner._edge_features_tensor.clone()
-    else:
-        edge_index = torch.tensor(env.board.edge_links.T, dtype=torch.long)
-        edge_features = torch.tensor(env.board.edges, dtype=torch.float)
+    # Retrieve pre-cached device tensors (moved in yard.py)
+    edge_index = env_inner._edge_index_tensor
+    edge_features = env_inner._edge_features_tensor
 
     num_nodes = env.board.nodes.shape[0]
-    num_features = env.number_of_agents + 1  # One-hot encoding for agent positions
+    num_agents_total = env.number_of_agents + 1
 
+    # Vectorized node feature initialization
     node_features = torch.zeros(
-        num_nodes, num_features, dtype=torch.float32, device=device
+        num_nodes, num_agents_total, dtype=torch.float32, device=device
     )
 
-    # Encode MrX position (feature index 0)
-    mrX_pos = state.get("MrX", {}).get("observation", None)
-    if mrX_pos is not None:
-        mrX_pos = mrX_pos.get("MrX_pos", None)
-        if mrX_pos is not None:
-            node_features[mrX_pos, 0] = 1
-            logger.log(
-                f"Agent {agent_id}: MrX position encoded at node {mrX_pos}.",
-                level="debug",
-            )
+    # Fast vectorized position encoding
+    agent_names = ["MrX"] + [f"Police{i}" for i in range(env.number_of_agents)]
+    for i, name in enumerate(agent_names):
+        agent_data = state.get(name, {}).get("observation", {})
+        pos = agent_data.get("agent_position")
+        if pos is not None:
+            # Handle tensors with potential batch/extra dims
+            if isinstance(pos, torch.Tensor):
+                idx = int(pos.flatten()[0].item())
+            else:
+                idx = int(pos)
+            node_features[idx, i] = 1.0
 
-    # Encode Police positions (feature indices 1+)
-    for i in range(env.number_of_agents - 1):
-        police_obs = state.get(f"Police{i}", {}).get("observation", None)
-        if police_obs is not None:
-            police_pos = police_obs.get("Polices_pos", None)
-            if police_pos is not None and len(police_pos) > 0:
-                node_features[police_pos[0], i + 1] = 1
-                logger.log(
-                    f"Agent {agent_id}: Police{i} position encoded at node {police_pos[0]}.",
-                    level="debug",
-                )
-
-    edge_index = edge_index.to(device)
-    edge_features = edge_features.to(device)
-
-    # Create PyTorch Geometric Data object
-    data = Data(x=node_features, edge_index=edge_index, edge_attr=edge_features)
-    logger.log(f"Graph data for agent {agent_id} created.", level="debug")
-
-    return data
+    return Data(x=node_features, edge_index=edge_index, edge_attr=edge_features)
 
 
 def extract_step_info(
@@ -252,7 +221,7 @@ def is_episode_done(terminations: Dict, truncations: Dict) -> bool:
     Returns:
         True if episode is done, False otherwise.
     """
-    return terminations.get("Police0", False) or all(truncations.values())
+    return any(terminations.values()) or all(truncations.values())
 
 
 def create_action_mask(

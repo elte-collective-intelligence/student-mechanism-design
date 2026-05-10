@@ -69,10 +69,10 @@ class CustomEnvironment(BaseEnvironment):
 
         # Generate a reference graph to determine actual achievable edge count
         # This ensures consistent tensor shapes for TorchRL
-        reference_board = self.observation_graph.sample(
+        self.reference_board = self.observation_graph.sample(
             num_nodes=self.graph_nodes, num_edges=self.graph_edges
         )
-        self.actual_num_edges = reference_board.edge_links.shape[0]
+        self.actual_num_edges = self.reference_board.edge_links.shape[0]
         if self.actual_num_edges != self.graph_edges:
             self.logger.log(
                 f"Graph constraint: Using {self.actual_num_edges} edges instead of "
@@ -91,7 +91,7 @@ class CustomEnvironment(BaseEnvironment):
 
         # Generate graphs until we get one with the expected edge count
         # This ensures consistent tensor shapes for TorchRL
-        max_attempts = 100
+        max_attempts = 200
         for attempt in range(max_attempts):
             self.board = self.observation_graph.sample(
                 num_nodes=self.graph_nodes, num_edges=self.graph_edges
@@ -99,11 +99,12 @@ class CustomEnvironment(BaseEnvironment):
             if self.board.edge_links.shape[0] == self.actual_num_edges:
                 break
             if attempt == max_attempts - 1:
-                raise RuntimeError(
-                    f"Failed to generate graph with {self.actual_num_edges} edges after {max_attempts} attempts. "
-                    f"Last attempt had {self.board.edge_links.shape[0]} edges. "
-                    f"Consider adjusting graph_edges parameter or max_edges_per_node constraint."
+                self.logger.log(
+                    f"Warning: Failed to generate graph with {self.actual_num_edges} edges after {max_attempts} attempts. "
+                    f"Falling back to reference board to prevent crash.",
+                    level="warning",
                 )
+                self.board = self.reference_board
 
         self.heatmap = self.board
         self.logger.log("Resetting the environment.", level="debug")
@@ -281,53 +282,27 @@ class CustomEnvironment(BaseEnvironment):
     def _get_graph_observations(self):
         """
         Create graph-based observations for all agents.
-        Includes adjacency matrix, node features, edge features, and action masks.
-        Uses cached adjacency and weight matrices for efficiency.
-
-        Args:
-            mrx_pos: MrX's current position
-            police_positions: List of police positions
-            agents: List of agent names
-            edge_index: Edge index tensor
-            edge_features: Edge features tensor
-
-        Returns:
-            Dictionary mapping agent names to their observations
+        Optimized with vectorized node feature encoding.
         """
         self.logger.log("Generating graph observations., ", level="debug")
-        node_features = np.zeros((self.board.nodes.shape[0], self.number_of_agents + 1))
+        num_nodes = self.board.nodes.shape[0]
+        node_features = np.zeros((num_nodes, self.number_of_agents + 1))
 
-        # Encode agent positions as node features
-        node_features[self.MrX_pos[0], 0] = 1  # MrX position
-        self.logger.log(
-            f"MrX position encoded in node features: {self.MrX_pos[0]}, ", level="debug"
-        )
-        for i, pos in enumerate(self.police_positions):
-            node_features[pos, i + 1] = 1  # Police positions
-            self.logger.log(
-                f"Police{i} position encoded in node features: {pos}, ", level="debug"
-            )
+        # Vectorized Position Encoding
+        positions = [self.MrX_pos[0]] + self.police_positions
+        for i, pos in enumerate(positions):
+            node_features[pos, i] = 1.0
 
-        edge_index = (
-            self.board.edge_links.T
-        )  # Edge index for GNN (source, target pairs)
-        edge_features = self.board.edges  # Edge weights
+        edge_index = self.board.edge_links.T
+        edge_features = self.board.edges
 
-        # Compute action masks for all agents
         from environment.action_mask import compute_action_mask
 
         observations = {}
-        for agent in self.agents:
-            agent_idx = self.agents.index(agent)
-            if agent == "MrX":
-                agent_pos = self.MrX_pos[0]
-                agent_budget = self.agents_money[0]
-            else:
-                police_idx = agent_idx - 1
-                agent_pos = self.police_positions[police_idx]
-                agent_budget = self.agents_money[agent_idx]
+        for i, agent in enumerate(self.agents):
+            agent_pos = positions[i]
+            agent_budget = self.agents_money[i]
 
-            # Compute action mask with fixed index→node mapping (uses cached matrices)
             mask_result = compute_action_mask(
                 adjacency=self._adjacency_matrix,
                 current_node=agent_pos,
@@ -341,27 +316,18 @@ class CustomEnvironment(BaseEnvironment):
                 "edge_index": edge_index,
                 "edge_features": edge_features,
                 "MrX_pos": self.MrX_pos[0],
-                "Polices_pos": self.police_positions[:],  # All police positions
-                "Currency": self.agents_money[1:],  # All police money
-                "action_mask": mask_result.mask,  # Boolean mask over nodes
+                "Polices_pos": self.police_positions[:],
+                "Currency": self.agents_money[1:],
+                "action_mask": mask_result.mask,
                 "agent_position": agent_pos,
-                "agent_budget": np.array(
-                    [agent_budget], dtype=np.float32
-                ),  # As array for Box space
+                "agent_budget": np.array([agent_budget], dtype=np.float32),
             }
 
-        self.logger.log("Graph observations generated., ", level="debug")
         return observations
 
     def _calculate_rewards_terminations(self, is_no_money):
         """
         Compute rewards and check termination/truncation conditions.
-
-        Args:
-            is_no_money: Whether police ran out of money
-
-        Returns:
-            Tuple of (rewards, terminations, truncations, winner)
         """
         rewards, terminations, truncations, winner = (
             self.reward_calculator.calculate_rewards_and_terminations(
@@ -371,7 +337,7 @@ class CustomEnvironment(BaseEnvironment):
                 epoch=self.epoch,
                 is_no_money=is_no_money,
                 agents=self.agents,
-                get_distance_func=self.get_distance,
+                distance_matrix=self.pathfinder.get_distance_matrix(),
                 get_possible_moves_func=self._get_possible_moves,
                 node_visit_counts=self.node_visit_counts,
             )
@@ -383,21 +349,7 @@ class CustomEnvironment(BaseEnvironment):
 
     def calculate_rewards(self):
         """
-        Compute rewards for all agents based on the specified components.
-        Rewards are weighted by the reward_weights parameters.
-
-        Args:
-            mrx_pos: MrX's current position
-            police_positions: List of police positions
-            timestep: Current timestep
-            epoch: Current epoch
-            agents: List of agent names
-            get_distance_func: Function to compute distance between nodes
-            get_possible_moves_func: Function to get possible moves for position
-            node_visit_counts: Dictionary tracking node visit counts
-
-        Returns:
-            Dictionary mapping agent names to their rewards
+        Compute rewards for all agents using vectorized matrix indexing.
         """
         return self.reward_calculator.calculate_rewards(
             mrx_pos=self.MrX_pos[0],
@@ -405,7 +357,7 @@ class CustomEnvironment(BaseEnvironment):
             timestep=self.timestep,
             epoch=self.epoch,
             agents=self.agents,
-            get_distance_func=self.get_distance,
+            distance_matrix=self.pathfinder.get_distance_matrix(),
             get_possible_moves_func=self._get_possible_moves,
             node_visit_counts=self.node_visit_counts,
         )
@@ -431,34 +383,25 @@ class CustomEnvironment(BaseEnvironment):
         )
 
     def invalidate_graph_cache(self):
-        """Recompute all cached graph-derived data structures.
-
-        Call this after any mutation to ``self.board`` (adding/removing edges,
-        changing edge weights, etc.) so that every downstream consumer sees the
-        updated graph.  ``reset()`` calls this automatically; you only need to
-        call it explicitly for **mid-episode** graph mutations (e.g. dynamic
-        tolls, edge removals).
-
-        Invalidated caches:
-            * ``_adjacency_matrix``   - used by action masking & possible-moves
-            * ``_edge_weight_matrix`` - used by action masking & move costs
-            * ``_edge_index_tensor``  - used by ``create_graph_data`` (GNN input)
-            * ``_edge_features_tensor`` - used by ``create_graph_data``
-            * ``pathfinder``          - all-pairs shortest-path matrix
-        """
+        """Recompute all cached graph-derived data structures and move to device."""
 
         self._adjacency_matrix = self._get_adjacency_matrix()
         self._edge_weight_matrix = self._get_edge_weight_matrix()
 
+        # Pre-cache tensors on GPU to avoid per-timestep transfers
+        from training.utils import device
+
         self._edge_index_tensor = torch.tensor(
-            self.board.edge_links.T, dtype=torch.long
+            self.board.edge_links.T, dtype=torch.long, device=device
         )
-        self._edge_features_tensor = torch.tensor(self.board.edges, dtype=torch.float)
+        self._edge_features_tensor = torch.tensor(
+            self.board.edges, dtype=torch.float, device=device
+        )
 
         if not getattr(self, "dynamic_pathfinding", False):
             self.pathfinder.set_board(self.board)
 
-        self.logger.log("Graph cache invalidated and rebuilt.", level="debug")
+        self.logger.log("Graph cache invalidated and rebuilt on device.", level="debug")
 
     def _get_adjacency_matrix(self):
         """
@@ -679,7 +622,7 @@ class CustomEnvironment(BaseEnvironment):
         """Save visualization GIFs if enabled."""
         self.visualizer.save_visualizations()
 
-    def render(self):
+    def render(self, attention_data=None):
         """Renders the environment."""
         # Update visualizer with current state before rendering
         self.visualizer.set_game_state(
@@ -691,7 +634,7 @@ class CustomEnvironment(BaseEnvironment):
             epoch=self.epoch,
             episode=self.episode,
         )
-        self.visualizer.render()
+        self.visualizer.render(attention_data=attention_data)
 
     def get_mrx_position(self):
         """Return the current node index where MrX is located."""
