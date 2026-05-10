@@ -28,14 +28,20 @@ Note:
     See base_agent.py for detailed design rationale.
 """
 
-from agent.base_agent import BaseAgent
-from agent.graph_dqn_agent import GraphDQNAgent
-from agent.mappo_agent import MappoAgent
-from agent.random_agent import RandomAgent
+from .base_agent import BaseAgent
+from .graph_dqn_agent import GraphDQNAgent
+from .mappo_agent import MappoAgent
+from .random_agent import RandomAgent
+from .gat_agent import GATAgent
+from .transformer_agent import TransformerAgent
+from .gnn_agent import GNNAgent
 
 __all__ = [
     "BaseAgent",
     "GraphDQNAgent",
     "MappoAgent",
     "RandomAgent",
+    "GATAgent",
+    "TransformerAgent",
+    "GNNAgent",
 ]
