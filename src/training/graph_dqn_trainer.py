@@ -49,6 +49,7 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
         wandb_project=args.wandb_project,
         wandb_entity=args.wandb_entity,
         wandb_run_name=args.wandb_run_name,
+        wandb_group=getattr(args, "wandb_group", None),
         wandb_resume=args.wandb_resume,
         configs=logger_configs,
     )
@@ -204,6 +205,7 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
         # Episode training loop
         mrx_wins = 0
         police_wins = 0
+        global_episode = 0
 
         for episode in range(args.num_episodes):
             logger.log(
@@ -218,34 +220,31 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
             episode_police_reward = 0.0
 
             while not done:
+                # Prepare shared graph data for this timestep
+                shared_graph_data = create_graph_data(state, env).to(device)
+
                 # Prepare actions
                 actions = {}
 
                 # MrX action
-                mrX_graph_data = create_graph_data(state, "MrX", env).to(device)
                 mrX_possible_moves = env.get_possible_moves(0)
                 mrX_action_mask = torch.zeros(
-                    mrX_graph_data.num_nodes, dtype=torch.int32, device=device
+                    shared_graph_data.num_nodes, dtype=torch.int32, device=device
                 )
                 mrX_action_mask[mrX_possible_moves] = 1
-                mrX_action = mrX_agent.select_action(mrX_graph_data, mrX_action_mask)
+                mrX_action = mrX_agent.select_action(shared_graph_data, mrX_action_mask)
                 actions["MrX"] = mrX_action
 
-                # Police actions — cache graph data for reuse during update
-                police_graph_data_cache = {}
+                # Police actions
                 for i in range(num_agents):
                     police_name = f"Police{i}"
-                    police_graph_data = create_graph_data(state, police_name, env).to(
-                        device
-                    )
-                    police_graph_data_cache[police_name] = police_graph_data
                     police_possible_moves = env.get_possible_moves(i + 1)
                     police_action_mask = torch.zeros(
-                        police_graph_data.num_nodes, dtype=torch.int32, device=device
+                        shared_graph_data.num_nodes, dtype=torch.int32, device=device
                     )
                     police_action_mask[police_possible_moves] = 1
                     police_action = police_agent.select_action(
-                        police_graph_data, police_action_mask
+                        shared_graph_data, police_action_mask
                     )
                     if police_action is None:
                         police_action = env_wrappable.DEFAULT_ACTION
@@ -264,6 +263,17 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
                 state_stepped = env.step(state)
                 next_state = step_mdp(state_stepped)
 
+                # Rendering Hook (Smoke test/Visualization verification)
+                if visualization_configs.get(
+                    "save_visualization", False
+                ) and visualization_configs.get("visualize_game", False):
+                    attention_data = getattr(mrX_agent, "last_attention", None)
+                    if attention_data is not None:
+                        # Pass last layer's attention
+                        env_wrappable.render(attention_data=attention_data[-1])
+                    else:
+                        env_wrappable.render()
+
                 # Extract episode info
                 rewards, terminations, truncations = extract_step_info(
                     next_state, env.possible_agents
@@ -280,35 +290,33 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
 
                 # Update agents immediately
                 if agent_configs["agent_type"] in ["gnn", "gat", "transformer"]:
-                    # Update MrX agent (reuse mrX_graph_data from action selection above)
-                    mrX_next_graph_data = create_graph_data(next_state, "MrX", env).to(
+                    # Create the NEXT shared graph data for updates
+                    next_shared_graph_data = create_graph_data(next_state, env).to(
                         device
                     )
+
+                    # Update MrX agent
                     mrX_agent.update(
-                        mrX_graph_data,
+                        shared_graph_data,
                         mrX_action,
                         rewards.get("MrX", 0.0),
-                        mrX_next_graph_data,
+                        next_shared_graph_data,
                         not terminations.get("Police0", False),
                     )
 
-                    # Update Police agents (reuse police_graph_data from action selection)
+                    # Update Police agents
                     for i in range(num_agents):
                         police_name = f"Police{i}"
-                        # Reuse graph data stored during action selection
-                        police_graph_data_stored = police_graph_data_cache[police_name]
-                        police_next_graph_data = create_graph_data(
-                            next_state, police_name, env
-                        ).to(device)
                         police_agent.update(
-                            police_graph_data_stored,
+                            shared_graph_data,
                             actions[police_name],
                             rewards.get(police_name, 0.0),
-                            police_next_graph_data,
+                            next_shared_graph_data,
                             terminations.get(police_name, False),
                         )
 
                 state = next_state
+                shared_graph_data = next_shared_graph_data
 
             # Track episode winner and log metrics
             winner = env_wrappable.current_winner
@@ -323,10 +331,13 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
             env_wrappable.save_visualizations()
 
             # Log to tensorboard
-            logger.log_scalar("episode/steps", episode_step, episode)
-            logger.log_scalar("episode/mrx_reward", episode_mrx_reward, episode)
-            logger.log_scalar("episode/police_reward", episode_police_reward, episode)
-            logger.log_scalar("episode/total_reward", episode_reward, episode)
+            global_episode += 1
+            logger.log_scalar("episode/steps", episode_step, global_episode)
+            logger.log_scalar("episode/mrx_reward", episode_mrx_reward, global_episode)
+            logger.log_scalar(
+                "episode/police_reward", episode_police_reward, global_episode
+            )
+            logger.log_scalar("episode/total_reward", episode_reward, global_episode)
 
             if winner == "MrX":
                 mrx_wins += 1
@@ -397,9 +408,7 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
             dst_path = os.path.join(ablation_dir, f"{dst_name}.pt")
             if os.path.exists(src_path):
                 shutil.copy2(src_path, dst_path)
-                logger.log(
-                    f"Ablation checkpoint saved: {dst_path}", level="info"
-                )
+                logger.log(f"Ablation checkpoint saved: {dst_path}", level="info")
             else:
                 logger.log(
                     f"Warning: could not find {src_path} to copy to ablation dir.",

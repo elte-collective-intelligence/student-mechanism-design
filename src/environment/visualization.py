@@ -183,7 +183,7 @@ class GameVisualizer:
                     ((self.node_visits[pos] / visit_max) * 0.9, 0, 0)
                 )
 
-    def render(self):
+    def render(self, attention_data=None):
         """Renders the environment."""
         if self.fig is None or self.ax is None:
             # If render has not been initialized, initialize it
@@ -206,6 +206,18 @@ class GameVisualizer:
             # Update the node colors in the plot
             self.node_collection.set_color(self.node_colors)
 
+            # Update edge widths based on attention if provided
+            if attention_data is not None:
+                widths = self._get_attention_edge_widths(attention_data)
+                self.edge_collection.set_linewidth(widths)
+                # Optionally change edge colors to highlight attention
+                self.edge_collection.set_edgecolor(
+                    ["orange" if w > 2.5 else "darkgray" for w in widths]
+                )
+            else:
+                self.edge_collection.set_linewidth([2] * self.G.number_of_edges())
+                self.edge_collection.set_edgecolor("darkgray")
+
             # Update the title
             self.ax.set_title(
                 f"Epoch: {self.epoch}, Episode: {self.episode}, Timestep: {self.timestep}",
@@ -226,11 +238,12 @@ class GameVisualizer:
         if self.visualize_heatmap or (
             self.vis_config.get("save_visualization", False) and self.visualize_heatmap
         ):
+            # Update the node colors in the plot for heatmap
             self.node_collection.set_color(self.heatmap_colors)
 
             # Update the title
             self.ax.set_title(
-                f"Epoch: {self.epoch}, Episode: {self.episode}, Timestep: {self.timestep}",
+                f"Epoch: {self.epoch}, Episode: {self.episode}, Timestep: {self.timestep} (Heatmap)",
                 fontsize=16,
             )
 
@@ -242,6 +255,32 @@ class GameVisualizer:
             image = np.frombuffer(buffer, dtype=np.uint8).reshape(h, w, 4)[:, :, 1:]
             self.heatmap_images.append(image)
             self.logger.log_plt("heatmap", plt)
+
+    def _get_attention_edge_widths(self, attention_data):
+        """Map attention weights to graph edges and compute widths."""
+        edge_index, alpha = attention_data
+        # Average over heads and move to CPU
+        weights = alpha.mean(dim=-1).detach().cpu().numpy()
+
+        # Create a mapping from (u, v) to weight
+        weight_map = {}
+        for i in range(edge_index.shape[1]):
+            u, v = int(edge_index[0, i]), int(edge_index[1, i])
+            edge = tuple(sorted((u, v)))
+            weight_map[edge] = max(weight_map.get(edge, 0), weights[i])
+
+        max_w = max(weight_map.values()) if weight_map else 1
+        min_w = min(weight_map.values()) if weight_map else 0
+        range_w = max_w - min_w if max_w != min_w else 1
+
+        widths = []
+        for u, v in self.G.edges():
+            edge = tuple(sorted((u, v)))
+            w = weight_map.get(edge, 0)
+            norm_w = (w - min_w) / range_w
+            widths.append(2 + 6 * norm_w)  # Scale from 2 to 8
+
+        return widths
 
     def close_render(self):
         """Closes the matplotlib plot."""
