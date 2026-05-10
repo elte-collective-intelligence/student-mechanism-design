@@ -105,7 +105,7 @@ class GraphDQNAgent:
     def update(self, graphs, actions, rewards, next_graphs, dones):
         """
         Stores individual experiences in replay memory and updates the GNN model.
-        Ensures that all tensors are on the correct device.
+        Keeps tensors on the device to avoid PCIe transfer overhead.
         """
         if actions is None:
             return
@@ -121,21 +121,16 @@ class GraphDQNAgent:
         if not isinstance(dones, (list, tuple)):
             dones = [dones]
 
-        # Move all graphs to CPU for storage (saves GPU memory in replay buffer)
-        graphs_cpu = [g.cpu() for g in graphs]
-        next_graphs_cpu = [ng.cpu() for ng in next_graphs]
-        actions = torch.LongTensor(actions)
-        rewards = torch.FloatTensor(rewards)
-        dones = torch.FloatTensor(dones)
+        # Tensors are already on device from the trainer loop
+        actions = torch.LongTensor(actions).to(self.device)
+        rewards = torch.FloatTensor(rewards).to(self.device)
+        dones = torch.FloatTensor(dones).to(self.device)
 
-        # Store each experience individually (on CPU)
+        # Store each experience individually on the device
         for graph, action, reward, next_graph, done in zip(
-            graphs_cpu, actions, rewards, next_graphs_cpu, dones
+            graphs, actions, rewards, next_graphs, dones
         ):
             if action >= graph.num_nodes:
-                print(
-                    f"Attempting to store invalid action: {action.item()} for graph with {graph.num_nodes} nodes. Skipping."
-                )
                 continue  # Skip storing this invalid experience
             self.memory.append((graph, action, reward, next_graph, done))
 
@@ -149,30 +144,24 @@ class GraphDQNAgent:
             zip(*mini_batch)
         )
 
-        # Move actions, rewards, and dones to device for training
-        batch_actions = torch.stack(batch_actions).to(self.device)
-        batch_rewards = torch.stack(batch_rewards).to(self.device)
-        batch_dones = torch.stack(batch_dones).to(self.device)
+        # Actions, rewards, and dones are already on device
+        batch_actions = torch.stack(batch_actions)
+        batch_rewards = torch.stack(batch_rewards)
+        batch_dones = torch.stack(batch_dones)
 
-        # Validate actions against their respective graph sizes
+        # Batch the graphs using PyTorch Geometric's Batch
+        batch_graph = Batch.from_data_list(batch_graphs)
+        next_batch_graph = Batch.from_data_list(batch_next_graphs)
+
+        # Safety check: Validate actions against their respective graph sizes
         batch_graph_num_nodes = torch.tensor(
             [g.num_nodes for g in batch_graphs], device=self.device
         )
         if not torch.all(batch_actions < batch_graph_num_nodes):
-            invalid_indices = (batch_actions >= batch_graph_num_nodes).nonzero(
-                as_tuple=True
-            )[0]
-            for idx in invalid_indices:
-                print(
-                    f"Invalid action: {batch_actions[idx].item()} for graph with {batch_graph_num_nodes[idx].item()} nodes."
-                )
             raise ValueError(
-                "Some actions exceed the number of nodes in their respective graphs."
+                "Some actions in the batch exceed the number of nodes in their respective graphs. "
+                "This indicates a corruption in the replay buffer."
             )
-
-        # Batch the graphs using PyTorch Geometric's Batch
-        batch_graph = Batch.from_data_list(batch_graphs).to(self.device)
-        next_batch_graph = Batch.from_data_list(batch_next_graphs).to(self.device)
 
         # Forward pass for current states
         q_values = self.model(batch_graph)

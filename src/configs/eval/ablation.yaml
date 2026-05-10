@@ -52,7 +52,7 @@ arch_defaults:
 # Common agent hyperparameters
 agent_common:
   gamma: 0.99
-  batch_size: 16
+  batch_size: 64
   buffer_size: 10000
   epsilon: 1.0
   epsilon_decay: 0.995

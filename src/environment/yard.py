@@ -91,7 +91,7 @@ class CustomEnvironment(BaseEnvironment):
 
         # Generate graphs until we get one with the expected edge count
         # This ensures consistent tensor shapes for TorchRL
-        max_attempts = 200
+        max_attempts = 20
         for attempt in range(max_attempts):
             self.board = self.observation_graph.sample(
                 num_nodes=self.graph_nodes, num_edges=self.graph_edges

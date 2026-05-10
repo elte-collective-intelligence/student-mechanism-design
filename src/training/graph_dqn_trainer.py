@@ -288,13 +288,13 @@ def train_graph_dqn_agents(args, agent_configs, logger_configs, visualization_co
                 episode_reward += rewards.get("MrX", 0.0)
                 episode_step += 1
 
-                # Update agents immediately
-                if agent_configs["agent_type"] in ["gnn", "gat", "transformer"]:
-                    # Create the NEXT shared graph data for updates
-                    next_shared_graph_data = create_graph_data(next_state, env).to(
-                        device
-                    )
+                # Create the NEXT shared graph data for updates (needed for next loop iteration)
+                next_shared_graph_data = create_graph_data(next_state, env).to(device)
 
+                # Update agents periodically (every 4 timesteps or at episode end) to reduce backprop overhead
+                if agent_configs["agent_type"] in ["gnn", "gat", "transformer"] and (
+                    episode_step % 4 == 0 or done
+                ):
                     # Update MrX agent
                     mrX_agent.update(
                         shared_graph_data,
