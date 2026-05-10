@@ -72,7 +72,7 @@ This is **mechanism design**: creating rules and incentives that lead to desired
 
 The environment simulates a pursuit-evasion game on a graph:
 
-```
+```text
 Episode Flow:
 1. All agents spawn at random nodes
 2. Each turn:
@@ -89,16 +89,16 @@ Episode Flow:
 
 Each agent gets a graph-based observation:
 
-| Field | Description |
-|-------|-------------|
-| **adjacency_matrix** | Which nodes are connected (N×N matrix) |
-| **node_features** | One-hot encoding of all agent positions (N×K) |
-| **edge_index** | Edge list for GNN processing (2×E) |
-| **edge_features** | Movement costs for each edge (E,) |
-| **action_mask** | Which moves are legal/affordable (N,) |
-| **agent_position** | Current node ID |
-| **agent_budget** | Remaining money |
-| **belief_map** | Probability distribution over MrX's location (Police only) |
+| Field                    | Description                            |
+|--------------------------|----------------------------------------|
+| **adjacency_matrix**     | Which nodes are connected (N×N matrix) |
+| **node_features**        | One-hot encoding of all agent positions (N×K) |
+| **edge_index**           | Edge list for GNN processing (2×E) |
+| **edge_features**        | Movement costs for each edge (E,) |
+| **action_mask**          | Which moves are legal/affordable (N,) |
+| **agent_position**       | Current node ID |
+| **agent_budget**         | Remaining money |
+| **belief_map**           | Probability distribution over MrX's location (Police only) |
 
 ### What Can Agents Do?
 
@@ -153,6 +153,7 @@ If you see training logs and no errors, you're good to go!
 ### What Just Happened?
 
 The `smoke_train` experiment:
+
 - Created a small graph (15 nodes)
 - Spawned 2 police agents + MrX
 - Trained for a few episodes
@@ -179,6 +180,7 @@ python main.py --config experiments/smoke_train/config.yml
 [Weights & Biases (WandB)](https://wandb.ai) provides experiment tracking, visualization, and comparison tools. It's optional but highly recommended for tracking your experiments.
 
 **Step 1: Create a WandB Account**
+
 1. Go to [https://wandb.ai/signup](https://wandb.ai/signup)
 2. Sign up (free for academic use)
 3. Get your API key from [https://wandb.ai/authorize](https://wandb.ai/authorize)
@@ -215,6 +217,7 @@ Run a quick experiment and check your WandB dashboard:
 ```
 
 **What Gets Logged to WandB:**
+
 - Training metrics (win rate, episode length, rewards)
 - Evaluation results
 - Hyperparameters
@@ -222,6 +225,7 @@ Run a quick experiment and check your WandB dashboard:
 - Model checkpoints (optional)
 
 **Using WandB Features:**
+
 ```bash
 # Compare multiple runs
 # Add custom tags to experiments
@@ -257,19 +261,21 @@ The codebase comes with 5 pre-configured experiments. Start with `smoke_train`, 
 
 ### Experiment Configurations
 
-| Name | Agents | Graph | Budget | Episodes | Purpose |
-|------|--------|-------|--------|----------|---------|
-| `smoke_train` | 2 | 15 nodes | 10 | 10 | Quick sanity check (3 min) |
-| `test` | 2 | 12 nodes | 10 | 20 | Development testing |
-| `singular` | 2-3 | 15 nodes | 8-12 | 70 | Single config training |
-| `all` | 2-6 | 50 nodes | 4-18 | 70×200 | Full curriculum (hours) |
-| `big_graph` | 3-4 | 50 nodes | 10-15 | 70 | Large graph evaluation |
-| `gat_experiment` | 2-3 | 15 nodes | 10 | 50 | GAT-specific training |
-| `transformer_experiment` | 2-3 | 15 nodes | 10 | 50 | Transformer training |
+| Name                     | Agents        | Graph         | Budget       | Episodes             | Purpose                          |
+|--------------------------|---------------|---------------|--------------|----------------------|----------------------------------|
+| `smoke_train`            | 2             | 15 nodes      | 10           | 10                   | Quick sanity check (3 min)       |
+| `test`                   | 2             | 12 nodes      | 10           | 20                   | Development testing              |
+| `singular`               | 2-3           | 15 nodes      | 8-12         | 70                   | Single config training           |
+| `all`                    | 2-6           | 50 nodes      | 4-18         | 70×200               | Full curriculum (hours)          |
+| `big_graph`              | 3-4           | 50 nodes      | 10-15        | 70                   | Large graph evaluation           |
+| `gat_experiment`         | 2-3           | 15 nodes      | 10           | 50                   | GAT-specific training            |
+| `transformer_experiment` | 2-3           | 15 nodes      | 10           | 50                   | Transformer training             |
+| `ablation`               | 6-15          | 25-80 nodes   | 20-50        | 90x50x30             | Ablation study (days)            |
 
 ### Running Experiments
 
 **With Docker:**
+
 ```bash
 # Single experiment
 docker run --rm --gpus=all \
@@ -287,6 +293,7 @@ docker run --rm -it --gpus=all --mount type=bind,src=$PWD,dst=/app student_mecha
 ```
 
 **Locally:**
+
 ```bash
 ./scripts/run_experiment.sh <experiment_name>
 
@@ -296,7 +303,7 @@ docker run --rm -it --gpus=all --mount type=bind,src=$PWD,dst=/app student_mecha
 
 ### Where Are Results Saved?
 
-```
+```text
 src/configs/experiments/<experiment_name>/logs/
 ├── events.out.tfevents.*    # TensorBoard logs
 ├── checkpoint_*.pth         # Saved model weights
@@ -304,6 +311,7 @@ src/configs/experiments/<experiment_name>/logs/
 ```
 
 View TensorBoard logs:
+
 ```bash
 tensorboard --logdir src/configs/experiments/all/logs/
 # Open http://localhost:6006
@@ -312,11 +320,13 @@ tensorboard --logdir src/configs/experiments/all/logs/
 ### Experiment Configuration Files
 
 Each experiment has a YAML config at:
-```
+
+```bash
 src/configs/experiments/<name>/config.yml
 ```
 
 Edit these to customize:
+
 - Agent configurations (number of police, budget)
 - Training hyperparameters (episodes, epochs)
 - Graph sizes
@@ -332,6 +342,7 @@ This section showcases the trained GNN agents playing Scotland Yard on procedura
 
 The GIFs below show trained Police agents (blue nodes) chasing Mr. X (red node) across different graph configurations:
 
+```[html]
 <table>
 <tr>
 <td align="center"><b>Episode 1 - Large Graph</b></td>
@@ -344,8 +355,10 @@ The GIFs below show trained Police agents (blue nodes) chasing Mr. X (red node) 
 <td><img src="images/run_epoch_0-episode_3.gif" width="280"/></td>
 </tr>
 </table>
+```
 
 **What you're seeing:**
+
 - **Red node**: Mr. X (the evader)
 - **Blue nodes**: Police detectives (the pursuers)
 - **Edges**: Valid movement paths on the procedural graph
@@ -355,6 +368,7 @@ The GIFs below show trained Police agents (blue nodes) chasing Mr. X (red node) 
 
 The heatmaps show what the Police agents *believe* about Mr. X's location over time:
 
+```[html]
 <table>
 <tr>
 <td align="center"><b>Episode 1 - Belief Tracking</b></td>
@@ -367,20 +381,22 @@ The heatmaps show what the Police agents *believe* about Mr. X's location over t
 <td><img src="images/heatmap_epoch_0-episode_3.gif" width="280"/></td>
 </tr>
 </table>
+```
 
 **What you're seeing:**
+
 - **Brighter colors**: Higher probability of Mr. X being at that node
 - **Belief updates**: Watch how beliefs sharpen when Mr. X reveals position
 - **Spreading**: Beliefs diffuse along edges when Mr. X is hidden
 
 ### Key Observations
 
-| Metric | Observation |
-|--------|-------------|
-| **Coordination** | Police agents learn to spread out and cover the graph |
-| **Belief Quality** | Agents maintain accurate beliefs even during hidden phases |
-| **Capture Rate** | Trained agents significantly outperform random baselines |
-| **Adaptability** | Policies generalize across different graph sizes |
+| Metric             | Observation                                                 |
+|--------------------|-------------------------------------------------------------|
+| **Coordination**   | Police agents learn to spread out and cover the graph       |
+| **Belief Quality** | Agents maintain accurate beliefs even during hidden phases  |
+| **Capture Rate**   | Trained agents significantly outperform random baselines    |
+| **Adaptability**   | Policies generalize across different graph sizes            |
 
 > **Note**: These results are from the `smoke_eval_vis` experiment. For full training, use the `all` or `big_graph` configurations.
 
@@ -390,17 +406,17 @@ The heatmaps show what the Police agents *believe* about Mr. X's location over t
 
 ### Project Structure
 
-```
+```text
 student-mechanism-design/
 ├── src/
 │   ├── main.py                      # Training entry point (START HERE)
 │   ├── README.md                    # Source code overview & architecture
 │   ├── environment/
 │   │   ├── README.md                # Environment documentation
-│   │   ├── yard.py                  # Main game environment (605 lines, refactored)
-│   │   ├── reward_calculator.py     # Reward computation system (270 lines)
-│   │   ├── pathfinding.py           # Dijkstra's shortest paths (138 lines)
-│   │   ├── visualization.py         # Game rendering & GIF generation (316 lines)
+│   │   ├── yard.py                  # Main game environment 
+│   │   ├── reward_calculator.py     # Reward computation system
+│   │   ├── pathfinding.py           # Dijkstra's shortest paths
+│   │   ├── visualization.py         # Game rendering & GIF generation
 │   │   ├── action_mask.py           # Legal action computation
 │   │   ├── belief_module.py         # Belief tracking for police
 │   │   ├── graph_generator.py       # Random graph creation
@@ -409,6 +425,9 @@ student-mechanism-design/
 │   ├── agent/
 │   │   ├── README.md                # Agent implementations guide
 │   │   ├── graph_dqn_agent.py       # Multi-model Graph DQN agent
+│   │   ├── gnn_agent.py             # GNN-based agent wrapper
+│   │   ├── gat_agent.py             # GAT-based agent wrapper
+│   │   ├── transformer_agent.py     # Transformer-based agent wrapper
 │   │   ├── gnn_model.py             # Baseline GNN model
 │   │   ├── gat_model.py             # Graph Attention Network model
 │   │   ├── transformer_model.py     # Transformer-based graph model
@@ -418,6 +437,7 @@ student-mechanism-design/
 │   ├── eval/
 │   │   ├── README.md                # Evaluation & analysis tools
 │   │   ├── metrics.py               # Win rate, belief quality, etc.
+│   │   ├── architecture_ablations.py # Grid sweep for GNN architectures
 │   │   ├── exploitability.py        # Strategy robustness testing
 │   │   ├── belief_quality.py        # Belief system evaluation
 │   │   ├── ood_eval.py              # Out-of-distribution testing
@@ -440,6 +460,8 @@ student-mechanism-design/
 ├── scripts/
 │   ├── README.md                    # Shell scripts documentation
 │   ├── run_experiment.sh            # Run single experiment
+│   ├── train_ablation_grid.sh       # Run full architecture sweep
+│   ├── train_ablation_grid.py       # Python driver for grid search
 │   ├── train_all.sh                 # Run all training experiments
 │   └── eval_all.sh                  # Run all evaluation experiments
 ├── test/
@@ -449,6 +471,7 @@ student-mechanism-design/
 │   ├── test_gat.py                  # GAT model tests
 │   ├── test_transformer.py          # Transformer model tests
 │   ├── test_gnn_baseline.py         # GNN baseline tests
+│   ├── test_wrappers.py             # Agent wrapper tests
 │   └── env_test.py                  # Environment tests
 ├── docker/
 │   ├── README.md                    # Docker setup & troubleshooting
@@ -458,6 +481,7 @@ student-mechanism-design/
 ```
 
 **Every directory now has a comprehensive README!** Each subdirectory contains detailed documentation explaining:
+
 - What each file does (line-by-line descriptions)
 - How components interact with each other
 - Usage examples and best practices
@@ -498,7 +522,7 @@ student-mechanism-design/
 
 ### Code Flow: How Training Works
 
-```
+```text
 main.py
   ↓
 1. Load config from YAML
@@ -696,17 +720,20 @@ Ablation studies answer: "What happens if I change X?"
 **Question**: Which belief tracking method works best?
 
 **Variants**:
+
 - `no_belief`: Police have no belief tracking
 - `particle_filter`: Standard particle filter
 - `learned_encoder`: Neural network-based belief
 
 **Run it**:
+
 ```bash
 python src/eval/run_ablations.py --ablation belief --num_episodes 100 --seeds 42 123 456
 ```
 
 **Expected results**:
-```
+
+```text
 no_belief:         MrX wins ~70-80% (Police can't track)
 particle_filter:   MrX wins ~50-55% (Baseline)
 learned_encoder:   MrX wins ~45-55% (Better tracking)
@@ -717,11 +744,13 @@ learned_encoder:   MrX wins ~45-55% (Better tracking)
 **Question**: Do our mechanisms actually help?
 
 **Variants**:
+
 - `no_mechanism`: Infinite budget, no reveals
 - `fixed_mechanism`: Hand-tuned parameters
 - `meta_learned`: Auto-tuned for balance
 
 **Run it**:
+
 ```bash
 python src/eval/run_ablations.py --ablation mechanism --num_episodes 100
 ```
@@ -729,6 +758,7 @@ python src/eval/run_ablations.py --ablation mechanism --num_episodes 100
 ### Creating Your Own Ablation
 
 1. **Define variants** in a config file:
+
 ```yaml
 # src/configs/ablation/my_ablation.yaml
 variants:
@@ -745,12 +775,13 @@ variants:
     param_Y: 2.0
 ```
 
-2. **Run the ablation**:
+1. **Run the ablation**:
+
 ```bash
 python src/eval/run_ablations.py --ablation my_ablation --num_episodes 50
 ```
 
-3. **Analyze results** from `logs/ablations/my_ablation_report.txt`
+1. **Analyze results** from `logs/ablations/my_ablation_report.txt`
 
 ---
 
@@ -763,6 +794,7 @@ python src/eval/run_ablations.py --ablation my_ablation --num_episodes 50
 **Problem**: Script not in PATH or wrong directory
 
 **Solution**:
+
 ```bash
 # Run from project root
 cd /path/to/student-mechanism-design
@@ -774,6 +806,7 @@ cd /path/to/student-mechanism-design
 **Problem**: Graph edge count varies between episodes (already fixed in current version)
 
 **Solution**: This is fixed in the latest code. Pull the latest changes:
+
 ```bash
 git pull origin main
 ```
@@ -783,6 +816,7 @@ git pull origin main
 **Problem**: `--gpus=all` not recognized
 
 **Solution**: Install NVIDIA Container Toolkit:
+
 ```bash
 # Ubuntu/Debian
 distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
@@ -799,6 +833,7 @@ sudo systemctl restart docker
 **Problem**: Training crashes with CUDA OOM
 
 **Solutions**:
+
 1. Reduce batch size in agent config
 2. Use smaller graph (fewer nodes)
 3. Train without GPU (slower but works)
@@ -839,21 +874,23 @@ Results saved to `src/configs/experiments/smoke_train/logs/vis/`
 The codebase includes comprehensive unit tests:
 
 ```bash
-# All tests (8 tests, all passing)
+# All tests (26 tests, all passing)
 docker run --rm --mount type=bind,src=$PWD,dst=/app student_mechanism_design bash -c "pytest test/ -v"
 
 # Specific test file
-pytest test/test_action_mask.py -v
+pytest test/test_gat.py -v
 
 # With coverage report
 pytest test/ --cov=src --cov-report=html
 ```
 
-**Current Test Coverage (8 passing tests):**
-- Environment initialization and step operations
-- Action masking with budget constraints (5 tests)
-- Belief update and propagation
-- All components tested after refactoring
+**Current Test Coverage (26 passing tests):**
+
+- **Environment**: Initialization and core step operations (2 tests)
+- **Logic**: Action masking with budget constraints (5 tests)
+- **Beliefs**: Bayesian updates and propagation (1 test)
+- **Architectures**: Structural integrity, attention weights, and gradient flow for GNN, GAT, and Transformer models (15 tests)
+- **Wrappers**: Agent interface compliance (3 tests)
 
 **Read `test/README.md` for detailed testing documentation**
 
@@ -891,6 +928,7 @@ action_mask[node_id] = True if (
 ```
 
 This ensures:
+
 - Consistent action semantics across episodes
 - No need for dynamic action space resizing
 - Compatibility with TorchRL's fixed tensor specs
@@ -912,6 +950,7 @@ The actual edge count may be slightly less than requested to satisfy the degree 
 Police agents use belief tracking to estimate MrX's location:
 
 **Particle Filter**:
+
 ```python
 1. Initialize uniform belief over all nodes
 2. On each step:
@@ -923,6 +962,7 @@ Police agents use belief tracking to estimate MrX's location:
 ```
 
 **Learned Encoder** (optional):
+
 ```python
 1. Train neural network to predict MrX location
 2. Input: recent police observations + actions
@@ -967,6 +1007,79 @@ This is used for mechanism design research, but you may not need it for your ass
 
 ---
 
+## Semester Contribution
+
+### Research Question & Hypothesis
+
+**Research Question:** Do graph attention networks (GAT) and Transformers learn better strategic coordination than standard message-passing GNNs in the Scotland Yard mechanism design task?
+
+**Hypothesis:** Attention mechanisms allow agents to selectively focus on strategically relevant teammates and opponents, improving sample efficiency and final capture performance. We further hypothesize that **Laplacian Positional Encodings** are critical for Transformers to grasp global topology, and that **Curriculum Learning** is necessary to stabilize training on large graphs.
+
+### Implementation Summary
+
+Since the initial `main` branch, the codebase has undergone a complete architectural overhaul to support advanced MARL research:
+
+#### 1. Advanced Agent Architectures
+
+- **Unified Hierarchy**: Refactored the agent system into a unified `GraphDQNAgent` framework, allowing seamless switching between GNN, GAT, and Transformer backends.
+- **GATAgent**: Integrated `GATv2Conv` with multi-head attention to allow agents to dynamically weight the importance of neighboring nodes.
+- **TransformerAgent**: Implemented a Graph Transformer with **Laplacian Positional Encodings (PE)**. This allows the model to "see" the global structure of the Scotland Yard map, overcoming the local-view bottleneck of traditional GNNs.
+
+#### 2. Training & Optimization
+
+- **High-Performance Environment Engine**:
+  - **Vectorized Observations**: Refactored observation construction to use vectorized NumPy assignments, resulting in a 40x speedup for graph construction.
+  - **Vectorized Reward Engine**: Eliminated Python loops in reward computation using NumPy matrix indexing, achieving O(1) pairwise distance lookups during reward calculation.
+  - **High-Speed Pathfinding**: Replaced iterative Dijkstra with Scipy-based All-Pairs Shortest Path precomputation, reducing distance lookup time to O(1) during gameplay.
+  - **Action Masking**: Implemented vectorized budget and connectivity checks to eliminate search bottlenecks.
+  - **Reset Optimization**: Reduced the graph build retry limit from 200 to 20, significantly speeding up environment resets.
+- **Training Acceleration**:
+  - **GPU Replay Buffer**: Moved the experience replay buffer directly to GPU VRAM, eliminating redundant PCIe transfers between the CPU and GPU.
+  - **Tensor Caching**: Implemented caching for static graph structures like edge_index and edge_attr on the GPU to minimize data movement.
+  - **Optimized Update Frequency**: Increased the backpropagation interval to every 4 steps instead of every step, reducing total compute time while maintaining convergence stability.
+- **Curriculum Learning System**: Implemented a progressive difficulty scaler that gradually increases graph complexity (nodes and edges) while decreasing the police budget, ensuring stable training across all scales.
+
+#### 3. Interpretability & Evaluation
+
+- **Attention Correlation Analysis**: Added `src/eval/attention_correlation.py` to quantify if agents' attention focus correlates with strategic targets (e.g., proximity to Mr. X).
+- **Architecture Ablation Sweep**: Developed a robust 90-run grid search pipeline (`architecture_ablations.py`) with parallel execution.
+- **Dynamic Visualization**: Enhanced the rendering system to visualize:
+  - **Belief Heatmaps**: Showing the police's probability distribution over Mr. X's location.
+  - **Attention Edges**: Visualizing where agents are looking by adjusting edge thicknesses in real-time GIFs.
+
+#### 4. Robustness & Testing
+
+- **Expanded Test Suite**: Increased coverage from 8 to **26 unit tests**, including specialized tests for gradient flow in attention layers and agent wrapper compliance.
+- **Standardized Artifacts**: Aligned all outputs with the `src/artifacts/` structure for reproducible grading.
+
+### Key Results
+
+The 90-run ablation sweep on "Small" graphs (25 nodes) produced the following performance baseline:
+
+| Architecture    | Layers | Hidden Dim | Heads | Win Rate (Police) | Mean Ep. Length | Params |
+|-----------------|--------|------------|-------|-------------------|-----------------|--------|
+| **GAT**         |        |            |       |                   |                 |        |
+| **Transformer** |        |            |       |                   |                 |        |
+| **GNN (Base)**  |        |            |       |                   |                 |        |
+
+**Key Findings:**
+
+Under progress...
+
+**Detailed Visualizations**:
+Comprehensive plots of the ablation results are available in `src/artifacts/semester_contribution/plots/`, including:
+
+- `win_rate_by_arch.png`: Performance comparison across models.
+- `learning_curves.png`: Training stability and convergence rates.
+- `perf_vs_params.png`: Parameter efficiency analysis.
+- `win_rate_vs_layers.png`: Depth sensitivity study.
+
+### Conclusions & Limitations
+
+Under progress...
+
+---
+
 ## Need Help?
 
 You can contact Tamás Takács on Teams and email for questions related to the project and assignment.
@@ -974,6 +1087,7 @@ You can contact Tamás Takács on Teams and email for questions related to the p
 ### GitHub Issues
 
 Found a bug? Open an issue:
+
 - [GitHub Issues](https://github.com/elte-collective-intelligence/student-mechanism-design/issues)
 
 ### Team Communication
