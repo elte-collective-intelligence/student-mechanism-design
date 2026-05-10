@@ -57,6 +57,12 @@ class Pathfinder:
             level="debug",
         )
 
+    def get_distance_matrix(self) -> np.ndarray:
+        """Return the precomputed all-pairs distance matrix."""
+        if self._distance_matrix is None:
+            raise RuntimeError("Distance matrix not computed.")
+        return self._distance_matrix
+
     def get_distance(self, node1: int, node2: int, dynamic: bool = False) -> float:
         """
         Compute the shortest path distance between two nodes.
