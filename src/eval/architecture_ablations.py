@@ -20,16 +20,13 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import numpy as np
+import pandas as pd
 import torch
 import yaml
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-import pandas as pd
 from torchrl.envs import step_mdp
 from torchrl.envs.libs.pettingzoo import PettingZooWrapper
 
-from agent.graph_dqn_agent import GraphDQNAgent
+from agent import BaseAgent, GATAgent, GraphDQNAgent, TransformerAgent
 from environment.yard import CustomEnvironment
 from training.utils import (
     create_graph_data,
@@ -38,13 +35,26 @@ from training.utils import (
     is_episode_done,
 )
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+
 class _SilentLogger:
     """Minimal logger stub for evaluation — suppresses all output."""
-    def log(self, *a, **kw): pass
-    def log_scalar(self, *a, **kw): pass
-    def log_model(self, *a, **kw): pass
-    def model_exists(self, *a, **kw): return False
-    def close(self): pass
+
+    def log(self, *a, **kw):
+        pass
+
+    def log_scalar(self, *a, **kw):
+        pass
+
+    def log_model(self, *a, **kw):
+        pass
+
+    def model_exists(self, *a, **kw):
+        return False
+
+    def close(self):
+        pass
 
 
 _DEFAULT_CONFIG = os.path.join(
@@ -57,16 +67,16 @@ _DQN_EVAL_DEFAULTS = dict(
     gamma=0.99,
     lr=1e-3,
     batch_size=64,
-    buffer_size=1,   # minimal buffer; no training during eval
+    buffer_size=1,  # minimal buffer; no training during eval
     epsilon=0.0,
     epsilon_decay=1.0,
     epsilon_min=0.0,
 )
 
-
 # ---------------------------------------------------------------------------
 # Config helpers
 # ---------------------------------------------------------------------------
+
 
 def load_config(path: str) -> dict:
     with open(path, "r") as f:
@@ -86,7 +96,9 @@ def checkpoint_dir_for(
     return Path(checkpoint_root) / run_name
 
 
-def _build_model_kwargs(arch: str, n_layers: int, hidden_dim: int, n_heads: int) -> dict:
+def _build_model_kwargs(
+    arch: str, n_layers: int, hidden_dim: int, n_heads: int
+) -> dict:
     if arch == "gat":
         return dict(
             hidden_dim=hidden_dim,
@@ -113,6 +125,7 @@ def _build_model_kwargs(arch: str, n_layers: int, hidden_dim: int, n_heads: int)
 # Metrics helpers
 # ---------------------------------------------------------------------------
 
+
 def count_parameters(agent: GraphDQNAgent) -> int:
     return sum(p.numel() for p in agent.model.parameters() if p.requires_grad)
 
@@ -131,6 +144,7 @@ def action_entropy(q_values: torch.Tensor, action_mask: torch.Tensor) -> float:
 # Checkpoint loading
 # ---------------------------------------------------------------------------
 
+
 def _try_load_checkpoint(path: Path, agent: GraphDQNAgent) -> bool:
     if not path.exists():
         return False
@@ -145,12 +159,20 @@ def build_agent(
     hidden_dim: int,
     n_heads: int,
     node_feature_size: int,
-) -> GraphDQNAgent:
+) -> BaseAgent:
+
     model_kwargs = _build_model_kwargs(arch, n_layers, hidden_dim, n_heads)
-    return GraphDQNAgent(
+
+    if arch == "gat":
+        agent_class = GATAgent
+    elif arch == "transformer":
+        agent_class = TransformerAgent
+    else:
+        agent_class = GraphDQNAgent
+
+    return agent_class(
         node_feature_size=node_feature_size,
         device=device,
-        agent_type=arch,
         model_kwargs=model_kwargs,
         **_DQN_EVAL_DEFAULTS,
     )
@@ -160,9 +182,10 @@ def build_agent(
 # Episode runner
 # ---------------------------------------------------------------------------
 
+
 def _run_episodes(
-    mrx_agent: GraphDQNAgent,
-    police_agent: GraphDQNAgent,
+    mrx_agent: BaseAgent,
+    police_agent: BaseAgent,
     env_wrappable: CustomEnvironment,
     env: PettingZooWrapper,
     n_episodes: int,
@@ -173,7 +196,7 @@ def _run_episodes(
     episode_lengths = []
     entropies = []
 
-    n_police = env_wrappable.number_of_agents  # police count (MrX is separate)
+    n_police = env_wrappable.number_of_agents
 
     for ep in range(n_episodes):
         torch.manual_seed(seed_offset + seed * 1000 + ep)
@@ -189,7 +212,9 @@ def _run_episodes(
             # MrX
             mrx_graph = create_graph_data(state, "MrX", env).to(device)
             mrx_possible = env.get_possible_moves(0)
-            mrx_mask = torch.zeros(mrx_graph.num_nodes, dtype=torch.int32, device=device)
+            mrx_mask = torch.zeros(
+                mrx_graph.num_nodes, dtype=torch.int32, device=device
+            )
             mrx_mask[mrx_possible] = 1
 
             with torch.no_grad():
@@ -233,7 +258,9 @@ def _run_episodes(
     total = n_episodes
     return {
         "win_rate": mrx_wins / total if total > 0 else 0.0,
-        "mean_episode_length": float(np.mean(episode_lengths)) if episode_lengths else 0.0,
+        "mean_episode_length": (
+            float(np.mean(episode_lengths)) if episode_lengths else 0.0
+        ),
         "mean_entropy": float(np.mean(entropies)) if entropies else 0.0,
     }
 
@@ -287,8 +314,8 @@ def run_single_eval(
         return None
 
     num_police = size_cfg["num_police_agents"]
-    num_agents = num_police + 1   # +1 for MrX
-    node_feature_size = num_agents + 1
+    num_agents = num_police + 1  # Total Agents (MrX + Police)
+    node_feature_size = num_agents
 
     mrx_agent = build_agent(arch, n_layers, hidden_dim, n_heads, node_feature_size)
     police_agent = build_agent(arch, n_layers, hidden_dim, n_heads, node_feature_size)
@@ -306,7 +333,7 @@ def run_single_eval(
         print(f"  [warn] Police checkpoint missing, using untrained: {police_path}")
 
     env_wrappable = CustomEnvironment(
-        number_of_agents=num_agents,
+        number_of_agents=num_police,
         agent_money=size_cfg["agent_money"],
         reward_weights=_NULL_REWARD_WEIGHTS,
         logger=_SilentLogger(),
@@ -334,58 +361,57 @@ def run_single_eval(
 # Main grid sweep
 # ---------------------------------------------------------------------------
 
+
 def run_ablations(cfg: dict, arch_filter=None, dry_run: bool = False) -> pd.DataFrame:
     results = []
     architectures = cfg["architectures"]
     if arch_filter:
         architectures = [a for a in architectures if a in arch_filter]
 
-    arch_heads = cfg.get("arch_heads", {})
-
-    def _heads_for(arch):
-        if arch in arch_heads:
-            return arch_heads[arch]
-        return cfg["sweep"]["n_heads"] if arch != "gnn" else [1]
-
     total = sum(
-        len(cfg["sweep"]["n_layers"])
-        * len(cfg["sweep"]["hidden_dims"])
-        * len(_heads_for(arch))
-        * len(cfg["seeds"])
-        * len(cfg["graph_sizes"])
+        len(cfg["sweep"]) * len(cfg["seeds"]) * len(cfg["graph_sizes"])
         for arch in architectures
     )
     done = 0
 
     for arch in architectures:
-        for n_layers in cfg["sweep"]["n_layers"]:
-            for hidden_dim in cfg["sweep"]["hidden_dims"]:
-                heads_list = _heads_for(arch)
-                for n_heads in heads_list:
-                    for seed in cfg["seeds"]:
-                        for size_name, size_cfg in cfg["graph_sizes"].items():
-                            done += 1
-                            print(
-                                f"[{done}/{total}] arch={arch} layers={n_layers} "
-                                f"dim={hidden_dim} heads={n_heads} "
-                                f"seed={seed} size={size_name}"
-                            )
-                            metrics = run_single_eval(
-                                arch, n_layers, hidden_dim, n_heads,
-                                seed, size_name, size_cfg, cfg,
-                                dry_run=dry_run,
-                            )
-                            if metrics is None:
-                                continue
-                            results.append({
-                                "arch": arch,
-                                "n_layers": n_layers,
-                                "hidden_dim": hidden_dim,
-                                "n_heads": n_heads,
-                                "seed": seed,
-                                "graph_size": size_name,
-                                **metrics,
-                            })
+        for setting in cfg["sweep"]:
+            n_layers = setting["n_layers"]
+            hidden_dim = setting["hidden_dim"]
+            n_heads = 1 if arch == "gnn" else setting["n_heads"]
+
+            for seed in cfg["seeds"]:
+                for size_name, size_cfg in cfg["graph_sizes"].items():
+                    done += 1
+                    print(
+                        f"[{done}/{total}] arch={arch} layers={n_layers} "
+                        f"dim={hidden_dim} heads={n_heads} "
+                        f"seed={seed} size={size_name}"
+                    )
+                    metrics = run_single_eval(
+                        arch,
+                        n_layers,
+                        hidden_dim,
+                        n_heads,
+                        seed,
+                        size_name,
+                        size_cfg,
+                        cfg,
+                        dry_run=dry_run,
+                    )
+                    if metrics is None:
+                        continue
+                    results.append(
+                        {
+                            "arch": arch,
+                            "n_layers": n_layers,
+                            "hidden_dim": hidden_dim,
+                            "n_heads": n_heads,
+                            "seed": seed,
+                            "graph_size": size_name,
+                            **metrics,
+                        }
+                    )
 
     return pd.DataFrame(results)
 
@@ -393,6 +419,7 @@ def run_ablations(cfg: dict, arch_filter=None, dry_run: bool = False) -> pd.Data
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -441,13 +468,15 @@ def main():
         )
         return
 
-    out_path = args.output or str(
-        Path(cfg["output_dir"]) / "ablation_results.csv"
-    )
+    out_path = args.output or str(Path(cfg["output_dir"]) / "ablation_results.csv")
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out_path, index=False)
     print(f"\nResults saved to {out_path}  ({len(df)} rows)")
-    print(df.groupby("arch")[["win_rate", "mean_episode_length", "n_params"]].mean().to_string())
+    print(
+        df.groupby("arch")[["win_rate", "mean_episode_length", "n_params"]]
+        .mean()
+        .to_string()
+    )
 
 
 if __name__ == "__main__":

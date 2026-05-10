@@ -25,11 +25,14 @@ ENV/
 
 # Logs and data
 logs/
+**/logs/
 *.log
 *.out
 *.tfevents.*
 wandb/
+**/wandb/
 src/configs/experiments/*/logs/
+src/configs/experiments/**/logs/
 src/artifacts/
 
 # Documentation
@@ -40,10 +43,6 @@ docs/
 # OS files
 .DS_Store
 Thumbs.db
-
-# Test files
-test/
-*.test.py
 
 # Backup files
 *.backup

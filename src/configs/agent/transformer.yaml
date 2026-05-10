@@ -11,7 +11,7 @@ pe_dim: 8
 
 gamma: 0.99
 lr: 0.0003
-batch_size: 64
+batch_size: 16
 buffer_size: 10000
 
 epsilon: 1.0

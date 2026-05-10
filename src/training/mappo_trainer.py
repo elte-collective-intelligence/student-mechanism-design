@@ -39,6 +39,7 @@ def train_mappo(args, agent_configs, logger_configs, visualization_configs):
         wandb_project=args.wandb_project,
         wandb_entity=args.wandb_entity,
         wandb_run_name=args.wandb_run_name,
+        wandb_group=getattr(args, "wandb_group", None),
         wandb_resume=args.wandb_resume,
         configs=logger_configs,
     )

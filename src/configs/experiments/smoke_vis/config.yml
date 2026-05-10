@@ -1,0 +1,13 @@
+# Smoke test for attention visualization and GAT agent wrapper
+graph_nodes: 15
+graph_edges: 30
+num_episodes: 2
+epochs: 1
+agent_configurations:
+  - num_police_agents: 2
+    agent_money: 10
+agent_configs: "gat"
+log_configs: "default"
+vis_configs: "full"
+wandb_run_name: "smoke_vis_test"
+ablation_checkpoint_dir: "artifacts/smoke_test"

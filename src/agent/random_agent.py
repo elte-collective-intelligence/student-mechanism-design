@@ -1,7 +1,7 @@
 import numpy as np
 import random
 
-from agent.base_agent import BaseAgent
+from .base_agent import BaseAgent
 
 
 class RandomAgent(BaseAgent):

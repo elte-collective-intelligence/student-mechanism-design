@@ -16,16 +16,21 @@ import argparse
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-
+from typing import Dict
+import yaml
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 import numpy as np
 import pandas as pd
+import torch
+from torchrl.envs.libs.pettingzoo import PettingZooWrapper
+from environment.yard import CustomEnvironment
+from training.utils import create_graph_data, device
+from eval.architecture_ablations import build_agent, _NULL_REWARD_WEIGHTS
 
 # seaborn is optional — gracefully degrade to plain matplotlib
 try:
     import seaborn as sns
+
     _HAS_SNS = True
     sns.set_theme(style="whitegrid", font_scale=1.1)
 except ImportError:
@@ -35,13 +40,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 _ARCH_COLORS = {"gnn": "#4C72B0", "gat": "#DD8452", "transformer": "#55A868"}
 _ARCH_LABELS = {"gnn": "GNN", "gat": "GAT", "transformer": "Transformer"}
-_DEFAULT_RESULTS = "artifacts/semester_contribution/ablation_results.csv"
-_DEFAULT_PLOTS = "artifacts/semester_contribution/plots"
+_DEFAULT_RESULTS = "src/artifacts/semester_contribution/ablation_results.csv"
+_DEFAULT_PLOTS = "src/artifacts/semester_contribution/plots"
 
 
 # ---------------------------------------------------------------------------
 # Plot 1 — Win rate by architecture (bar chart)
 # ---------------------------------------------------------------------------
+
 
 def plot_win_rate_by_arch(df: pd.DataFrame, out_dir: Path):
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -54,8 +60,11 @@ def plot_win_rate_by_arch(df: pd.DataFrame, out_dir: Path):
         subset = df[df["arch"] == arch]["win_rate"]
         mean, std = subset.mean(), subset.std()
         ax.bar(
-            x[i], mean, width,
-            yerr=std, capsize=5,
+            x[i],
+            mean,
+            width,
+            yerr=std,
+            capsize=5,
             color=_ARCH_COLORS.get(arch, "grey"),
             label=_ARCH_LABELS.get(arch, arch),
             alpha=0.85,
@@ -74,6 +83,7 @@ def plot_win_rate_by_arch(df: pd.DataFrame, out_dir: Path):
 # ---------------------------------------------------------------------------
 # Plot 2 — Sample efficiency (win rate vs mean episode length)
 # ---------------------------------------------------------------------------
+
 
 def plot_sample_efficiency(df: pd.DataFrame, out_dir: Path):
     agg = (
@@ -108,6 +118,7 @@ def plot_sample_efficiency(df: pd.DataFrame, out_dir: Path):
 # Plot 3 — Performance vs parameter count
 # ---------------------------------------------------------------------------
 
+
 def plot_perf_vs_params(df: pd.DataFrame, out_dir: Path):
     fig, ax = plt.subplots(figsize=(7, 5))
 
@@ -135,12 +146,13 @@ def plot_perf_vs_params(df: pd.DataFrame, out_dir: Path):
 # Plot 4 / 5 — Attention heatmaps (requires live model + env)
 # ---------------------------------------------------------------------------
 
+
 def _edges_to_dense(edge_index: "torch.Tensor", alpha: "torch.Tensor", n_nodes: int):
     """Convert edge-based attention weights to a dense node×node matrix."""
-    import torch
+
     mat = np.zeros((n_nodes, n_nodes))
     src, dst = edge_index[0].cpu().numpy(), edge_index[1].cpu().numpy()
-    weights = alpha.cpu().float().mean(dim=-1).numpy()   # average over heads
+    weights = alpha.cpu().float().mean(dim=-1).numpy()  # average over heads
     for s, d, w in zip(src, dst, weights):
         mat[s, d] = w
     return mat
@@ -158,12 +170,6 @@ def plot_attention_heatmap(
     out_dir: Path,
 ):
     """Run one episode, extract attention from last layer, save heatmap."""
-    import torch
-    from torchrl.envs import step_mdp
-    from torchrl.envs.libs.pettingzoo import PettingZooWrapper
-    from agent.graph_dqn_agent import GraphDQNAgent
-    from environment.yard import CustomEnvironment
-    from training.utils import create_graph_data, device
 
     if arch not in ("gat", "transformer"):
         print(f"[skip] Attention heatmaps not supported for arch={arch}")
@@ -173,22 +179,29 @@ def plot_attention_heatmap(
     num_agents = num_police + 1
     node_feature_size = num_agents + 1
 
-    ckpt_dir = Path(checkpoint_dir) / f"{arch}_L{n_layers}_H{hidden_dim}_h{n_heads}_s{seed}_{size_name}"
+    ckpt_dir = (
+        Path(checkpoint_dir)
+        / f"{arch}_L{n_layers}_H{hidden_dim}_h{n_heads}_s{seed}_{size_name}"
+    )
     mrx_path = ckpt_dir / "MrX.pt"
     if not mrx_path.exists():
         print(f"[skip] checkpoint not found for attention heatmap: {mrx_path}")
         return
 
-    from eval.architecture_ablations import build_agent, _NULL_REWARD_WEIGHTS
     mrx_agent = build_agent(arch, n_layers, hidden_dim, n_heads, node_feature_size)
     state_dict = torch.load(str(mrx_path), map_location=device, weights_only=True)
     mrx_agent.load_state_dict(state_dict, strict=False)
     mrx_agent.model.eval()
 
     class _SilentLogger:
-        def log(self, *a, **kw): pass
-        def log_scalar(self, *a, **kw): pass
-        def close(self): pass
+        def log(self, *a, **kw):
+            pass
+
+        def log_scalar(self, *a, **kw):
+            pass
+
+        def close(self):
+            pass
 
     env_wrappable = CustomEnvironment(
         number_of_agents=num_agents,
@@ -230,13 +243,16 @@ def plot_attention_heatmap(
         f"({size_name} graph, L{n_layers} H{hidden_dim} h{n_heads}, seed {seed})"
     )
     fig.tight_layout()
-    fname = f"attention_{arch}_{size_name}_L{n_layers}_H{hidden_dim}_h{n_heads}_s{seed}.png"
+    fname = (
+        f"attention_{arch}_{size_name}_L{n_layers}_H{hidden_dim}_h{n_heads}_s{seed}.png"
+    )
     _save(fig, out_dir / fname)
 
 
 # ---------------------------------------------------------------------------
 # Plot 6 — Win rate vs n_layers
 # ---------------------------------------------------------------------------
+
 
 def plot_win_rate_vs_layers(df: pd.DataFrame, out_dir: Path):
     fig, ax = plt.subplots(figsize=(7, 5))
@@ -271,6 +287,7 @@ def plot_win_rate_vs_layers(df: pd.DataFrame, out_dir: Path):
 # ---------------------------------------------------------------------------
 # Learning curves from TensorBoard logs
 # ---------------------------------------------------------------------------
+
 
 def plot_learning_curves_from_tb(
     log_dirs: Dict[str, str],
@@ -317,8 +334,12 @@ def plot_learning_curves_from_tb(
         events = ea.Scalars(tag)
         steps = [e.step for e in events]
         values = [e.value for e in events]
-        ax.plot(steps, values, label=_ARCH_LABELS.get(arch, arch),
-                color=_ARCH_COLORS.get(arch, "grey"))
+        ax.plot(
+            steps,
+            values,
+            label=_ARCH_LABELS.get(arch, arch),
+            color=_ARCH_COLORS.get(arch, "grey"),
+        )
         found_any = True
 
     if not found_any:
@@ -339,6 +360,7 @@ def plot_learning_curves_from_tb(
 # Utilities
 # ---------------------------------------------------------------------------
 
+
 def _save(fig, path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(str(path), dpi=150, bbox_inches="tight")
@@ -349,6 +371,7 @@ def _save(fig, path: Path):
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -418,7 +441,7 @@ def main():
 
     # --- Attention heatmaps (require live model + env) ---
     if args.attention:
-        import yaml
+
         with open(args.attention_config) as f:
             cfg = yaml.safe_load(f)
 
@@ -449,7 +472,9 @@ def main():
         log_dirs = {}
         for entry in args.tb_logs:
             if ":" not in entry:
-                print(f"[warn] Skipping malformed --tb_logs entry: {entry!r} (expected path:arch)")
+                print(
+                    f"[warn] Skipping malformed --tb_logs entry: {entry!r} (expected path:arch)"
+                )
                 continue
             path, arch = entry.rsplit(":", 1)
             log_dirs[arch] = path

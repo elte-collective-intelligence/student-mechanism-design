@@ -113,6 +113,12 @@ def parse_arguments():
         help="WandB run name",
     )
     parser.add_argument(
+        "--wandb_group",
+        type=str,
+        default=None,
+        help="WandB group name",
+    )
+    parser.add_argument(
         "--wandb_resume",
         action="store_true",
         help="Resume WandB run if exists",
@@ -218,7 +224,8 @@ def merge_configs(args, experiment_config):
             "wandb_project": wandb_config.get("wandb_project"),
             "wandb_entity": wandb_config.get("wandb_entity"),
             "wandb_run_name": experiment_config.get("wandb_run_name", "default_run"),
-            "wandb_resume": False,
+            "wandb_group": experiment_config.get("wandb_group", None),
+            "wandb_resume": experiment_config.get("wandb_resume", False),
         }
     )
 
@@ -234,6 +241,8 @@ def merge_configs(args, experiment_config):
         combined["wandb_entity"] = args.wandb_entity
     if args.wandb_run_name:
         combined["wandb_run_name"] = args.wandb_run_name
+    if args.wandb_group:
+        combined["wandb_group"] = args.wandb_group
     if args.wandb_resume:
         combined["wandb_resume"] = True
     if args.evaluate:

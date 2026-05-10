@@ -15,6 +15,7 @@ class Logger:
         wandb_entity=None,
         wandb_config=None,
         wandb_run_name=None,
+        wandb_group=None,
         wandb_resume=False,
         configs={},
     ):
@@ -27,6 +28,7 @@ class Logger:
             wandb_entity (str, optional): The wandb entity (user or team) under which to log.
             wandb_config (dict, optional): Configuration parameters to log to wandb.
             wandb_run_name (str, optional): Custom name for the wandb run.
+            wandb_group (str, optional): Group name for the wandb run.
             wandb_resume (bool, optional): Whether to resume the wandb run if it exists.
         """
         self.logger = logging.getLogger("TrainingLogger")
@@ -105,10 +107,20 @@ class Logger:
             value (float): Value to log.
             step (int): Step number.
         """
-        # self.log(str(step) + " | " + tag + ": " + str(value), level='info')
+        # Granular metrics (per-step rewards) should only be logged in verbose mode
+        if not self.configs.get("verbose", False) and any(
+            x in tag for x in ["_penalty", "_reward", "_score", "distance_to_MrX"]
+        ):
+            return
+
         self.writer.add_scalar(tag, value, step)
         if self.use_wandb and wandb.run:
-            wandb.log({tag: value}, step=step)
+            # If tag starts with episode/, wandb will use episode_step metric if defined.
+            # We log the step value explicitly to avoid monotonic step warnings.
+            if tag.startswith("episode/"):
+                wandb.log({tag: value, "episode_step": step if step is not None else 0})
+            else:
+                wandb.log({tag: value}, step=step)
 
     def log_weights(self, weights, step=None):
         """

@@ -3,11 +3,11 @@
 import torch
 
 from logger import Logger
-from agent.graph_dqn_agent import GraphDQNAgent
 from agent.random_agent import RandomAgent
 from environment.yard import CustomEnvironment
 from torchrl.envs.libs.pettingzoo import PettingZooWrapper
 from torchrl.envs import step_mdp
+from agent import GATAgent, TransformerAgent, GNNAgent
 
 from training.utils import (
     device,
@@ -94,7 +94,15 @@ def evaluate_graph_dqn_agents(
 
         # Load trained models
         if agent_configs["agent_type"] in ["gnn", "gat", "transformer"]:
-            mrX_agent = GraphDQNAgent(
+
+            if agent_configs["agent_type"] == "gat":
+                agent_class = GATAgent
+            elif agent_configs["agent_type"] == "transformer":
+                agent_class = TransformerAgent
+            else:
+                agent_class = GNNAgent
+
+            mrX_agent = agent_class(
                 node_feature_size=node_feature_size,
                 device=device,
                 gamma=agent_configs["gamma"],
@@ -104,7 +112,6 @@ def evaluate_graph_dqn_agents(
                 epsilon=0.0,  # No exploration during evaluation
                 epsilon_decay=1.0,
                 epsilon_min=0.0,
-                agent_type=agent_configs["agent_type"],
                 model_kwargs=agent_configs,
             )
 
@@ -119,7 +126,7 @@ def evaluate_graph_dqn_agents(
                     level="warning",
                 )
 
-            police_agent = GraphDQNAgent(
+            police_agent = agent_class(
                 node_feature_size=node_feature_size,
                 device=device,
                 gamma=agent_configs["gamma"],
@@ -129,7 +136,6 @@ def evaluate_graph_dqn_agents(
                 epsilon=0.0,  # No exploration
                 epsilon_decay=1.0,
                 epsilon_min=0.0,
-                agent_type=agent_configs["agent_type"],
                 model_kwargs=agent_configs,
             )
 
@@ -162,32 +168,31 @@ def evaluate_graph_dqn_agents(
             done = False
             episode_steps = 0
 
+            # Initial graph data
+            shared_graph_data = create_graph_data(state, env).to(device)
+
             while not done:
                 actions = {}
 
                 # MrX action (no exploration)
-                mrX_graph_data = create_graph_data(state, "MrX", env).to(device)
                 mrX_possible_moves = env.get_possible_moves(0)
                 mrX_action_mask = torch.zeros(
-                    mrX_graph_data.num_nodes, dtype=torch.int32, device=device
+                    shared_graph_data.num_nodes, dtype=torch.int32, device=device
                 )
                 mrX_action_mask[mrX_possible_moves] = 1
-                mrX_action = mrX_agent.select_action(mrX_graph_data, mrX_action_mask)
+                mrX_action = mrX_agent.select_action(shared_graph_data, mrX_action_mask)
                 actions["MrX"] = mrX_action
 
                 # Police actions (no exploration)
                 for i in range(num_agents):
                     police_name = f"Police{i}"
-                    police_graph_data = create_graph_data(state, police_name, env).to(
-                        device
-                    )
                     police_possible_moves = env.get_possible_moves(i + 1)
                     police_action_mask = torch.zeros(
-                        police_graph_data.num_nodes, dtype=torch.int32, device=device
+                        shared_graph_data.num_nodes, dtype=torch.int32, device=device
                     )
                     police_action_mask[police_possible_moves] = 1
                     police_action = police_agent.select_action(
-                        police_graph_data, police_action_mask
+                        shared_graph_data, police_action_mask
                     )
                     if police_action is None:
                         police_action = env_wrappable.DEFAULT_ACTION
