@@ -210,7 +210,7 @@ def _run_episodes(
             actions = {}
 
             # MrX
-            mrx_graph = create_graph_data(state, "MrX", env).to(device)
+            mrx_graph = create_graph_data(state, env).to(device)
             mrx_possible = env.get_possible_moves(0)
             mrx_mask = torch.zeros(
                 mrx_graph.num_nodes, dtype=torch.int32, device=device
@@ -229,7 +229,7 @@ def _run_episodes(
             # Police
             for i in range(n_police):
                 pname = f"Police{i}"
-                pg = create_graph_data(state, pname, env).to(device)
+                pg = create_graph_data(state, env).to(device)
                 pm = env.get_possible_moves(i + 1)
                 pmask = torch.zeros(pg.num_nodes, dtype=torch.int32, device=device)
                 pmask[pm] = 1

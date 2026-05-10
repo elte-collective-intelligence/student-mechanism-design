@@ -107,7 +107,7 @@ def main():
 
     # Configuration for parallelism
     # Limit parallel runs to avoid OOM. 2-4 is usually safe for GNNs.
-    max_workers = 3
+    max_workers = 10
 
     grid_runs = []
     for arch in cfg["architectures"]:

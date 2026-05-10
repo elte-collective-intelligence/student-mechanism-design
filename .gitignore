@@ -72,3 +72,7 @@ wandb/
 assignment.aux
 assignment.log
 assignment.out
+
+# Ablation run files
+src/configs/experiments/ablation_runs/*/logs
+src/configs/experiments/ablation_runs/**/logs

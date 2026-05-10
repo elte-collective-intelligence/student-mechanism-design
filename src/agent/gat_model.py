@@ -16,6 +16,7 @@ class GATModel(nn.Module):
     ):
         super(GATModel, self).__init__()
         self.dropout = dropout
+        self.edge_dim = edge_dim
 
         self.layers = nn.ModuleList()
         # First layer
@@ -54,7 +55,14 @@ class GATModel(nn.Module):
         )
 
     def forward(self, data, return_attention=False):
-        x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
+        x, edge_index = data.x, data.edge_index
+        edge_attr = getattr(data, "edge_attr", None)
+
+        # Ensure edge_attr has the correct shape [num_edges, edge_dim]
+        if edge_attr is not None and getattr(self, "edge_dim", None) is not None:
+            if edge_attr.dim() == 1:
+                edge_attr = edge_attr.unsqueeze(-1)
+
         all_attentions = []
 
         for i, layer in enumerate(self.layers):
