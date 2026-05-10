@@ -78,11 +78,10 @@ with open(sys.argv[1]) as f:
     cfg = yaml.safe_load(f)
 gs = cfg["graph_sizes"]
 sep = " "
+settings = ["{}:{}:{}".format(s["n_layers"], s["hidden_dim"], s["n_heads"]) for s in cfg["sweep"]]
 lines = [
     'ARCHITECTURES="' + sep.join(cfg["architectures"]) + '"',
-    'N_LAYERS_LIST="' + sep.join(map(str, cfg["sweep"]["n_layers"])) + '"',
-    'HIDDEN_DIMS="'   + sep.join(map(str, cfg["sweep"]["hidden_dims"])) + '"',
-    'N_HEADS_LIST="'  + sep.join(map(str, cfg["sweep"]["n_heads"])) + '"',
+    'SWEEP_SETTINGS="' + sep.join(settings) + '"',
     'SEEDS="'         + sep.join(map(str, cfg["seeds"])) + '"',
     'GRAPH_SIZES="'   + sep.join(gs.keys()) + '"',
     'CHECKPOINT_DIR="' + cfg["checkpoint_dir"] + '"',
@@ -130,17 +129,12 @@ graph_size_params() {
 total=0
 for arch in $ARCHITECTURES; do
     [[ -n "$FILTER_ARCH" && "$arch" != "$FILTER_ARCH" ]] && continue
-    for n_layers in $N_LAYERS_LIST; do
-        for hidden_dim in $HIDDEN_DIMS; do
-            if [[ "$arch" == "gnn" ]]; then heads_iter="1"; else heads_iter="$N_HEADS_LIST"; fi
-            for n_heads in $heads_iter; do
-                for seed in $SEEDS; do
-                    [[ -n "$FILTER_SEED" && "$seed" != "$FILTER_SEED" ]] && continue
-                    for size in $GRAPH_SIZES; do
-                        [[ -n "$FILTER_SIZE" && "$size" != "$FILTER_SIZE" ]] && continue
-                        total=$((total + 1))
-                    done
-                done
+    for setting in $SWEEP_SETTINGS; do
+        for seed in $SEEDS; do
+            [[ -n "$FILTER_SEED" && "$seed" != "$FILTER_SEED" ]] && continue
+            for size in $GRAPH_SIZES; do
+                [[ -n "$FILTER_SIZE" && "$size" != "$FILTER_SIZE" ]] && continue
+                total=$((total + 1))
             done
         done
     done
@@ -157,20 +151,17 @@ failed=0
 for arch in $ARCHITECTURES; do
     [[ -n "$FILTER_ARCH" && "$arch" != "$FILTER_ARCH" ]] && continue
 
-    for n_layers in $N_LAYERS_LIST; do
-        for hidden_dim in $HIDDEN_DIMS; do
+    for setting in $SWEEP_SETTINGS; do
+        IFS=':' read -r n_layers hidden_dim n_heads <<< "$setting"
+        
+        if [[ "$arch" == "gnn" ]]; then
+            n_heads="1"
+        fi
 
-            if [[ "$arch" == "gnn" ]]; then
-                heads_iter="1"
-            else
-                heads_iter="$N_HEADS_LIST"
-            fi
+        for seed in $SEEDS; do
+            [[ -n "$FILTER_SEED" && "$seed" != "$FILTER_SEED" ]] && continue
 
-            for n_heads in $heads_iter; do
-                for seed in $SEEDS; do
-                    [[ -n "$FILTER_SEED" && "$seed" != "$FILTER_SEED" ]] && continue
-
-                    for size in $GRAPH_SIZES; do
+            for size in $GRAPH_SIZES; do
                         [[ -n "$FILTER_SIZE" && "$size" != "$FILTER_SIZE" ]] && continue
 
                         run_idx=$((run_idx + 1))
@@ -207,7 +198,7 @@ for arch in $ARCHITECTURES; do
 agent_type: gnn
 gamma: 0.99
 lr: 0.001
-batch_size: 64
+batch_size: 16
 buffer_size: 10000
 epsilon: 1.0
 epsilon_decay: 0.995
@@ -224,7 +215,7 @@ dropout: 0.2
 edge_dim: 1
 gamma: 0.99
 lr: 0.001
-batch_size: 64
+batch_size: 16
 buffer_size: 10000
 epsilon: 1.0
 epsilon_decay: 0.995
@@ -243,7 +234,7 @@ use_positional_encoding: false
 pe_dim: 8
 gamma: 0.99
 lr: 0.0003
-batch_size: 64
+batch_size: 16
 buffer_size: 10000
 epsilon: 1.0
 epsilon_decay: 0.995
@@ -264,8 +255,8 @@ agent_configurations:
 
 graph_nodes: ${g_nodes}
 graph_edges: ${g_edges}
-num_episodes: 10
-num_eval_episodes: 5
+num_episodes: ${NUM_EPISODES}
+num_eval_episodes: ${NUM_EVAL_EPISODES}
 epochs: ${epochs}
 
 log_dir: logs/${run_name}
@@ -295,16 +286,18 @@ YAML
                         trap - EXIT
 
                     done  # size
-                done  # seed
-            done  # n_heads
-        done  # hidden_dim
-    done  # n_layers
+        done  # seed
+    done  # setting
 done  # arch
 
 echo ""
 echo "================================================"
 echo "Grid complete. $run_idx runs attempted, $failed failed."
 if [[ $failed -gt 0 ]]; then
+    echo "Re-run with the same flags to retry failed combinations."
+    exit 1
+fi
+[[ $failed -gt 0 ]]; then
     echo "Re-run with the same flags to retry failed combinations."
     exit 1
 fi

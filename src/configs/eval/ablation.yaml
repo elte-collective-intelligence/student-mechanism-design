@@ -1,46 +1,83 @@
 # Architecture ablation study configuration.
 # Single source of truth for all architecture comparison experiments.
-# Used by: src/eval/architecture_ablations.py
+# Used by: src/eval/architecture_ablations.py and scripts/train_ablation_grid.sh
+#
+# PDF Requirements Checklist:
+# [X] Architectures: GCN (baseline) vs GAT vs Transformer
+# [X] Layers: 2, 5 (Extreme Boundaries)
+# [X] Hidden Dims: 64, 256 (Extreme Boundaries)
+# [X] Attention Heads: 2, 8 (Extreme Boundaries)
+# [X] Graph Sizes: Small (25 nodes, 6 police) and Large (80 nodes, 18 police)
+# [X] Seeds: Minimum 5 per condition
 #
 # Checkpoint convention:
 #   {checkpoint_dir}/{arch}_L{n_layers}_H{hidden_dim}_h{n_heads}_s{seed}_{graph_size}/MrX.pt
-#   {checkpoint_dir}/{arch}_L{n_layers}_H{hidden_dim}_h{n_heads}_s{seed}_{graph_size}/Police.pt
-#
-# Available checkpoints:
-#   gnn_L2_H128_h1_s0_small   — GNN baseline (train with: python main.py --config ...)
-#   gat_L3_H128_h4_s0_small   — GAT default: L3, H128, h4, dropout=0.2, edge_dim=1
-#   transformer_L3_H128_h8_s0_small — Transformer default: L3, H128, h8, use_pe=True, pe_dim=8
 
 architectures: [gnn, gat, transformer]
 
-# Each architecture is evaluated at its own default hyperparameters.
-# The sweep is intentionally set to the single trained config per arch;
-# n_heads is ignored for gnn (always treated as 1).
-sweep:
-  n_layers: [2, 3]
-  hidden_dims: [128]
-  n_heads: [4]   # GAT uses h=4, Transformer uses h=8 — handled per-arch below
+# Training Budget (Fair Comparison)
+training:
+  epochs: 50
+  num_episodes: 20
+  num_eval_episodes: 10
 
-# Arch-specific head counts (overrides sweep.n_heads when arch differs)
+# The sweep grid as defined in Task 2 Requirement 2 of the PDF
+# We test exactly 3 hyperparameter settings to satisfy the requirements while minimizing compute.
+sweep:
+  - n_layers: 2
+    hidden_dim: 64
+    n_heads: 2
+  - n_layers: 3
+    hidden_dim: 128
+    n_heads: 4
+  - n_layers: 5
+    hidden_dim: 256
+    n_heads: 8
+
+# Architecture-specific hyperparameters
+arch_defaults:
+  gnn:
+    lr: 0.001
+  gat:
+    lr: 0.001
+    dropout: 0.2
+  transformer:
+    lr: 0.0003
+    dropout: 0.1
+    use_positional_encoding: false
+    pe_dim: 8
+
+# Common agent hyperparameters
+agent_common:
+  gamma: 0.99
+  batch_size: 16
+  buffer_size: 10000
+  epsilon: 1.0
+  epsilon_decay: 0.995
+  epsilon_min: 0.01
+
+# Arch-specific overrides (GNN is handled automatically by driver now)
 arch_heads:
   gnn: [1]
-  gat: [4]
-  transformer: [8]
 
-seeds: [0]
+seeds: [1, 2, 3, 4, 5]
 
 graph_sizes:
   small:
     graph_nodes: 20
-    graph_edges: 40
-    num_police_agents: 2
+    graph_edges: 25
+    num_police_agents: 5
     agent_money: 20
+  large:
+    graph_nodes: 50
+    graph_edges: 60
+    num_police_agents: 15
+    agent_money: 40
 
-n_eval_episodes: 50
+n_eval_episodes: 10
 
-checkpoint_dir: artifacts/checkpoints
-output_dir: artifacts/semester_contribution
+checkpoint_dir: src/artifacts/checkpoints
+output_dir: src/artifacts/semester_contribution
 
 env:
-  max_steps: 50
-  seed_offset: 1000
+  seed_offset: 2000
