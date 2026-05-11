@@ -1116,6 +1116,21 @@ Expanding the single-currency system into a multi-ticket system (Taxi, Bus, Metr
 - [Transformer Large-Scale Attention Visualization](src/artifacts/semester_contribution/transformer_large_attention.gif)
 - [Trained GAT Gameplay (Small Graph)](src/artifacts/semester_contribution/gat_gameplay.gif)
 
+### Individual Contributions
+
+| Team member | Contribution |
+|---|---|
+| Pózner Dániel | GAT agent implementation (`gat_model.py`, `gat_agent.py`), unit tests, attention GIF generation, large-graph training, GNN baseline training |
+| Pózner Richárd | Transformer agent implementation (`transformer_model.py`, `transformer_agent.py`), unit tests, Transformer GIFs, large-graph training |
+| Kiss Tamás | Ablation infrastructure (`architecture_ablations.py`, `plot_architecture_ablations.py`, `train_ablation_grid.py`), config design (`ablation.yaml`), README |
+
+### Seeds Used
+
+All reported results use seeds `[1, 2, 3, 4, 5]` as defined in
+`src/configs/eval/ablation.yaml`. The evaluation seed per episode is computed
+as `seed_offset + seed × 1000 + episode_index` (offset = 2000), ensuring
+episode-level diversity while maintaining cross-run reproducibility.
+
 ---
 
 ## Need Help?
