@@ -209,9 +209,7 @@ def run_attention_episode(
         actions: Dict[str, Any] = {}
 
         mrx_graph = create_graph_data(state, "MrX", env).to(device)
-        mrx_mask = torch.zeros(
-            mrx_graph.num_nodes, dtype=torch.int32, device=device
-        )
+        mrx_mask = torch.zeros(mrx_graph.num_nodes, dtype=torch.int32, device=device)
         mrx_mask[env.get_possible_moves(0)] = 1
 
         # Capture MrX attention before acting.
@@ -238,9 +236,7 @@ def run_attention_episode(
         for i in range(num_police):
             p_name = f"Police{i}"
             p_graph = create_graph_data(state, p_name, env).to(device)
-            p_mask = torch.zeros(
-                p_graph.num_nodes, dtype=torch.int32, device=device
-            )
+            p_mask = torch.zeros(p_graph.num_nodes, dtype=torch.int32, device=device)
             p_mask[env.get_possible_moves(i + 1)] = 1
             p_act = police_agent.select_action(p_graph, p_mask)
             actions[p_name] = (
