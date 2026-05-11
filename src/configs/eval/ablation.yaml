@@ -46,7 +46,7 @@ arch_defaults:
     lr: 0.0003
     dropout: 0.1
     edge_dim: 1
-    use_positional_encoding: false
+    use_positional_encoding: true
     pe_dim: 8
 
 # Common agent hyperparameters

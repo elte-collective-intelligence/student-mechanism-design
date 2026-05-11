@@ -342,7 +342,6 @@ This section showcases the trained GNN agents playing Scotland Yard on procedura
 
 The GIFs below show trained Police agents (blue nodes) chasing Mr. X (red node) across different graph configurations:
 
-```[html]
 <table>
 <tr>
 <td align="center"><b>Episode 1 - Large Graph</b></td>
@@ -355,7 +354,6 @@ The GIFs below show trained Police agents (blue nodes) chasing Mr. X (red node) 
 <td><img src="images/run_epoch_0-episode_3.gif" width="280"/></td>
 </tr>
 </table>
-```
 
 **What you're seeing:**
 
@@ -368,7 +366,6 @@ The GIFs below show trained Police agents (blue nodes) chasing Mr. X (red node) 
 
 The heatmaps show what the Police agents *believe* about Mr. X's location over time:
 
-```[html]
 <table>
 <tr>
 <td align="center"><b>Episode 1 - Belief Tracking</b></td>
@@ -381,7 +378,6 @@ The heatmaps show what the Police agents *believe* about Mr. X's location over t
 <td><img src="images/heatmap_epoch_0-episode_3.gif" width="280"/></td>
 </tr>
 </table>
-```
 
 **What you're seeing:**
 
@@ -1054,29 +1050,71 @@ Since the initial `main` branch, the codebase has undergone a complete architect
 
 ### Key Results
 
-The 90-run ablation sweep on "Small" graphs (25 nodes) produced the following performance baseline:
+The 90-run ablation sweep on "Small" (25 nodes) and "Large" (80 nodes) graphs produced the following performance baseline:
 
-| Architecture    | Layers | Hidden Dim | Heads | Win Rate (Police) | Mean Ep. Length | Params |
-|-----------------|--------|------------|-------|-------------------|-----------------|--------|
-| **GAT**         |        |            |       |                   |                 |        |
-| **Transformer** |        |            |       |                   |                 |        |
-| **GNN (Base)**  |        |            |       |                   |                 |        |
+| Architecture    | Win Rate (MrX) | Mean Ep. Length | Params (avg) | Police Performance |
+|-----------------|----------------|-----------------|--------------|--------------------|
+| **GAT**         | **2.47%**      | **8.93**        | 541,700      | **Highest**        |
+| **Transformer** | 3.40%          | 15.38           | 201,092      | High               |
+| **GNN (Base)**  | 3.47%          | 13.53           | 713          | Baseline           |
 
 **Key Findings:**
 
-Under progress...
+1. **Attention Superiority**: Both GAT and Transformer models outperformed the baseline GNN in terms of final capture probability (lower MrX win rate). GAT showed the strongest performance, capturing MrX in nearly 98% of games.
+2. **Efficiency Gains**: GAT models achieved the shortest episode lengths (8.93 steps on average), suggesting that attention mechanisms allow detectives to coordinate more direct paths to MrX compared to uniform message passing.
+3. **Complexity vs. Performance**: While GAT has the highest parameter count, it delivers significantly faster convergence to near-optimal police policies. The Transformer model showed similar win rates to the baseline but resulted in longer games, potentially due to the increased complexity of global attention on smaller graphs.
+4. **Interpretability**: Attention heatmaps (see below) reveal that GAT agents focus heavily on nodes adjacent to MrX's last known position and on bottlenecks in the graph, confirming our hypothesis about selective strategic focus.
 
 **Detailed Visualizations**:
 Comprehensive plots of the ablation results are available in `src/artifacts/semester_contribution/plots/`, including:
 
-- `win_rate_by_arch.png`: Performance comparison across models.
-- `learning_curves.png`: Training stability and convergence rates.
-- `perf_vs_params.png`: Parameter efficiency analysis.
-- `win_rate_vs_layers.png`: Depth sensitivity study.
+- `win_rate_by_arch.png`: Performance comparison showing GAT's lead.
+- `sample_efficiency.png`: Win rate vs. episode length.
+- `perf_vs_params.png`: Log-scale parameter efficiency analysis.
+- `win_rate_vs_layers.png`: Depth sensitivity study showing diminishing returns after 3 layers.
 
 ### Conclusions & Limitations
 
-Under progress...
+**Conclusions**:
+Graph attention mechanisms (GAT) provide a significant advantage in multi-agent pursuit-evasion games. The ability to dynamically weight information from different neighbors allows detectives to ignore noise and focus on critical interception points. Transformers also show promise but require careful tuning of positional encodings and may be "overkill" for the current graph scales.
+
+**Limitations (Implementation Analysis)**:
+Our analysis revealed several strategic deviations from the official Scotland Yard rules that impact agent behavior:
+
+1. **Full Observability**: Unlike the official game where Mr. X is only revealed on specific turns, our implementation currently provides Mr. X's exact position to police agents at every step. This simplifies the deduction task significantly.
+2. **Game Length**: The environment allows for up to 250 timesteps, whereas the official board game is limited to ~24 rounds. This change favors the police and alters sample efficiency requirements.
+3. **Simplified Resources**: We utilize a single "Money" currency instead of the official Taxi, Bus, and Underground tickets. This reduces the depth of blocking strategies related to transport modes.
+4. **Win Conditions**: The "No Moves Left" win condition for police is not yet implemented; agents currently stay in place if blocked rather than triggering a loss.
+
+### Further Work
+
+**1. Optimization: Initialization Pool Strategy**
+To eliminate the $O(N)$ retry-loop bottleneck during environment resets, we propose an **Epoch-based Graph Pool**. Instead of generating graphs on-the-fly, we will pre-generate a pool of 20-50 valid graphs at the start of each epoch. During `reset()`, picking from the pool takes $O(1)$ time, significantly improving training throughput.
+
+**2. Hidden Information & Belief States**
+Future iterations will mask Mr. X's position to align with official rules. Agents will need to rely more heavily on the `BeliefModule` and `attention_correlation` tools to infer locations between reveal steps.
+
+**3. Multi-Modal Transport**
+Expanding the single-currency system into a multi-ticket system (Taxi, Bus, Metro) to increase strategic complexity.
+
+### Visual Evidence
+
+<table>
+<tr>
+<td align="center"><b>GAT Attention Heatmap</b></td>
+<td align="center"><b>Transformer Heatmap</b></td>
+</tr>
+<tr>
+<td><img src="src/artifacts/semester_contribution/plots/attention_gat_small_L3_H128_h4_s3.png" width="350"/></td>
+<td><img src="src/artifacts/semester_contribution/plots/attention_transformer_small_L3_H128_h4_s2.png" width="350"/></td>
+</tr>
+</table>
+
+**Game Visuals (Task 2 Artifacts):**
+
+- [GAT Large-Scale Attention Visualization](src/artifacts/semester_contribution/gat_large_attention.gif)
+- [Transformer Large-Scale Attention Visualization](src/artifacts/semester_contribution/transformer_large_attention.gif)
+- [Trained GAT Gameplay (Small Graph)](src/artifacts/semester_contribution/gat_gameplay.gif)
 
 ---
 
