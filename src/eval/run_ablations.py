@@ -492,8 +492,8 @@ def generate_ablation_report(
     for name, result in results.items():
         m = result.metrics
         lines.append(
-            f"{name:<20} {m['win_rate']:.2%:<12} "
-            f"{m['mean_belief_ce']:.4f:<12} {m['mean_episode_length']:.1f:<12}"
+            f"{name:<20} {m['win_rate']:<12.2%} "
+            f"{m['mean_belief_ce']:.<12.4f} {m['mean_episode_length']:<12.1f}"
         )
 
     lines.append("")
