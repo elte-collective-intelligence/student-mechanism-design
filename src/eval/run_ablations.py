@@ -390,10 +390,14 @@ def run_architectural_ablation(
                 police_model_path = os.path.join(BASE_MODEL_DIR, police_model_name)
                 try:
                     mrX_agent.load_state_dict(torch.load(mrx_model_path), strict=False)
-                    police_agent.load_state_dict(torch.load(police_model_path), strict=False)
+                    police_agent.load_state_dict(
+                        torch.load(police_model_path), strict=False
+                    )
                 except FileNotFoundError as ex:
-                    print(f"Pretrained model not found: {ex}. Running with untrained agents.")
-                    #raise ex
+                    print(
+                        f"Pretrained model not found: {ex}. Running with untrained agents."
+                    )
+                    raise ex
 
                 # Run episode
                 state = env.reset(episode=1000)
@@ -450,7 +454,9 @@ def run_architectural_ablation(
                     next_police_budget = float(
                         torch.sum(next_state["MrX"]["observation"]["Currency"]).item()
                     )
-                    total_budget_spent = max(prev_police_budget - next_police_budget, 0.0)
+                    total_budget_spent = max(
+                        prev_police_budget - next_police_budget, 0.0
+                    )
                     total_tolls = total_budget_spent
 
                     # track metrics
