@@ -445,7 +445,8 @@ def run_architectural_ablation(
 
                     ep_mrx_rew += rewards.get("MrX", 0.0)
                     ep_police_rew += sum(
-                        rewards.get(f"Police{i}", 0.0) for i in range(num_agents_total - 1)
+                        rewards.get(f"Police{i}", 0.0)
+                        for i in range(num_agents_total - 1)
                     )
 
                     prev_police_budget = float(
