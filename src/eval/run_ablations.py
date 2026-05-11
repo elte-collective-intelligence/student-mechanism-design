@@ -337,7 +337,7 @@ def run_architectural_ablation(
                 )
 
                 env_wrappable = CustomEnvironment(
-                    number_of_agents=num_agents_total-1,
+                    number_of_agents=num_agents_total - 1,
                     agent_money=agent_money,
                     reward_weights=reward_weights,
                     logger=logger,
@@ -432,7 +432,8 @@ def run_architectural_ablation(
                     # Apply actions
                     for obj_id, act in actions.items():
                         state[obj_id]["action"] = torch.tensor(
-                            [act if act is not None else env_wrappable.DEFAULT_ACTION], dtype=torch.int64
+                            [act if act is not None else env_wrappable.DEFAULT_ACTION],
+                            dtype=torch.int64,
                         )
 
                     # Step environment
