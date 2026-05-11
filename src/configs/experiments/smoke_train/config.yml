@@ -54,6 +54,6 @@ wandb_run_name: 'smoke_train'
 wandb_resume: false
 random_seed: 42
 evaluate: False
-agent_configs: 'gnn'
+agent_configs: 'transformer'
 log_configs: 'default'
 vis_configs: 'none'

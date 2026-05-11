@@ -17,6 +17,9 @@ class GATAgent(BaseAgent):
     def __init__(
         self,
         node_feature_size,
+        hidden_dim=32,
+        heads=8,
+        num_layers=2,
         gamma=0.99,
         lr=1e-3,
         batch_size=64,
@@ -26,10 +29,10 @@ class GATAgent(BaseAgent):
         epsilon_min=0.01,
         device=torch.device("cpu"),
     ):
-        """
-        Graph Attention Network (GAT) Agent with Experience Replay.
-        """
         self.node_feature_size = node_feature_size
+        self.hidden_dim = hidden_dim
+        self.heads = heads
+        self.num_layers = num_layers
         self.gamma = gamma
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
@@ -39,25 +42,30 @@ class GATAgent(BaseAgent):
 
         self.memory = deque(maxlen=buffer_size)
 
-        self.model = GATModel(node_feature_size).to(self.device)
+        self.model = GATModel(
+            node_feature_size=self.node_feature_size,
+            hidden_channels=self.hidden_dim,
+            heads=self.heads,
+            num_layers=self.num_layers,
+        ).to(self.device)
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         self.criterion = nn.MSELoss()
 
     def select_action(self, graph, action_mask):
-        """Selects action using epsilon-greedy policy with attention-based Q-values."""
-
         self.model.eval()
         with torch.no_grad():
             graph = graph.to(self.device)
             q_values = self.model(graph)
             q_values = q_values.cpu().numpy()
 
-        mask_np = (
-            action_mask.cpu().numpy() if torch.is_tensor(action_mask) else action_mask
-        )
-        valid_actions = np.where(mask_np == 1)[0]
+        if action_mask.size(0) != graph.num_nodes:
+            raise ValueError(
+                f"action_mask length ({action_mask.size(0)}) does not match "
+                f"number of nodes in graph ({graph.num_nodes})."
+            )
 
+        valid_actions = np.where(action_mask.cpu().numpy() == 1)[0]
         if len(valid_actions) == 0:
             return None
 
@@ -66,6 +74,12 @@ class GATAgent(BaseAgent):
         else:
             valid_q_values = q_values[valid_actions]
             selected_action = valid_actions[np.argmax(valid_q_values)]
+
+        num_nodes = graph.num_nodes
+        if not (0 <= selected_action < num_nodes):
+            raise ValueError(
+                f"Selected action {selected_action} is invalid for graph with {num_nodes} nodes."
+            )
 
         return int(selected_action)
 
@@ -84,48 +98,70 @@ class GATAgent(BaseAgent):
         if not isinstance(dones, (list, tuple)):
             dones = [dones]
 
-        for g, a, r, ng, d in zip(graphs, actions, rewards, next_graphs, dones):
-            r_t = torch.tensor(r, dtype=torch.float) if not torch.is_tensor(r) else r
-            d_t = torch.tensor(d, dtype=torch.float) if not torch.is_tensor(d) else d
-            a_t = torch.tensor(a, dtype=torch.long) if not torch.is_tensor(a) else a
+        graphs = [g.to(self.device) for g in graphs]
+        next_graphs = [ng.to(self.device) for ng in next_graphs]
+        actions = torch.LongTensor(actions).to(self.device)
+        rewards = torch.FloatTensor(rewards).to(self.device)
+        dones = torch.FloatTensor(dones).to(self.device)
 
-            self.memory.append(
-                (
-                    g.to(self.device),
-                    a_t.to(self.device),
-                    r_t.to(self.device),
-                    ng.to(self.device),
-                    d_t.to(self.device),
+        for graph, action, reward, next_graph, done in zip(
+            graphs, actions, rewards, next_graphs, dones
+        ):
+            if action >= graph.num_nodes:
+                print(
+                    f"Attempting to store invalid action: {action.item()} for graph with {graph.num_nodes} nodes. Skipping."
                 )
-            )
+                continue
+            self.memory.append((graph, action, reward, next_graph, done))
 
         if len(self.memory) < self.batch_size:
             return
 
         mini_batch = random.sample(self.memory, self.batch_size)
-        b_graphs, b_actions, b_rewards, b_next_graphs, b_dones = zip(*mini_batch)
+        batch_graphs, batch_actions, batch_rewards, batch_next_graphs, batch_dones = (
+            zip(*mini_batch)
+        )
 
-        batch_graph = Batch.from_data_list(b_graphs).to(self.device)
-        next_batch_graph = Batch.from_data_list(b_next_graphs).to(self.device)
+        batch_actions = torch.stack(batch_actions)
+        batch_rewards = torch.stack(batch_rewards)
+        batch_dones = torch.stack(batch_dones)
 
-        b_actions = torch.stack(b_actions)
-        b_rewards = torch.stack(b_rewards)
-        b_dones = torch.stack(b_dones)
+        batch_graph_num_nodes = torch.tensor(
+            [g.num_nodes for g in batch_graphs], device=self.device
+        )
+        if not torch.all(batch_actions < batch_graph_num_nodes):
+            invalid_indices = (batch_actions >= batch_graph_num_nodes).nonzero(
+                as_tuple=True
+            )[0]
+            for idx in invalid_indices:
+                print(
+                    f"Invalid action: {batch_actions[idx].item()} for graph with {batch_graph_num_nodes[idx].item()} nodes."
+                )
+            raise ValueError(
+                "Some actions exceed the number of nodes in their respective graphs."
+            )
+
+        batch_graph = Batch.from_data_list(batch_graphs).to(self.device)
+        next_batch_graph = Batch.from_data_list(batch_next_graphs).to(self.device)
 
         self.model.train()
         q_values = self.model(batch_graph)
-        node_indices = batch_graph.ptr[:-1] + b_actions
+        node_indices = batch_graph.ptr[:-1] + batch_actions
+        assert torch.all(
+            node_indices < q_values.size(0)
+        ), "node_indices exceed q_values size."
         current_q_values = q_values[node_indices]
 
         with torch.no_grad():
             next_q_all = self.model(next_batch_graph)
             max_next_q = []
-            for i in range(len(b_next_graphs)):
-                start, end = next_batch_graph.ptr[i], next_batch_graph.ptr[i + 1]
+            for i in range(self.batch_size):
+                start = next_batch_graph.ptr[i]
+                end = next_batch_graph.ptr[i + 1]
                 max_next_q.append(next_q_all[start:end].max())
-            max_next_q = torch.stack(max_next_q)
+            max_next_q = torch.stack(max_next_q).to(self.device)
 
-        target_q_values = b_rewards + (self.gamma * max_next_q * (1 - b_dones))
+        target_q_values = batch_rewards + (self.gamma * max_next_q * (1 - batch_dones))
 
         loss = self.criterion(current_q_values, target_q_values)
         self.optimizer.zero_grad()
@@ -143,37 +179,58 @@ class GATAgent(BaseAgent):
         self.model.to(self.device)
 
     def state_dict(self):
-        """
-        Returns the model parameters.
-        """
         return self.model.state_dict()
 
     def load_state_dict(self, state_dict, strict=True):
-        """
-        Loads the model parameters.
-        """
         self.model.load_state_dict(state_dict, strict=strict)
 
 
 class GATModel(nn.Module):
-    def __init__(self, node_feature_size, hidden_channels=32, heads=8):
+    def __init__(self, node_feature_size, hidden_channels=32, heads=8, num_layers=2):
         super(GATModel, self).__init__()
 
-        self.conv1 = GATConv(node_feature_size, hidden_channels, heads=heads)
+        if num_layers < 2 or num_layers > 5:
+            raise ValueError("Number of layers must be bewteen 2 and 5.")
 
-        self.conv2 = GATConv(
-            hidden_channels * heads, hidden_channels, heads=1, concat=False
+        self.node_feature_size = node_feature_size
+        self.hidden_channels = hidden_channels
+        self.heads = heads
+        self.num_layers = num_layers
+
+        self.convs = nn.ModuleList()
+
+        self.convs.append(
+            GATConv(self.node_feature_size, self.hidden_channels, heads=self.heads)
         )
 
-        self.output_layer = nn.Linear(hidden_channels, 1)
+        for _ in range(self.num_layers - 2):
+            self.convs.append(
+                GATConv(
+                    self.hidden_channels * self.heads,
+                    self.hidden_channels,
+                    heads=self.heads,
+                )
+            )
+
+        self.convs.append(
+            GATConv(
+                self.hidden_channels * self.heads,
+                self.hidden_channels,
+                heads=1,
+                concat=False,
+            )
+        )
+
+        self.output_layer = nn.Linear(self.hidden_channels, 1)
 
     def forward(self, data):
         x, edge_index = data.x, data.edge_index
 
-        x = self.conv1(x, edge_index)
-        x = torch.nn.functional.leaky_relu(x)
+        for conv in self.convs[:-1]:
+            x = conv(x, edge_index)
+            x = torch.nn.functional.leaky_relu(x)
 
-        x = self.conv2(x, edge_index)
+        x = self.convs[-1](x, edge_index)
         x = torch.nn.functional.leaky_relu(x)
 
         x = self.output_layer(x)
