@@ -19,9 +19,9 @@ class TransformerAgent(BaseAgent):
         self,
         node_feature_size,
         pos_dim=8,
-        hidden_dim=64,      
-        heads=4,         
-        num_layers=3,        
+        hidden_dim=64,
+        heads=4,
+        num_layers=3,
         gamma=0.99,
         lr=1e-3,
         batch_size=64,
@@ -39,14 +39,13 @@ class TransformerAgent(BaseAgent):
         self.hidden_dim = hidden_dim
         self.heads = heads
         self.num_layers = num_layers
-        
+
         self.gamma = gamma
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
         self.epsilon_min = epsilon_min
         self.batch_size = batch_size
         self.device = device
-
 
         self.memory = deque(maxlen=buffer_size)
 
@@ -55,7 +54,7 @@ class TransformerAgent(BaseAgent):
             pos_edge_dim=self.pos_dim,
             hidden_channels=self.hidden_dim,
             heads=self.heads,
-            num_layers=self.num_layers
+            num_layers=self.num_layers,
         ).to(self.device)
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
@@ -81,7 +80,9 @@ class TransformerAgent(BaseAgent):
         pos_enc = torch.from_numpy(eigvecs[:, start:end]).float().to(self.device)
 
         if pos_enc.shape[1] < self.pos_dim:
-            pad = torch.zeros((num_nodes, self.pos_dim - pos_enc.shape[1])).to(self.device)
+            pad = torch.zeros((num_nodes, self.pos_dim - pos_enc.shape[1])).to(
+                self.device
+            )
             pos_enc = torch.cat([pos_enc, pad], dim=1)
 
         data.pos_enc = pos_enc
@@ -158,7 +159,6 @@ class TransformerAgent(BaseAgent):
         if len(self.memory) < self.batch_size:
             return
 
-
         mini_batch = random.sample(self.memory, self.batch_size)
         batch_graphs, batch_actions, batch_rewards, batch_next_graphs, batch_dones = (
             zip(*mini_batch)
@@ -190,7 +190,9 @@ class TransformerAgent(BaseAgent):
         q_values = self.model(batch_graph)
 
         node_indices = batch_graph.ptr[:-1] + batch_actions
-        assert torch.all(node_indices < q_values.size(0)), "node_indices exceed q_values size."
+        assert torch.all(
+            node_indices < q_values.size(0)
+        ), "node_indices exceed q_values size."
         current_q_values = q_values[node_indices]
 
         with torch.no_grad():
@@ -203,7 +205,9 @@ class TransformerAgent(BaseAgent):
                 max_next_q_values.append(graph_q_values.max())
             max_next_q_values = torch.stack(max_next_q_values).to(self.device)
 
-        target_q_values = batch_rewards + self.gamma * max_next_q_values * (1 - batch_dones)
+        target_q_values = batch_rewards + self.gamma * max_next_q_values * (
+            1 - batch_dones
+        )
         loss = self.criterion(current_q_values, target_q_values)
 
         self.optimizer.zero_grad()
@@ -228,7 +232,14 @@ class TransformerAgent(BaseAgent):
 
 
 class GraphTransformerModel(nn.Module):
-    def __init__(self, node_feature_size, pos_edge_dim=8, hidden_channels=64, heads=4, num_layers=3):
+    def __init__(
+        self,
+        node_feature_size,
+        pos_edge_dim=8,
+        hidden_channels=64,
+        heads=4,
+        num_layers=3,
+    ):
         super(GraphTransformerModel, self).__init__()
 
         if num_layers < 2 or num_layers > 5:
@@ -240,22 +251,40 @@ class GraphTransformerModel(nn.Module):
         self.heads = heads
         self.num_layers = num_layers
 
-        self.node_emb = nn.Linear(self.node_feature_size + self.pos_edge_dim, self.hidden_channels)
+        self.node_emb = nn.Linear(
+            self.node_feature_size + self.pos_edge_dim, self.hidden_channels
+        )
         self.leaky_relu = nn.LeakyReLU(0.01)
-        
+
         self.convs = nn.ModuleList()
 
         self.convs.append(
-            TransformerConv(self.hidden_channels, self.hidden_channels, heads=self.heads, dropout=0.1)
+            TransformerConv(
+                self.hidden_channels,
+                self.hidden_channels,
+                heads=self.heads,
+                dropout=0.1,
+            )
         )
 
         for _ in range(self.num_layers - 2):
             self.convs.append(
-                TransformerConv(self.hidden_channels * self.heads, self.hidden_channels, heads=self.heads, dropout=0.1)
+                TransformerConv(
+                    self.hidden_channels * self.heads,
+                    self.hidden_channels,
+                    heads=self.heads,
+                    dropout=0.1,
+                )
             )
 
         self.convs.append(
-            TransformerConv(self.hidden_channels * self.heads, self.hidden_channels, heads=1, concat=False, dropout=0.1)
+            TransformerConv(
+                self.hidden_channels * self.heads,
+                self.hidden_channels,
+                heads=1,
+                concat=False,
+                dropout=0.1,
+            )
         )
 
         self.output_layer = nn.Linear(self.hidden_channels, 1)
