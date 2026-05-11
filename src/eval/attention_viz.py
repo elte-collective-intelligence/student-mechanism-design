@@ -170,7 +170,9 @@ def render_attention_frame(
     return image
 
 
-def save_attention_gif(frames: List[np.ndarray], path: str, interval: int = 400) -> None:
+def save_attention_gif(
+    frames: List[np.ndarray], path: str, interval: int = 400
+) -> None:
     """Save a list of frames as a GIF."""
     if not frames:
         return

@@ -237,9 +237,7 @@ class GATModel(nn.Module):
 
         for conv in self.convs[:-1]:
             if return_attention:
-                x, (ei, alpha) = conv(
-                    x, edge_index, return_attention_weights=True
-                )
+                x, (ei, alpha) = conv(x, edge_index, return_attention_weights=True)
                 attention.append((ei.detach(), alpha.detach()))
             else:
                 x = conv(x, edge_index)

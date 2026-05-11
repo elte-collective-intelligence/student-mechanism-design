@@ -4,7 +4,10 @@ import sys
 import torch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
-from eval.attention_viz import aggregate_attention, compute_attention_summary  # noqa: E402
+from eval.attention_viz import (
+    aggregate_attention,
+    compute_attention_summary,
+)  # noqa: E402
 
 
 def test_aggregate_attention_mean_over_heads():
@@ -47,9 +50,7 @@ def test_compute_attention_summary_basic():
     edge_index = torch.tensor(
         [[0, 1, 1, 2, 2, 0], [1, 0, 2, 1, 0, 2]], dtype=torch.long
     )
-    alpha = torch.tensor(
-        [[0.4], [0.4], [0.9], [0.5], [0.1], [0.7]]  # single head
-    )
+    alpha = torch.tensor([[0.4], [0.4], [0.9], [0.5], [0.1], [0.7]])  # single head
     summary = compute_attention_summary(
         edge_index, alpha, mrx_pos=0, police_positions=[2], num_nodes=3, top_k=3
     )
