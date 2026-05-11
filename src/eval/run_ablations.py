@@ -286,6 +286,7 @@ def run_architectural_ablation(
         tracker = MetricsTracker()
 
         # Get architectural parameters
+        config_name = config.name.lower()
         agent_type = config.params.get("agent_type", "gnn")
         num_layers = config.params.get("num_layers", 2)
         hidden_dim = config.params.get("hidden_dim", 64)
@@ -381,12 +382,25 @@ def run_architectural_ablation(
                     mrX_agent = RandomAgent()
                     police_agent = RandomAgent()
 
-                # Run episode
-                state = env.reset(episode=ep)
-                done = False
-                episode_length = 0
+                # load existing wts
+                BASE_MODEL_DIR = "pretrained_models"
+                mrx_model_name = f"mrx_{agent_type}_{config_name}.pt"
+                police_model_name = f"police_{agent_type}_{config_name}.pt"
+                mrx_model_path = os.path.join(BASE_MODEL_DIR, mrx_model_name)
+                police_model_path = os.path.join(BASE_MODEL_DIR, police_model_name)
+                try:
+                    mrX_agent.load_state_dict(torch.load(mrx_model_path), strict=False)
+                    police_agent.load_state_dict(torch.load(police_model_path), strict=False)
+                except FileNotFoundError as ex:
+                    print(f"Pretrained model not found: {ex}. Running with untrained agents.")
+                    #raise ex
 
-                while not done and episode_length < 100:
+                # Run episode
+                state = env.reset(episode=1000)
+                done = False
+                ep_step, ep_mrx_rew, ep_police_rew = 0, 0.0, 0.0
+
+                while not done and ep_step < 100:
                     actions = {}
 
                     # MrX action
@@ -407,7 +421,9 @@ def run_architectural_ablation(
                         )
                         p_mask[env.get_possible_moves(i + 1)] = 1
                         p_act = police_agent.select_action(p_graph, p_mask)
-                        actions[p_name] = p_act if p_act is not None else 0
+                        actions[p_name] = (
+                            p_act if p_act is not None else env_wrappable.DEFAULT_ACTION
+                        )
 
                     # Apply actions
                     for obj_id, act in actions.items():
@@ -423,32 +439,35 @@ def run_architectural_ablation(
                     )
                     done = is_episode_done(terminations, truncations)
 
-                    episode_length += 1
+                    ep_mrx_rew += rewards.get("MrX", 0.0)
+                    ep_police_rew += sum(
+                        rewards.get(f"Police{i}", 0.0) for i in range(num_agents_total - 1)
+                    )
+
+                    prev_police_budget = float(
+                        torch.sum(state["MrX"]["observation"]["Currency"]).item()
+                    )
+                    next_police_budget = float(
+                        torch.sum(next_state["MrX"]["observation"]["Currency"]).item()
+                    )
+                    total_budget_spent = max(prev_police_budget - next_police_budget, 0.0)
+                    total_tolls = total_budget_spent
+
+                    # track metrics
+                    reveal_interval = max(1, config.params.get("reveal_interval", 5))
+                    is_reveal_step = ep_step > 0 and ep_step % reveal_interval == 0
+                    tracker.record_step(
+                        step=ep_step,
+                        toll_paid=total_tolls,
+                        budget_spent=total_budget_spent,
+                        is_reveal=is_reveal_step,
+                    )
+
+                    ep_step += 1
                     state = next_state
 
                 # Determine winner and extract episode stats
-                winner = (
-                    env_wrappable.current_winner
-                    if hasattr(env_wrappable, "current_winner")
-                    else "MrX"
-                )
-                total_budget_spent = 5.0
-                total_tolls = 2.0
-                reveal_interval = 5  # Could also ablate this
-
-                for step in range(
-                    0,
-                    episode_length,
-                    reveal_interval,
-                ):
-                    tracker.record_step(
-                        step=step,
-                        toll_paid=total_tolls
-                        / max(episode_length // reveal_interval, 1),
-                        budget_spent=total_budget_spent
-                        / max(episode_length // reveal_interval, 1),
-                        is_reveal=(step > 0 and step % reveal_interval == 0),
-                    )
+                winner = env_wrappable.current_winner
 
                 tracker.end_episode(winner=winner)
 
