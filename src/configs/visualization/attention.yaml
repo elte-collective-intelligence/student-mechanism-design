@@ -1,8 +1,8 @@
-visualize_game: True
-visualize_heatmap: True
+visualize_game: False
+visualize_heatmap: False
 visualize_attention: True
 save_visualization: True
-save_dir: 'logs/vis/'
+save_dir: 'logs/vis'
 attention_layer: -1
 attention_head_reduction: 'mean'
 attention_cmap: 'viridis'
