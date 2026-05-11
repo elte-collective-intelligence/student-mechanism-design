@@ -171,6 +171,13 @@ class GATAgent(BaseAgent):
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
+    def get_attention(self, graph):
+        self.model.eval()
+        with torch.no_grad():
+            graph = graph.to(self.device)
+            q, attention = self.model(graph, return_attention=True)
+        return q, attention
+
     def save(self, filepath):
         torch.save(self.model.state_dict(), filepath)
 
@@ -223,15 +230,32 @@ class GATModel(nn.Module):
 
         self.output_layer = nn.Linear(self.hidden_channels, 1)
 
-    def forward(self, data):
+    def forward(self, data, return_attention=False):
         x, edge_index = data.x, data.edge_index
 
+        attention = [] if return_attention else None
+
         for conv in self.convs[:-1]:
-            x = conv(x, edge_index)
+            if return_attention:
+                x, (ei, alpha) = conv(
+                    x, edge_index, return_attention_weights=True
+                )
+                attention.append((ei.detach(), alpha.detach()))
+            else:
+                x = conv(x, edge_index)
             x = torch.nn.functional.leaky_relu(x)
 
-        x = self.convs[-1](x, edge_index)
+        if return_attention:
+            x, (ei, alpha) = self.convs[-1](
+                x, edge_index, return_attention_weights=True
+            )
+            attention.append((ei.detach(), alpha.detach()))
+        else:
+            x = self.convs[-1](x, edge_index)
         x = torch.nn.functional.leaky_relu(x)
 
         x = self.output_layer(x)
-        return x.squeeze(-1)
+        q = x.squeeze(-1)
+        if return_attention:
+            return q, attention
+        return q

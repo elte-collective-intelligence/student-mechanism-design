@@ -217,6 +217,16 @@ class TransformerAgent(BaseAgent):
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
+    def get_attention(self, graph):
+        """
+        Returns Q-values and per-layer attention weights for the given graph.
+        """
+        self.model.eval()
+        with torch.no_grad():
+            graph = self.compute_pos_enc(graph).to(self.device)
+            q, attention = self.model(graph, return_attention=True)
+        return q, attention
+
     def save(self, filepath):
         torch.save(self.model.state_dict(), filepath)
 
@@ -289,7 +299,7 @@ class GraphTransformerModel(nn.Module):
 
         self.output_layer = nn.Linear(self.hidden_channels, 1)
 
-    def forward(self, data):
+    def forward(self, data, return_attention=False):
         x, edge_index = data.x, data.edge_index
 
         if hasattr(data, "pos_enc"):
@@ -298,9 +308,20 @@ class GraphTransformerModel(nn.Module):
         x = self.node_emb(x)
         x = self.leaky_relu(x)
 
+        attention = [] if return_attention else None
+
         for conv in self.convs:
-            x = conv(x, edge_index)
+            if return_attention:
+                x, (ei, alpha) = conv(
+                    x, edge_index, return_attention_weights=True
+                )
+                attention.append((ei.detach(), alpha.detach()))
+            else:
+                x = conv(x, edge_index)
             x = self.leaky_relu(x)
 
         x = self.output_layer(x)
-        return x.squeeze(-1)
+        q = x.squeeze(-1)
+        if return_attention:
+            return q, attention
+        return q

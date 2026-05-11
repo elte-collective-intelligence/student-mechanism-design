@@ -60,6 +60,32 @@ def test_agent_full_cycle(agent_class, dummy_graph):
     assert agent.epsilon < 1.0 or agent.epsilon == agent.epsilon_min
 
 
+@pytest.mark.parametrize("agent_class", [GATAgent, TransformerAgent])
+def test_agent_returns_attention(agent_class, dummy_graph):
+    """Tests that get_attention returns per-layer (edge_index, alpha)."""
+    num_layers = 3
+    heads = 4
+    agent = agent_class(
+        node_feature_size=16,
+        num_layers=num_layers,
+        heads=heads,
+        device=torch.device("cpu"),
+    )
+
+    q, attention = agent.get_attention(dummy_graph)
+
+    assert q.shape == (dummy_graph.num_nodes,)
+    assert len(attention) == num_layers
+
+    for layer_idx, (ei, alpha) in enumerate(attention):
+        assert ei.dim() == 2 and ei.shape[0] == 2
+        assert alpha.dim() == 2
+        assert alpha.shape[0] == ei.shape[1]
+        expected_heads = 1 if layer_idx == num_layers - 1 else heads
+        assert alpha.shape[1] == expected_heads
+        assert not torch.isnan(alpha).any()
+
+
 def test_transformer_specific_pe(dummy_graph):
     """Specifically tests the Positional Encoding logic in the Transformer."""
     agent = TransformerAgent(node_feature_size=16, pos_dim=4)
