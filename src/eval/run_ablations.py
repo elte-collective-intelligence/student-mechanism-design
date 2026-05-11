@@ -337,7 +337,7 @@ def run_architectural_ablation(
                 )
 
                 env_wrappable = CustomEnvironment(
-                    number_of_agents=num_agents_total,
+                    number_of_agents=num_agents_total-1,
                     agent_money=agent_money,
                     reward_weights=reward_weights,
                     logger=logger,
@@ -349,7 +349,7 @@ def run_architectural_ablation(
                 env = PettingZooWrapper(env=env_wrappable)
 
                 # Create agents based on architecture
-                node_feature_size = num_agents_total + 1
+                node_feature_size = num_agents_total
                 common_params = {
                     "node_feature_size": node_feature_size,
                     "device": device,
