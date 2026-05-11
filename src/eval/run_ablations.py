@@ -290,7 +290,7 @@ def run_architectural_ablation(
         agent_type = config.params.get("agent_type", "gnn")
         num_layers = config.params.get("num_layers", 2)
         hidden_dim = config.params.get("hidden_dim", 64)
-        num_heads = config.params.get("num_heads", 4)
+        num_heads = config.params.get("heads", 4)
 
         for seed in seeds:
             np.random.seed(seed)
@@ -362,13 +362,13 @@ def run_architectural_ablation(
                     "epsilon_min": 0.01,
                     "num_layers": num_layers,
                     "hidden_dim": hidden_dim,
-                    "num_heads": num_heads,
+                    "heads": num_heads,
                 }
 
                 if agent_type == "gnn":
                     common_params.pop("num_layers", None)
                     common_params.pop("hidden_dim", None)
-                    common_params.pop("num_heads", None)
+                    common_params.pop("heads", None)
                     mrX_agent = GNNAgent(**common_params)
                     police_agent = GNNAgent(**common_params)
                 elif agent_type == "gat":
@@ -432,7 +432,7 @@ def run_architectural_ablation(
                     # Apply actions
                     for obj_id, act in actions.items():
                         state[obj_id]["action"] = torch.tensor(
-                            [act if act is not None else 0], dtype=torch.int64
+                            [act if act is not None else env_wrappable.DEFAULT_ACTION], dtype=torch.int64
                         )
 
                     # Step environment
