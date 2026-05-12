@@ -30,14 +30,45 @@ Experiments load multiple config files:
 - Common hyperparameters
 - Fallback values if specific config missing
 
-### `gnn.yaml`
-**Graph Neural Network agent configuration.** Specifies:
+### `gnn.yaml`, `gat.yaml`, `transformer.yaml`
+**Graph DQN agent configurations.** These files specify the architecture and learning parameters for the Graph DQN agent, which supports multiple underlying models.
+
+#### Common Parameters (All Graph DQN Agents)
+- `agent_type`: The architecture to use (`gnn`, `gat`, or `transformer`).
+- `learning_rate`: Step size for optimization (typically 0.001).
+- `gamma`: Discount factor for future rewards (typically 0.99).
+- `batch_size`: Number of transitions sampled from replay buffer (e.g., 64).
+- `buffer_size`: Capacity of the experience replay memory (e.g., 10000).
+- `epsilon`, `epsilon_decay`, `epsilon_min`: Epsilon-greedy exploration parameters.
+
+#### GAT and Transformer Specific
+These parameters are passed as `model_kwargs` to the respective models:
+- `hidden_dim`: Capacity of hidden layers (Standard: 64-256).
+- `num_layers`: Depth of the network (Standard: 2-5).
+- `dropout`: Dropout probability for regularization.
+
+#### GAT Specific (`gat.yaml`)
+- `heads`: Number of multi-head attention mechanisms (Standard: 1-8).
+- `edge_dim`: Dimension of edge features.
+
+#### Transformer Specific (`transformer.yaml`)
+- `num_heads`: Number of attention heads (Standard: 1-8).
+- `use_positional_encoding`: Boolean to enable Laplacian Positional Encoding (required for capturing graph topology).
+- `pe_dim`: Dimension of the positional encoding (e.g., 8).
+
+**Note on GNN**: The baseline `gnn` model use a fixed architecture of 2 AntiSymmetricConv layers and does not currently use the `hidden_dim` or `num_layers` parameters.
+
+**Key Parameters for Ablation Studies:**
+As per Assignment 2 requirements, students should vary `num_layers` (2-5), `hidden_dim` (64-256), and attention heads (1-8) in the `gat` and `transformer` configs to study their impact on coordination and sample efficiency.
+
+### `gat.yaml`
+**Graph Attention Network agent configuration.** Specifies:
 ```yaml
 # Architecture
-node_feature_size: 10        # Features per node (position, budget, beliefs)
-hidden_dim: 128              # Hidden layer size
-num_layers: 3                # Number of GNN layers
-action_size: 50              # Max number of actions
+node_feature_size: 10        # Features per node
+hidden_dim: 64              # Hidden layer size
+heads: 4                    # Attention heads
+num_layers: 3               # Number of GAT layers
 
 # Learning
 learning_rate: 0.001         # Adam optimizer learning rate
@@ -46,15 +77,30 @@ gamma: 0.99                  # Discount factor for rewards
 ```
 
 **Key Parameters:**
-- `node_feature_size`: Depends on observation space
-  - Higher for more complex state representations
-  - Must match environment observation size
-- `hidden_dim`: Network capacity
-  - Larger for complex strategies
-  - Too large: overfitting, slow training
-- `num_layers`: Depth of message passing
-  - More layers → larger receptive field
-  - 2-4 typical for most graphs
+- `heads`: Controls how many attention patterns the model can learn
+- `hidden_dim`: Width of the intermediate graph representations
+- `num_layers`: Depth of attention-based message passing
+
+### `transformer.yaml`
+**Graph Transformer agent configuration.** Specifies:
+```yaml
+# Architecture
+node_feature_size: 10        # Features per node
+pos_dim: 8                   # Laplacian positional encoding dimension
+hidden_dim: 128             # Hidden layer size
+heads: 4                    # Attention heads
+num_layers: 3               # Number of Transformer layers
+
+# Learning
+learning_rate: 0.001         # Adam optimizer learning rate
+epsilon: 0.1                 # Exploration rate (epsilon-greedy)
+gamma: 0.99                  # Discount factor for rewards
+```
+
+**Key Parameters:**
+- `pos_dim`: Size of the positional encoding added to the graph
+- `heads`: Controls multi-head attention capacity
+- `num_layers`: Depth of transformer-based graph reasoning
 
 ### `mappo.yaml`
 **Multi-Agent PPO configuration.** Specifies:
@@ -156,7 +202,6 @@ agent_configurations:
 ```
 
 **Important:** Only include configurations that have trained models!
-
 ### `smoke_eval_vis/config.yml`
 **Evaluation with visualization.** Settings:
 ```yaml
@@ -170,9 +215,28 @@ agent_configurations:
     agent_money: 16
 ```
 
+### `gat_experiment/` and `transformer_experiment/`
+**Architecture-specific training runs.**
+- These experiments use the `gat` and `transformer` agent configurations respectively.
+- Used to validate that attention-based agents can successfully learn coordination strategies on the Scotland Yard graph.
+
+### Other Experiments
 **Output:** Generates GIFs in `logs/vis/`:
 - `run_epoch_0-episode_1.gif`: Game visualization
 - `heatmap_epoch_0-episode_1.gif`: Belief heatmap
+
+### `all_{agent_type}/config.yml`
+**Full training experiments for a specific agent type.** These experiments follow the `all_{agent_type}` naming convention and train the specified model.
+
+**Current variants:**
+- `all_gnn/config.yml`: Full training of the GNN agent
+- `all_gat/config.yml`: Full training of the GAT agent
+- `all_transformer/config.yml`: Full training of the Transformer agent
+
+**Purpose:**
+- Compare agent families under the same environmentsettings
+- Keep training experiments organized by agent type
+- Make it easy to add new agent-specific training experiments later
 
 ### Other Experiments
 
@@ -184,6 +248,25 @@ experiments/my_experiment/
     ├── *.pt (model checkpoints)
     └── events.out.tfevents.* (TensorBoard logs)
 ```
+
+## Ablation Configurations (`ablation/`)
+
+### `architecture.yaml`
+**Architecture ablation sweep.** Defines agent variants for comparing graph model families and depth/width settings:
+- Baseline GNN reference
+- Several GAT variants with different layer counts, widths, and heads
+- Several Transformer variants with different layer counts, widths, and heads
+
+**Purpose:**
+- Compare model families under a common evaluation harness
+- Measure the effect of depth and attention heads
+- Provide a shared source of architecture variants for ablation runs
+
+### `belief.yaml`
+**Belief-model ablation sweep.** Defines variants for comparing belief updates and learned belief encoders.
+
+### `mechanism.yaml`
+**Mechanism-design ablation sweep.** Defines variants for comparing tolls, budgets, reveal schedules, and meta-learned mechanism parameters.
 
 ## Logger Configurations (`logger/`)
 
@@ -218,6 +301,28 @@ log_actions: True            # Log action selection details
 **Warning:** Creates large log files!
 
 ## Visualization Configurations (`visualization/`)
+
+### `attention.yaml`
+**Attention visualization settings.** Settings:
+```yaml
+visualize_game: False
+visualize_heatmap: False
+visualize_attention: True
+save_visualization: True
+save_dir: 'logs/vis'
+attention_layer: -1
+attention_head_reduction: 'mean'
+attention_cmap: 'viridis'
+```
+
+**Use for:**
+- Rendering attention overlays or summaries during evaluation
+- Inspecting the final attention layer by default
+- Saving attention-focused visualization outputs to disk
+
+**Notes:**
+- `attention_layer: -1` selects the last layer
+- `attention_head_reduction: 'mean'` reduces across attention heads using simple averaging
 
 ### `none.yaml`
 **No visualization (fastest).** Settings:

@@ -36,6 +36,24 @@ This directory contains unit tests and integration tests for the Scotland Yard g
 pytest test/env_test.py -v
 ```
 
+### `test_gnn_baseline.py`
+**Validation of the baseline GNN architecture.**
+- Verifies message passing logic
+- Ensures compatibility with `GraphDQNAgent`
+- Checks for spatial reasoning correctness
+
+### `test_gat.py`
+**Tests for Graph Attention Network model.**
+- Verifies multi-head attention mechanisms
+- Checks attention weight extraction functionality
+- Ensures dropout and ELU activations work as expected
+
+### `test_transformer.py`
+**Tests for Graph Transformer model.**
+- Verifies global attention and residual connections
+- Tests Laplacian Positional Encoding (PE) computation and caching
+- Ensures LayerNorm and input projection layers function correctly
+
 **What to check if tests fail:**
 - Environment initialization parameters
 - Observation space definitions
@@ -158,6 +176,109 @@ pytest test/test_belief_update.py -v
 - Belief propagation (diffusion on graph)
 - Normalization (valid probability distribution)
 - Edge cases (complete certainty, complete uncertainty)
+
+### `test_agents.py`
+**Agent implementation tests.** This file:
+- Tests agent initialization across supported architectures
+- Verifies action selection respects valid action masks
+- Checks training/update behavior runs without errors
+- Validates attention and positional encoding helpers
+
+**Test Cases:**
+
+**`test_agent_full_cycle`**
+- Purpose: Verify a representative agent can initialize, act, and update end to end
+- Scenario: GAT and Transformer agents run on a small dummy graph
+- Tests:
+  - Agent construction succeeds with the expected configuration
+  - Action selection returns a valid masked action
+  - Update logic runs enough times to exercise training paths
+  - Exploration state changes after training
+- Expected: The agent completes a basic control loop without errors
+
+**`test_agent_returns_attention`**
+- Purpose: Verify attention extraction returns structured per-layer outputs
+- Scenario: GAT and Transformer agents expose attention tensors for inspection
+- Tests:
+  - Q-values have the expected node-level shape
+  - Attention is returned for each layer
+  - Each layer includes edge indices and alpha weights
+  - Head counts match the final-layer behavior
+- Expected: Attention data is present, well-shaped, and finite
+
+**`test_transformer_specific_pe`**
+- Purpose: Verify Transformer positional encoding is computed correctly
+- Scenario: A dummy graph is augmented with Laplacian positional encodings
+- Tests:
+  - Positional encoding attribute is attached to the graph
+  - Encoding has the expected shape
+  - Encoding values are finite
+- Expected: The transformer-specific graph preprocessing completes successfully
+
+**Usage:**
+```bash
+pytest test/test_agents.py -v
+```
+
+**What this tests:**
+- Agent construction and configuration handling
+- Action masking integration in agent policies
+- Training/update loops and epsilon decay behavior
+- Attention output structure and positional encodings
+
+### `test_attention_viz.py`
+**Attention visualization and summary tests.** This file:
+- Tests aggregation of multi-head attention weights
+- Verifies undirected edge merging behavior
+- Checks summary statistics used for attention analysis
+- Ensures entropy and mass calculations are stable
+
+**Test Cases:**
+
+**`test_aggregate_attention_mean_over_heads`**
+- Purpose: Verify attention values are averaged correctly across heads and directions
+- Scenario: A small graph with paired directed edges and multi-head weights
+- Tests:
+  - Head values are averaged per edge
+  - Reverse directions are merged into one undirected edge
+  - Final weights match the expected mean values
+- Expected: Aggregated edge weights reflect symmetric attention correctly
+
+**`test_aggregate_attention_drops_self_loops`**
+- Purpose: Verify self-loops are excluded from aggregation by default
+- Scenario: Graph data includes self-loop attention entries
+- Tests:
+  - Self-loop edges are removed
+  - Remaining undirected edge weights are still averaged correctly
+- Expected: Only meaningful graph edges appear in the aggregated output
+
+**`test_compute_attention_summary_basic`**
+- Purpose: Verify the attention summary contains the expected statistics
+- Scenario: Compute a summary around MrX and police positions on a toy graph
+- Tests:
+  - Summary exposes the expected keys
+  - Top edges are sorted by weight
+  - Mass on MrX and police incident edges is computed correctly
+- Expected: The summary is structured and numerically consistent
+
+**`test_compute_attention_summary_entropy_uniform`**
+- Purpose: Verify entropy behaves correctly for uniform attention
+- Scenario: Every edge has identical attention weight
+- Tests:
+  - Mean entropy matches the uniform distribution formula
+  - Summary remains stable under equal weights
+- Expected: Uniform attention produces the expected entropy value
+
+**Usage:**
+```bash
+pytest test/test_attention_viz.py -v
+```
+
+**What this tests:**
+- Multi-head attention aggregation
+- Undirected graph edge consolidation
+- Attention summary generation for analysis and plotting
+- Entropy calculations for visualization diagnostics
 
 ## Running Tests
 
@@ -300,6 +421,8 @@ test/test_belief_update.py::test_belief_updates_and_reveals PASSED          [100
 - ✅ Basic step operations
 - ✅ Action masking (5 tests)
 - ✅ Belief updates
+- ✅ Agent initialization, updates, and attention extraction
+- ✅ Attention aggregation and summary generation
 - ❌ Reward calculations (future work)
 - ❌ Agent training (future work)
 - ❌ Visualization (future work)
