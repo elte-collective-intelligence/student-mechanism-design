@@ -29,12 +29,12 @@ from agent.gat_agent import GATAgent  # noqa: E402
 from agent.transformer_agent import TransformerAgent  # noqa: E402
 from agent.random_agent import RandomAgent  # noqa: E402
 from logger import Logger  # noqa: E402
-from training.utils import (
+from training.utils import (  # noqa: E402
     device,
     create_graph_data,
     extract_step_info,
     is_episode_done,
-)  # noqa: E402
+)
 
 
 @dataclass
