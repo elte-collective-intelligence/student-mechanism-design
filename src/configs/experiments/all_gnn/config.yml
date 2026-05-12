@@ -46,6 +46,6 @@ wandb_run_name: 'all'
 wandb_resume: false
 random_seed: 42
 evaluate: False
-agent_configs: 'gat'
+agent_configs: 'gnn'
 log_configs: 'default'
 vis_configs: 'none'
