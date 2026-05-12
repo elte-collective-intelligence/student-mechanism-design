@@ -1,0 +1,15 @@
+agent_type: gat
+num_layers: 3
+hidden_dim: 128
+heads: 4
+
+num_police: 3
+agent_money: 15
+graph_nodes: 30
+graph_edges: 45
+max_steps: 60
+reveal_interval: 5
+episode_id: 1000
+
+checkpoint_path_mrx: null
+checkpoint_path_police: null

@@ -111,7 +111,10 @@ Each agent gets a graph-based observation:
 
 Two agent types are implemented:
 
-1. **GNN Agent** (default): Uses graph neural networks to process spatial structure
+1. **Graph Agent** (default): Uses neural networks on graphs with support for multiple architectures:
+   - **GNN**: Baseline message passing.
+   - **GAT**: Graph Attention Networks for focused reasoning.
+   - **Transformer**: Global attention for complex spatial relationships.
 2. **MAPPO Agent**: Multi-agent proximal policy optimization (actor-critic)
 
 Both learn through self-play over thousands of episodes, gradually improving their strategies.
@@ -259,7 +262,9 @@ The codebase comes with 5 pre-configured experiments. Start with `smoke_train`, 
 | `smoke_train` | 2 | 15 nodes | 10 | 10 | Quick sanity check (3 min) |
 | `test` | 2 | 12 nodes | 10 | 20 | Development testing |
 | `singular` | 2-3 | 15 nodes | 8-12 | 70 | Single config training |
-| `all` | 2-6 | 50 nodes | 4-18 | 70×200 | Full curriculum (hours) |
+| `all_gnn` | 2-6 | 50 nodes | 4-18 | 70×200 | Full curriculum (hours) for GNN agents |
+| `all_gat` | 2-6 | 50 nodes | 4-18 | 70×200 | Full curriculum (hours) for GAT agents |
+| `all_transformer` | 2-6 | 50 nodes | 4-18 | 70×200 | Full curriculum (hours) for Transformer agents |
 | `big_graph` | 3-4 | 50 nodes | 10-15 | 70 | Large graph evaluation |
 
 ### Running Experiments
@@ -403,12 +408,21 @@ student-mechanism-design/
 │   │   └── base_env.py              # Base environment utilities
 │   ├── agent/
 │   │   ├── README.md                # Agent implementations guide
-│   │   ├── gnn_agent.py             # Graph neural network agent
+│   │   ├── graph_dqn_agent.py       # Multi-model Graph DQN agent
+│   │   ├── gnn_model.py             # Baseline GNN model
+│   │   ├── gat_model.py             # Graph Attention Network model
+│   │   ├── transformer_model.py     # Transformer-based graph model
+│   │   ├── gat_agent.py             # Graph attention network agent
+│   │   ├── transformer_agent.py     # Graph transformer network agent
 │   │   ├── mappo_agent.py           # Multi-agent PPO
 │   │   ├── random_agent.py          # Random baseline
 │   │   └── base_agent.py            # Agent interface
 │   ├── eval/
 │   │   ├── README.md                # Evaluation & analysis tools
+│   │   ├── attention_plots.py       # Attention visualization heplerss for plotting
+│   │   ├── attention_viz.py         # Attention visualization
+│   │   ├── run_attention_episode.py # Attention-rollout runner
+│   │   ├── metrics.py               # Win rate, belief quality, etc.
 │   │   ├── metrics.py               # Win rate, belief quality, etc.
 │   │   ├── exploitability.py        # Strategy robustness testing
 │   │   ├── belief_quality.py        # Belief system evaluation
@@ -417,9 +431,9 @@ student-mechanism-design/
 │   │   └── plot_ablations.py        # Visualization of ablation results
 │   ├── training/
 │   │   ├── README.md                # Training systems documentation
-│   │   ├── gnn_trainer.py           # GNN training loop (318 lines)
+│   │   ├── gnn_trainer.py           # GNN, GAT, Transformer training loop (373 lines)
 │   │   ├── mappo_trainer.py         # MAPPO training loop (319 lines)
-│   │   ├── evaluator.py             # Model evaluation system (242 lines)
+│   │   ├── evaluator.py             # Model evaluation system (272 lines)
 │   │   └── utils.py                 # Training utilities
 │   ├── configs/
 │   │   ├── README.md                # Configuration system guide
@@ -438,6 +452,9 @@ student-mechanism-design/
 │   ├── README.md                    # Test suite documentation
 │   ├── test_action_mask.py          # Action masking tests (5 tests)
 │   ├── test_belief_update.py        # Belief tracking tests
+│   ├── test_action_mask.py          # Action masking tests
+│   ├── test_agents.py               # Agent behavior tests (Currently GAT and Transformer agents)
+│   └── test_attention_viz.py        # Attention visualization tests
 │   └── env_test.py                  # Environment tests
 ├── docker/
 │   ├── README.md                    # Docker setup & troubleshooting
@@ -467,9 +484,9 @@ student-mechanism-design/
    - Termination conditions
    - **Read `src/environment/README.md` for detailed documentation**
 
-2. **`src/agent/gnn_agent.py`** or **`mappo_agent.py`**
+2. **`src/agent/graph_dqn_agent.py`** or **`mappo_agent.py`**
    - Agent decision-making
-   - Neural network architectures
+   - Neural network architectures (GNN, GAT, Transformer)
    - Training loops
    - **Read `src/agent/README.md` for implementation details**
 
@@ -494,7 +511,7 @@ main.py
   ↓
 2. Create environment (yard.py)
   ↓
-3. Initialize agents (gnn_agent.py)
+3. Initialize agents (graph_dqn_agent.py)
   ↓
 4. For each epoch:
     ↓
