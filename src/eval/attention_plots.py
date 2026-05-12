@@ -12,8 +12,8 @@ from typing import Any, Dict, List
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import numpy as np
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
 
 
 def _load(events_path: str) -> Dict[str, Any]:

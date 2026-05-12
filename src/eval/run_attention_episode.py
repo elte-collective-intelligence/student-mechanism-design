@@ -20,20 +20,20 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-import torch
-from environment.yard import CustomEnvironment
-from torchrl.envs.libs.pettingzoo import PettingZooWrapper
-from torchrl.envs import step_mdp
-from agent.gat_agent import GATAgent
-from agent.transformer_agent import TransformerAgent
-from logger import Logger
-from training.utils import (
+import torch  # noqa: E402
+from environment.yard import CustomEnvironment  # noqa: E402
+from torchrl.envs.libs.pettingzoo import PettingZooWrapper  # noqa: E402
+from torchrl.envs import step_mdp  # noqa: E402
+from agent.gat_agent import GATAgent  # noqa: E402
+from agent.transformer_agent import TransformerAgent  # noqa: E402
+from logger import Logger  # noqa: E402
+from training.utils import (  # noqa: E402
     device,
     create_graph_data,
     extract_step_info,
     is_episode_done,
 )
-from eval.attention_viz import (
+from eval.attention_viz import (  # noqa: E402
     compute_attention_summary,
     render_attention_frame,
     save_attention_gif,

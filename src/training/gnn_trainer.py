@@ -1,4 +1,4 @@
-"""GNN agent training module."""
+"""GNN, GAT, and Transformer agent training module."""
 
 import torch
 import random
@@ -6,6 +6,8 @@ import numpy as np
 
 from logger import Logger
 from agent.gnn_agent import GNNAgent
+from agent.gat_agent import GATAgent
+from agent.transformer_agent import TransformerAgent
 from agent.random_agent import RandomAgent
 from reward_net import RewardWeightNet
 from environment.yard import CustomEnvironment
@@ -23,10 +25,11 @@ from training.utils import (
 
 def train_gnn(args, agent_configs, logger_configs, visualization_configs):
     """
-    Main training function for GNN agents.
+    Main training function for GNN, GAT, and Transformer agents.
 
-    Trains GNN-based agents (MrX and Police) using graph neural networks
-    with curriculum learning over multiple epochs and agent configurations.
+    Trains network-based agents (MrX and Police) using graph neural networks,
+    graph attention networks, or transformers with curriculum learning over
+    multiple epochs and agent configurations.
 
     Args:
         args: Training configuration (epochs, episodes, graph size, etc.)
@@ -72,6 +75,15 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
     )
     logger.log(f"Node curriculum: {node_curriculum}", level="info")
     logger.log(f"Edge curriculum: {edge_curriculum}", level="info")
+
+    # Define supported trainable agent types and their matching classes
+    trainable_agent_mapping = {
+        "gnn": GNNAgent,
+        "gat": GATAgent,
+        "transformer": TransformerAgent,
+    }
+    agent_type = agent_configs.get("agent_type", "gnn")
+    is_trainable_agent = agent_type in trainable_agent_mapping
 
     # Main training loop
     for epoch in range(args.epochs):
@@ -143,35 +155,40 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
         MrX_model_name = f"MrX_{node_feature_size}_agents"
         Police_model_name = f"Police_{node_feature_size}_agents"
 
-        # Initialize GNN agents
-        if agent_configs["agent_type"] == "gnn":
-            mrX_agent = GNNAgent(
-                node_feature_size=node_feature_size,
-                device=device,
-                gamma=agent_configs["gamma"],
-                lr=agent_configs["lr"],
-                batch_size=agent_configs["batch_size"],
-                buffer_size=agent_configs["buffer_size"],
-                epsilon=agent_configs["epsilon"],
-                epsilon_decay=agent_configs["epsilon_decay"],
-                epsilon_min=agent_configs["epsilon_min"],
-            )
+        # Initialize requested network structural agent or fallback to RandomAgent
+        if is_trainable_agent:
+            agent_class = trainable_agent_mapping[agent_type]
+
+            # Base parameters shared by all structural reinforcement models
+            agent_kwargs = {
+                "node_feature_size": node_feature_size,
+                "device": device,
+                "gamma": agent_configs.get("gamma", 0.99),
+                "lr": agent_configs.get("lr", 1e-3),
+                "batch_size": agent_configs.get("batch_size", 64),
+                "buffer_size": agent_configs.get("buffer_size", 10000),
+                "epsilon": agent_configs.get("epsilon", 1.0),
+                "epsilon_decay": agent_configs.get("epsilon_decay", 0.995),
+                "epsilon_min": agent_configs.get("epsilon_min", 0.01),
+            }
+
+            # Conditionally attach optional architectural hyperparameters safely
+            if "hidden_dim" in agent_configs:
+                agent_kwargs["hidden_dim"] = agent_configs["hidden_dim"]
+            if "heads" in agent_configs:
+                agent_kwargs["heads"] = agent_configs["heads"]
+            if "num_layers" in agent_configs:
+                agent_kwargs["num_layers"] = agent_configs["num_layers"]
+            if agent_type == "transformer" and "pos_dim" in agent_configs:
+                agent_kwargs["pos_dim"] = agent_configs["pos_dim"]
+
+            mrX_agent = agent_class(**agent_kwargs)
             if logger.model_exists(MrX_model_name):
                 mrX_agent.load_state_dict(
                     logger.load_model(MrX_model_name), strict=False
                 )
 
-            police_agent = GNNAgent(
-                node_feature_size=node_feature_size,
-                device=device,
-                gamma=agent_configs["gamma"],
-                lr=agent_configs["lr"],
-                batch_size=agent_configs["batch_size"],
-                buffer_size=agent_configs["buffer_size"],
-                epsilon=agent_configs["epsilon"],
-                epsilon_decay=agent_configs["epsilon_decay"],
-                epsilon_min=agent_configs["epsilon_min"],
-            )
+            police_agent = agent_class(**agent_kwargs)
             if logger.model_exists(Police_model_name):
                 police_agent.load_state_dict(
                     logger.load_model(Police_model_name), strict=False
@@ -180,7 +197,7 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
             mrX_agent = RandomAgent()
             police_agent = RandomAgent()
 
-        logger.log("Agents initialized.", level="debug")
+        logger.log(f"Agents initialized with type: {agent_type}.", level="debug")
 
         # Episode training loop
         mrx_wins = 0
@@ -257,8 +274,8 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
                 episode_reward += rewards.get("MrX", 0.0)
                 episode_step += 1
 
-                # Update agents immediately
-                if agent_configs["agent_type"] == "gnn":
+                # Update trainable agents immediately
+                if is_trainable_agent:
                     # Update MrX agent
                     mrX_next_graph_data = create_graph_data(next_state, "MrX", env).to(
                         device
@@ -345,7 +362,7 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
         )
 
         # Save models
-        if agent_configs["agent_type"] == "gnn":
+        if is_trainable_agent:
             logger.log_model(mrX_agent, MrX_model_name)
             logger.log_model(police_agent, Police_model_name)
             logger.log_model(reward_weight_net, "RewardWeightNet")

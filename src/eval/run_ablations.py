@@ -20,16 +20,21 @@ import numpy as np
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from eval.metrics import MetricsTracker  # noqa: E402
-import torch
-from environment.yard import CustomEnvironment
-from torchrl.envs.libs.pettingzoo import PettingZooWrapper
-from torchrl.envs import step_mdp
-from agent.gnn_agent import GNNAgent
-from agent.gat_agent import GATAgent
-from agent.transformer_agent import TransformerAgent
-from agent.random_agent import RandomAgent
-from logger import Logger
-from training.utils import device, create_graph_data, extract_step_info, is_episode_done
+import torch  # noqa: E402
+from environment.yard import CustomEnvironment  # noqa: E402
+from torchrl.envs.libs.pettingzoo import PettingZooWrapper  # noqa: E402
+from torchrl.envs import step_mdp  # noqa: E402
+from agent.gnn_agent import GNNAgent  # noqa: E402
+from agent.gat_agent import GATAgent  # noqa: E402
+from agent.transformer_agent import TransformerAgent  # noqa: E402
+from agent.random_agent import RandomAgent  # noqa: E402
+from logger import Logger  # noqa: E402
+from training.utils import (  # noqa: E402
+    device,
+    create_graph_data,
+    extract_step_info,
+    is_episode_done,
+)
 
 
 @dataclass

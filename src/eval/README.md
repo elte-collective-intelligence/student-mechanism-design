@@ -275,6 +275,51 @@ plot_feature_importance(ablation_results)
 - Identify opportunities for simplification
 - Prepare research presentations
 
+### `attention_viz.py`
+**Attention visualization helpers for GAT and Transformer agents.** This file:
+- Reduces per-head attention into per-edge weights and computes compact summaries.
+- Renders attention as edge overlays and produces GIFs of attention over time.
+- Used by `run_attention_episode.py` to extract per-step attention and to build visualizations.
+
+**Key Functions:**
+- `aggregate_attention(edge_index, alpha, num_nodes, drop_self_loops=True)`: Reduce heads to one weight per undirected edge.
+- `compute_attention_summary(edge_index, alpha, mrx_pos, police_positions, num_nodes, top_k=5)`: Compute per-step scalars (mean entropy, mass on MrX/police edges, top edges).
+- `render_attention_frame(board, mrx_pos, police_positions, edge_index, alpha, ...)`: Render a single attention overlay frame as an image array.
+- `save_attention_gif(frames, path, interval=400)`: Save a sequence of frames to a GIF.
+
+### `attention_plots.py`
+**Plotting helpers for correlating attention with strategic events.** This file:
+- Loads the JSON sidecar written by `run_attention_episode.py` and creates plots tying
+  attention summaries to gameplay events (reveal steps, capture step).
+- Produces time-series and bar/heatmap visualizations for reports and debugging.
+
+**Key Functions:**
+- `_load(events_path)`: Load the episode-events JSON sidecar.
+- `_series(events, key)`: Extract a per-step numeric series from the events.
+- `_mark_events(ax, events)`: Overlay reveal/capture markers on plots.
+- `plot_attention_entropy_vs_time(events_path, out_path)`: Line plot of mean attention entropy.
+- `plot_attention_on_mrx_node(events_path, out_path)`: Line plot of attention mass on MrX/police nodes.
+- `plot_capture_step_heatmap(events_path, out_path)`: Bar chart of top edges at capture/final step.
+- `plot_all(events_path, out_dir)`: Convenience wrapper to write all plots.
+
+### `run_attention_episode.py`
+**Attention-rollout runner that extracts attention during episodes.** This file:
+- Loads a GAT or Transformer agent (optionally from checkpoints), rolls out one or more
+  episodes in a small environment, extracts MrX attention per step, renders an attention GIF,
+  and writes a JSON sidecar with strategic events (`reveal_steps`, `capture_step`, per-step summaries).
+
+**Key Classes / Functions:**
+- `EpisodeEvents`: Dataclass for collecting per-step event records and metadata.
+- `load_runner_config(config_path)`: Load YAML runner configuration.
+- `_build_agent(agent_type, common_params)`: Construct a `GATAgent` or `TransformerAgent`.
+- `_try_load_checkpoint(agent, path, label)`: Best-effort checkpoint loading.
+- `run_attention_episode(config, seed=42, output_dir='logs/attention')`: Run rollout, save GIF + JSON, and return `EpisodeEvents`.
+- `main()`: CLI entrypoint (default config path: `configs/experiments/attention_episode/config.yaml`).
+
+**Outputs:**
+- A GIF showing attention overlays (e.g. `logs/attention/attention_seed42.gif`).
+- A JSON sidecar with per-step attention summaries and event markers (e.g. `logs/attention/attention_seed42.json`).
+
 ## Evaluation Workflow
 
 **Standard Evaluation Process:**

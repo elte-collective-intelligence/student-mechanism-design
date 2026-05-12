@@ -4,10 +4,10 @@ import sys
 import torch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
-from eval.attention_viz import (
+from eval.attention_viz import (  # noqa: E402
     aggregate_attention,
     compute_attention_summary,
-)  # noqa: E402
+)
 
 
 def test_aggregate_attention_mean_over_heads():
