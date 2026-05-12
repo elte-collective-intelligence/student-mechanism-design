@@ -28,7 +28,7 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
     Main training function for GNN, GAT, and Transformer agents.
 
     Trains network-based agents (MrX and Police) using graph neural networks,
-    graph attention networks, or transformers with curriculum learning over 
+    graph attention networks, or transformers with curriculum learning over
     multiple epochs and agent configurations.
 
     Args:
@@ -80,7 +80,7 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
     trainable_agent_mapping = {
         "gnn": GNNAgent,
         "gat": GATAgent,
-        "transformer": TransformerAgent
+        "transformer": TransformerAgent,
     }
     agent_type = agent_configs.get("agent_type", "gnn")
     is_trainable_agent = agent_type in trainable_agent_mapping
@@ -158,7 +158,7 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
         # Initialize requested network structural agent or fallback to RandomAgent
         if is_trainable_agent:
             agent_class = trainable_agent_mapping[agent_type]
-            
+
             # Base parameters shared by all structural reinforcement models
             agent_kwargs = {
                 "node_feature_size": node_feature_size,
@@ -171,7 +171,7 @@ def train_gnn(args, agent_configs, logger_configs, visualization_configs):
                 "epsilon_decay": agent_configs.get("epsilon_decay", 0.995),
                 "epsilon_min": agent_configs.get("epsilon_min", 0.01),
             }
-            
+
             # Conditionally attach optional architectural hyperparameters safely
             if "hidden_dim" in agent_configs:
                 agent_kwargs["hidden_dim"] = agent_configs["hidden_dim"]
