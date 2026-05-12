@@ -12,12 +12,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.animation as animation
-import matplotlib.patches as mpatches
-import matplotlib.pyplot as plt
-import networkx as nx
-import numpy as np
-import torch
+import matplotlib.animation as animation  # noqa: E402
+import matplotlib.patches as mpatches  # noqa: E402
+import matplotlib.pyplot as plt  # noqa: E402
+import networkx as nx  # noqa: E402
+import numpy as np  # noqa: E402
+import torch  # noqa: E402
 
 
 def aggregate_attention(
