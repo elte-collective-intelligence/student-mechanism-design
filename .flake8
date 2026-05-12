@@ -6,3 +6,4 @@ per-file-ignores =
     src/eval/run_attention_episode.py: E402
     src/eval/attention_plots.py: E402
     src/eval/attention_viz.py: E402
+    test/test_attention_viz.py: E402
