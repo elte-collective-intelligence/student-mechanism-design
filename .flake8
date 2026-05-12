@@ -4,3 +4,5 @@ extend-ignore = E712, F541
 per-file-ignores =
     src/eval/run_ablations.py: E402
     src/eval/run_attention_episode.py: E402
+    src/eval/attention_plots.py: E402
+    src/eval/attention_viz.py: E402
