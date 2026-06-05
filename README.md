@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/elte-collective-intelligence/student-mechanism-design/actions/workflows/ci.yml/badge.svg)](https://github.com/elte-collective-intelligence/student-mechanism-design/actions/workflows/ci.yml)
 [![Docker](https://github.com/elte-collective-intelligence/student-mechanism-design/actions/workflows/docker.yml/badge.svg)](https://github.com/elte-collective-intelligence/student-mechanism-design/actions/workflows/docker.yml)
-[![codecov](https://codecov.io/gh/elte-collective-intelligence/student-mechanism-design/branch/main/graph/badge.svg)](https://codecov.io/gh/elte-collective-intelligence/student-mechanism-design)
 [![License: CC BY-NC-ND 4.0](https://img.shields.io/badge/License-CC--BY--NC--ND%204.0-blue.svg)](LICENSE)
 
 ---
