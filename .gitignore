@@ -45,8 +45,6 @@ src/wandb_data.json
 # Coverage reports
 *.coverage
 .coverage.*
-# Codecov uploader binary (do not commit)
-codecov
 .pytest_cache/
 
 # Jupyter Notebook checkpoints
